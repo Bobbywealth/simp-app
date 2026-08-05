@@ -31,9 +31,10 @@ model User {
   updatedAt     DateTime @updatedAt
   emailVerified Boolean  @default(false)
 
-  profile     Profile?
-  photos      Photo[]
+  profile       Profile?
+  photos        Photo[]
   refreshTokens RefreshToken[]
+  interests     UserInterest[]
 }
 
 model Profile {
@@ -71,14 +72,14 @@ model Interest {
   id     String @id @default(cuid())
   slug   String @unique
   label  String
-  users  UserInterest[]
+  users  UserInterest[] @relation("InterestToUsers")
 }
 
 model UserInterest {
   userId     String
   interestId String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  interest   Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+  interest   Interest @relation("InterestToUsers", fields: [interestId], references: [id], onDelete: Cascade)
 
   @@id([userId, interestId])
 }
