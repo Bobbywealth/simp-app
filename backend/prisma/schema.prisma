@@ -1,0 +1,94 @@
+// Prisma schema for SIMP dating app
+// Models: User, Profile, Photo, RefreshToken, Interest
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Gender {
+  WOMAN
+  MAN
+  NONBINARY
+  PREFER_NOT_TO_SAY
+}
+
+enum LookingFor {
+  WOMEN
+  MEN
+  EVERYONE
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  emailVerified Boolean  @default(false)
+
+  profile     Profile?
+  photos      Photo[]
+  refreshTokens RefreshToken[]
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  displayName String
+  bio         String?
+  birthDate   DateTime
+  gender      Gender
+  lookingFor  LookingFor
+  city        String?
+  occupation  String?
+  heightCm    Int?
+  isVerified  Boolean  @default(false)
+  isPremium   Boolean  @default(false)
+
+  interests   UserInterest[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Photo {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url       String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Interest {
+  id     String @id @default(cuid())
+  slug   String @unique
+  label  String
+  users  UserInterest[]
+}
+
+model UserInterest {
+  userId     String
+  interestId String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interest   Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  @@id([userId, interestId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+}
