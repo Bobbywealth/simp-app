@@ -2,16 +2,16 @@
   <defs>
     <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stopColor="#f6e6b8"/>
-      <stop offset="40%" stopColor="#e8d598"/>
-      <stop offset="60%" stopColor="#d4a93a"/>
+      <stop offset="45%" stopColor="#e8d598"/>
+      <stop offset="65%" stopColor="#d4a93a"/>
       <stop offset="100%" stopColor="#a98320"/>
     </linearGradient>
-    <radialGradient id="bgGradient" cx="50%" cy="30%" r="80%">
-      <stop offset="0%" stopColor="#2a2a2a"/>
+    <radialGradient id="bgGradient" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stopColor="#1a1a1a"/>
       <stop offset="100%" stopColor="#000000"/>
     </radialGradient>
     <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
       <feMerge>
         <feMergeNode in="coloredBlur"/>
         <feMergeNode in="SourceGraphic"/>
@@ -23,74 +23,43 @@
   <rect width="512" height="512" fill="url(#bgGradient)"/>
 
   <g transform="translate(256, 256)">
-    <!-- Crown (positioned at top) -->
-    <g transform="translate(0, -120)">
-      <!-- Crown base band -->
-      <ellipse cx="0" cy="0" rx="95" ry="25" fill="url(#goldGradient)" opacity="0.9"/>
+    <!-- Crown at top (small, elegant) -->
+    <g transform="translate(0, -140)">
+      <!-- Crown base line -->
+      <line x1="-60" y1="0" x2="60" y2="0" stroke="url(#goldGradient)" strokeWidth="8" strokeLinecap="round" opacity="0.8"/>
       
-      <!-- Crown points -->
-      <!-- Center tall point -->
-      <polygon points="0,-45 -12,-15 12,-15" fill="url(#goldGradient)" filter="url(#glow)"/>
+      <!-- Crown points - 5 triangular peaks -->
+      <!-- Center peak (tallest) -->
+      <polygon points="0,-50 -8,-8 8,-8" fill="url(#goldGradient)" filter="url(#glow)"/>
       
-      <!-- Left-center point -->
-      <polygon points="-45,-35 -55,-10 -35,-10" fill="url(#goldGradient)"/>
+      <!-- Left-center peak -->
+      <polygon points="-30,-35 -38,-8 -22,-8" fill="url(#goldGradient)"/>
       
-      <!-- Right-center point -->
-      <polygon points="45,-35 35,-10 55,-10" fill="url(#goldGradient)"/>
+      <!-- Right-center peak -->
+      <polygon points="30,-35 22,-8 38,-8" fill="url(#goldGradient)"/>
       
-      <!-- Far left point -->
-      <polygon points="-75,-20 -85,5 -65,5" fill="url(#goldGradient)" opacity="0.85"/>
+      <!-- Far left peak -->
+      <polygon points="-58,-25 -64,-5 -52,-5" fill="url(#goldGradient)" opacity="0.9"/>
       
-      <!-- Far right point -->
-      <polygon points="75,-20 65,5 85,5" fill="url(#goldGradient)" opacity="0.85"/>
-      
-      <!-- Jewels on crown -->
-      <circle cx="0" cy="-42" r="8" fill="url(#goldGradient)" filter="url(#glow)"/>
-      <circle cx="-45" cy="-32" r="6" fill="url(#goldGradient)"/>
-      <circle cx="45" cy="-32" r="6" fill="url(#goldGradient)"/>
-      <circle cx="-75" cy="-15" r="5" fill="url(#goldGradient)" opacity="0.8"/>
-      <circle cx="75" cy="-15" r="5" fill="url(#goldGradient)" opacity="0.8"/>
-      
-      <!-- Inner crown shine -->
-      <ellipse cx="0" cy="0" rx="85" ry="20" fill="url(#goldGradient)" opacity="0.3"/>
+      <!-- Far right peak -->
+      <polygon points="58,-25 52,-5 64,-5" fill="url(#goldGradient)" opacity="0.9"/>
     </g>
 
-    <!-- Stylized S -->
-    <g transform="translate(0, 0)">
-      <!-- Upper curve of S -->
+    <!-- Large elegant S -->
+    <g transform="translate(0, 10)">
+      <!-- Upper S curve -->
       <path 
-        d="M 50 -70 Q 80 -80 85 -50 Q 90 -30 60 -20 Q 30 -10 20 10" 
+        d="M 60 -90 Q 90 -100 90 -60 Q 90 -35 55 -25 Q 20 -15 0 0 Q -20 10 -55 20 Q -90 30 -90 60 Q -90 90 -60 100 Q -20 115 20 90 Q 50 75 60 40" 
         stroke="url(#goldGradient)" 
-        strokeWidth="28" 
+        strokeWidth="48" 
         strokeLinecap="round" 
         strokeLinejoin="round"
         fill="none"
         filter="url(#glow)"
-      />
-      
-      <!-- Lower curve of S -->
-      <path 
-        d="M -50 70 Q -80 80 -85 50 Q -90 30 -60 20 Q -30 10 -20 -10" 
-        stroke="url(#goldGradient)" 
-        strokeWidth="28" 
-        strokeLinecap="round" 
-        strokeLinejoin="round"
-        fill="none"
-        filter="url(#glow)"
-      />
-      
-      <!-- Connecting middle flourish -->
-      <path
-        d="M 45 -15 Q 0 -5 -45 15"
-        stroke="url(#goldGradient)"
-        strokeWidth="20"
-        strokeLinecap="round"
-        fill="none"
-        opacity="0.7"
       />
     </g>
   </g>
 
-  <!-- Outer glow effect -->
-  <circle cx="256" cy="256" r="250" fill="none" stroke="url(#goldGradient)" strokeWidth="1" opacity="0.3"/>
+  <!-- Subtle outer ring -->
+  <circle cx="256" cy="256" r="248" fill="none" stroke="url(#goldGradient)" strokeWidth="0.5" opacity="0.2"/>
 </svg>
