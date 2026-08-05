@@ -303,7 +303,7 @@ function SlideVisual({ type }: { type: Slide['visualType'] }) {
         {/* Central Gold Plus Button */}
         <motion.button
           whileHover={{ scale: 1.1 }}
-          whileActive={{ scale: 0.95 }}
+          whileTap={{ scale: 0.95 }}
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex size-14 items-center justify-center rounded-full border border-gold-400 bg-gold-gradient text-ink-950 shadow-glow hover:shadow-[0_0_32px_rgba(212,169,58,0.7)]"
         >
           <svg viewBox="0 0 24 24" fill="none" className="size-7" stroke="currentColor" strokeWidth="3">
