@@ -53,7 +53,7 @@ model Profile {
   isVerified  Boolean  @default(false)
   isPremium   Boolean  @default(false)
 
-  interests   UserInterest[]
+  interests   UserInterest[] @relation("ProfileInterests")
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -78,8 +78,10 @@ model Interest {
 model UserInterest {
   userId     String
   interestId String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  interest   Interest @relation("InterestToUsers", fields: [interestId], references: [id], onDelete: Cascade)
+  profileId  String?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interest   Interest  @relation("InterestToUsers", fields: [interestId], references: [id], onDelete: Cascade)
+  profile    Profile?  @relation("ProfileInterests", fields: [profileId], references: [id], onDelete: Cascade)
 
   @@id([userId, interestId])
 }
