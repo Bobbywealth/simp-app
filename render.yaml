@@ -37,6 +37,8 @@ services:
 
 databases:
   - name: simp-db
-    plan: standard
-    databaseName: simp_app
-    user: simp_user
+  plan: basic_256mb
+  databaseName: simp_app
+  user: simp_user
+  region: oregon
+  version: 16
