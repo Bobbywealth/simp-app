@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from './store/auth';
 import Welcome from './pages/Welcome';
 import Onboarding from './pages/Onboarding';
@@ -10,41 +11,68 @@ import Home from './pages/Home';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoadingScreen } from './components/LoadingScreen';
 
+const MIN_LOADING_MS = 1600;
+
 export default function App() {
   const { initialize, ready } = useAuth();
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
   useEffect(() => {
     initialize();
+    const startedAt = Date.now();
+    const remaining = Math.max(0, MIN_LOADING_MS - (Date.now() - startedAt));
+    const t = setTimeout(() => setMinTimeElapsed(true), remaining);
+    return () => clearTimeout(t);
   }, [initialize]);
 
-  if (!ready) {
-    return <LoadingScreen />;
-  }
+  const showLoader = !ready || !minTimeElapsed;
 
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/welcome" replace />} />
-      <Route path="/welcome" element={<Welcome />} />
-      <Route path="/onboarding" element={<Onboarding />} />
-      <Route path="/signup" element={<Signup />} />
-      <Route path="/login" element={<Login />} />
-      <Route
-        path="/profile-setup"
-        element={
-          <ProtectedRoute>
-            <ProfileSetup />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/home"
-        element={
-          <ProtectedRoute>
-            <Home />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="*" element={<Navigate to="/welcome" replace />} />
-    </Routes>
+    <AnimatePresence mode="wait">
+      {showLoader ? (
+        <motion.div
+          key="loader"
+          initial={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          className="fixed inset-0 z-50"
+        >
+          <LoadingScreen />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="app"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          className="contents"
+        >
+          <Routes>
+            <Route path="/" element={<Navigate to="/welcome" replace />} />
+            <Route path="/welcome" element={<Welcome />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/profile-setup"
+              element={
+                <ProtectedRoute>
+                  <ProfileSetup />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/home"
+              element={
+                <ProtectedRoute>
+                  <Home />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/welcome" replace />} />
+          </Routes>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
