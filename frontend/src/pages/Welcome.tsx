@@ -7,12 +7,45 @@ export default function Welcome() {
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-between bg-black text-white">
-      <img
-        src="/satin-black.png"
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
-      />
-      <div className="absolute inset-0 bg-black/35 pointer-events-none" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          className="flex h-[200vh] w-full flex-col will-change-transform"
+          animate={{ y: ['0%', '-50%'] }}
+          transition={{ duration: 38, ease: 'linear', repeat: Infinity }}
+          aria-hidden
+        >
+          <img
+            src="/satin-black.png"
+            alt=""
+            className="block h-[100vh] w-full object-cover select-none"
+            draggable={false}
+          />
+          <img
+            src="/satin-black.png"
+            alt=""
+            className="block h-[100vh] w-full object-cover select-none"
+            draggable={false}
+          />
+        </motion.div>
+        <motion.div
+          className="absolute inset-0 will-change-transform"
+          style={{ scale: 1.08, transformOrigin: '60% 40%' }}
+          animate={{ x: ['0%', '-3%', '0%'], y: ['0%', '2%', '0%'] }}
+          transition={{ duration: 22, ease: 'easeInOut', repeat: Infinity }}
+          aria-hidden
+        >
+          <div
+            className="h-full w-full opacity-60 mix-blend-screen"
+            style={{
+              backgroundImage: 'url(/satin-black.png)',
+              backgroundSize: '120% auto',
+              backgroundRepeat: 'repeat',
+              filter: 'blur(28px)',
+            }}
+          />
+        </motion.div>
+      </div>
+      <div className="absolute inset-0 bg-black/40 pointer-events-none" />
       <div className="absolute -top-40 left-1/2 -translate-x-1/2 size-[480px] rounded-full bg-gold-400/10 blur-3xl pointer-events-none" />
 
       <div className="relative pt-safe" />
