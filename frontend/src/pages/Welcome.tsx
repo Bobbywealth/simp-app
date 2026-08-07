@@ -6,8 +6,13 @@ export default function Welcome() {
   const navigate = useNavigate();
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-between bg-ink-950 text-white">
-      <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
+    <div className="relative flex min-h-screen flex-col items-center justify-between bg-black text-white">
+      <img
+        src="/satin-black.png"
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover pointer-events-none select-none"
+      />
+      <div className="absolute inset-0 bg-black/35 pointer-events-none" />
       <div className="absolute -top-40 left-1/2 -translate-x-1/2 size-[480px] rounded-full bg-gold-400/10 blur-3xl pointer-events-none" />
 
       <div className="relative pt-safe" />
