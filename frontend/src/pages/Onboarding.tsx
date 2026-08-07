@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { OnboardingLayout } from '../components/OnboardingLayout';
 
+type TitleSegment = { text: string; gold?: boolean };
+type TitleLine = TitleSegment[];
+
 interface Slide {
   kicker: string;
-  title: string[];
+  title: TitleLine[];
   body: string;
   visualType: 'connections' | 'livestream' | 'experiences' | 'rules' | 'moments' | 'luxury' | 'rewards';
 }
@@ -13,43 +16,64 @@ interface Slide {
 const slides: Slide[] = [
   {
     kicker: 'Verified',
-    title: ['REAL PEOPLE.', 'REAL CONNECTIONS.'],
+    title: [
+      [{ text: 'REAL PEOPLE.' }],
+      [{ text: 'REAL ' }, { text: 'CONNECTIONS.', gold: true }],
+    ],
     body: 'Meet verified, high-quality members looking for meaningful connections and unforgettable experiences.',
     visualType: 'connections',
   },
   {
     kicker: 'Live',
-    title: ['LIVE. CONNECT.', 'BE SEEN.'],
+    title: [
+      [{ text: 'LIVE. CONNECT.' }],
+      [{ text: 'BE ' }, { text: 'SEEN.', gold: true }],
+    ],
     body: 'Go live, join live streams, and build your audience. Real interactions in real time.',
     visualType: 'livestream',
   },
   {
     kicker: 'Curated',
-    title: ['EXPERIENCES', 'OVER EVERYTHING.'],
+    title: [
+      [{ text: 'EXPERIENCES' }],
+      [{ text: 'OVER ' }, { text: 'EVERYTHING.', gold: true }],
+    ],
     body: 'From dinner dates to dream getaways, SIMP is built around creating moments that matter.',
     visualType: 'experiences',
   },
   {
     kicker: 'You',
-    title: ['YOUR EXPERIENCE.', 'YOUR RULES.'],
+    title: [
+      [{ text: 'YOUR EXPERIENCE.' }],
+      [{ text: 'YOUR ' }, { text: 'RULES.', gold: true }],
+    ],
     body: "You're in control. Choose what you share, who you connect with, and how you want to be seen.",
     visualType: 'rules',
   },
   {
     kicker: 'Moments',
-    title: ['SHARE MOMENTS.', 'BUILD MEMORIES.'],
+    title: [
+      [{ text: 'SHARE MOMENTS.' }],
+      [{ text: 'BUILD ' }, { text: 'MEMORIES.', gold: true }],
+    ],
     body: 'Post, live stream, and share your life. Find someone who wants to be part of it.',
     visualType: 'moments',
   },
   {
     kicker: 'Luxury',
-    title: ['ACCESS A WORLD', 'BEYOND ORDINARY.'],
+    title: [
+      [{ text: 'ACCESS A WORLD' }],
+      [{ text: 'BEYOND ' }, { text: 'ORDINARY.', gold: true }],
+    ],
     body: 'Exclusive events, VIP access, and luxury perks for members who live life to the fullest.',
     visualType: 'luxury',
   },
   {
     kicker: 'Rewards',
-    title: ['JOIN A COMMUNITY', 'THAT REWARDS YOU.'],
+    title: [
+      [{ text: 'JOIN A COMMUNITY' }],
+      [{ text: 'THAT ' }, { text: 'REWARDS YOU.', gold: true }],
+    ],
     body: 'Earn points, unlock levels, and enjoy exclusive benefits.',
     visualType: 'rewards',
   },
@@ -78,15 +102,21 @@ export default function Onboarding() {
             transition={{ duration: 0.4, ease: 'easeOut' }}
             className="flex flex-1 flex-col justify-between"
           >
-            {/* Header Text (Now matches mockup placement at top) */}
+            {/* Header Text (matches mockup placement at top) */}
             <div className="mb-6 pt-4">
               <span className="text-[11px] font-semibold uppercase tracking-[0.4em] text-gold-300">
                 {slide.kicker}
               </span>
-              <h2 className="display-heading mt-2 text-2xl font-semibold leading-tight tracking-[0.1em] text-gold-gradient">
+              <h2 className="display-heading mt-2 text-2xl font-semibold leading-tight tracking-[0.1em]">
                 {slide.title.map((line, i) => (
                   <span key={i} className="block">
-                    {line}
+                    {line.map((seg, j) =>
+                      seg.gold ? (
+                        <span key={j} className="text-gold-gradient">{seg.text}</span>
+                      ) : (
+                        <span key={j} className="text-white">{seg.text}</span>
+                      )
+                    )}
                   </span>
                 ))}
               </h2>
