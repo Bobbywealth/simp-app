@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { SimpLogo } from '../components/SimpLogo';
 import { login, me } from '../api/auth';
 import { useAuth } from '../store/auth';
 
@@ -47,6 +48,14 @@ export default function Login() {
           transition={{ duration: 0.5 }}
           className="flex flex-1 flex-col justify-center py-10"
         >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            className="mb-6"
+          >
+            <SimpLogo size={88} variant="emblem" />
+          </motion.div>
           <h1 className="display-heading text-3xl font-light">Welcome back</h1>
           <div className="gold-divider mt-4 !mx-0" />
           <p className="mt-4 text-sm text-white/70">Log in to continue your journey.</p>
