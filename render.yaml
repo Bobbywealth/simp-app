@@ -33,7 +33,7 @@ services:
     staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://simp-backend.onrender.com
+        value: https://simp-backend-b8nz.onrender.com
 
 databases:
   - name: simp-db
