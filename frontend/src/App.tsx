@@ -8,13 +8,18 @@ import Login from './pages/Login';
 import ProfileSetup from './pages/ProfileSetup';
 import Home from './pages/Home';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { LoadingScreen } from './components/LoadingScreen';
 
 export default function App() {
-  const { initialize } = useAuth();
+  const { initialize, ready } = useAuth();
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  if (!ready) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Routes>
