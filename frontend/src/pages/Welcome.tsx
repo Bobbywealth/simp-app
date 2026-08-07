@@ -61,7 +61,7 @@ export default function Welcome() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.15 }}
-          className="text-[11px] font-medium uppercase tracking-[0.45em] text-gold-300/80"
+          className="whitespace-nowrap px-2 text-[10.5px] font-medium uppercase tracking-[0.18em] text-gold-300/80"
         >
           Superior · Intelligent · Male · Pleasers
         </motion.p>
