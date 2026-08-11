@@ -166,8 +166,8 @@ export default function Discover() {
 
   return (
     <Scaffold canGoBack onBack={() => navigate('/home')}>
-      <div className="relative flex-1 px-4 pb-6">
-        <div className="relative mx-auto h-full max-w-md min-h-0">
+      <div className="flex flex-1 px-4 pb-6">
+        <div className="relative mx-auto flex-1 max-w-md">
           {stack
             .slice()
             .reverse() // render bottom first
