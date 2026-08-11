@@ -342,9 +342,9 @@ export default function LiveStreamPage() {
   return (
     <Scaffold onBack={() => navigate('/live')}>
       <div className="relative flex-1">
-        <div className="mx-auto flex h-full max-w-5xl flex-col gap-0 px-3 pb-24 pt-3 lg:flex-row lg:gap-4 lg:px-4 lg:pb-6">
+        <div className="mx-auto flex h-full max-w-5xl flex-col gap-0 px-3 pb-24 pt-3 lg:flex-row lg:items-stretch lg:gap-4 lg:px-4 lg:pb-6">
           {/* Video stage */}
-          <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden rounded-2xl bg-black lg:aspect-auto lg:h-auto lg:flex-1">
+          <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden rounded-2xl bg-black lg:aspect-auto lg:h-full lg:min-h-[500px] lg:flex-1">
             {/* The video element always renders so we can attach the stream when ready */}
             <video
               ref={isBroadcaster ? localVideoRef : remoteVideoRef}
@@ -491,7 +491,7 @@ export default function LiveStreamPage() {
           </div>
 
           {/* Chat panel (always-visible, separate from video) */}
-          <div className="mt-3 flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-ink-900/60 lg:mt-0 lg:w-80 lg:shrink-0">
+          <div className="mt-3 flex min-h-[300px] flex-1 flex-col rounded-2xl border border-white/10 bg-ink-900/60 lg:mt-0 lg:h-full lg:min-h-[500px] lg:w-80 lg:shrink-0">
             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
                 Live chat
