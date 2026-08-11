@@ -12,6 +12,8 @@ import ProfileEdit from './pages/ProfileEdit';
 import Settings from './pages/Settings';
 import Home from './pages/Home';
 import Discover from './pages/Discover';
+import Live from './pages/Live';
+import LiveStream from './pages/LiveStream';
 import Matches from './pages/Matches';
 import MatchDetail from './pages/MatchDetail';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -105,6 +107,22 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Discover />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/live"
+              element={
+                <ProtectedRoute>
+                  <Live />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/live/:id"
+              element={
+                <ProtectedRoute>
+                  <LiveStream />
                 </ProtectedRoute>
               }
             />

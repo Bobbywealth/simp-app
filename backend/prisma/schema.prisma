@@ -50,6 +50,8 @@ model User {
   blocksReceived  Block[]        @relation("BlocksReceived")
   reportsMade     Report[]       @relation("ReportsMade")
   reportsReceived Report[]       @relation("ReportsReceived")
+  streamsBroadcast LiveStream[]  @relation("StreamsBroadcast")
+  liveChatMessages LiveChatMessage[]
 }
 
 model Profile {
@@ -182,4 +184,38 @@ model Report {
 
   @@index([reporterId])
   @@index([reportedId])
+}
+
+model LiveStream {
+  id              String           @id @default(cuid())
+  broadcasterId   String
+  title           String
+  status          LiveStreamStatus @default(LIVE)
+  viewerCount     Int              @default(0)
+  startedAt       DateTime         @default(now())
+  endedAt         DateTime?
+
+  broadcaster     User             @relation("StreamsBroadcast", fields: [broadcasterId], references: [id], onDelete: Cascade)
+  chatMessages    LiveChatMessage[]
+
+  @@index([status])
+  @@index([broadcasterId])
+}
+
+enum LiveStreamStatus {
+  LIVE
+  ENDED
+}
+
+model LiveChatMessage {
+  id          String   @id @default(cuid())
+  streamId    String
+  senderId    String
+  body        String
+  createdAt   DateTime @default(now())
+
+  stream      LiveStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  sender      User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([streamId, createdAt])
 }
