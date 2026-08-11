@@ -196,8 +196,9 @@ export default function LiveStreamPage() {
     };
 
     pc.ontrack = (e) => {
-      if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== e.streams[0]) {
-        remoteVideoRef.current.srcObject = e.streams[0];
+      const stream = e.streams[0];
+      if (stream && remoteVideoRef.current && remoteVideoRef.current.srcObject !== stream) {
+        remoteVideoRef.current.srcObject = stream;
       }
     };
 
