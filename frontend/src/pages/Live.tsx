@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { listLiveStreams, startStream } from '../api/live';
 import type { LiveStream } from '../api/live';
-import { useAuth } from '../store/auth';
 import { SimpLogo } from '../components/SimpLogo';
 
 export default function Live() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [streams, setStreams] = useState<LiveStream[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,17 +61,41 @@ export default function Live() {
       </header>
 
       <main className="relative z-10 flex-1 px-6 pt-6 pb-24">
-        <button
-          onClick={() => setShowGoLive(true)}
-          className="btn-gold flex w-full items-center justify-center gap-2 py-4 text-sm font-semibold uppercase tracking-[0.18em]"
-        >
-          <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-          Go Live
-        </button>
+        {/* Hero "Go Live" CTA */}
+        <div className="overflow-hidden rounded-2xl border border-gold-400/30 bg-gradient-to-br from-ink-900 via-ink-800 to-ink-900 p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
+              <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
+                Go Live
+              </p>
+              <p className="mt-1 text-sm text-white/80">
+                {streams.length > 0
+                  ? `Join ${streams.length} live ${streams.length === 1 ? 'stream' : 'streams'} now.`
+                  : 'Be the first to go live today.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowGoLive(true)}
+            className="mt-4 w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600"
+          >
+            ● Start streaming
+          </button>
+        </div>
 
-        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-gold-300">
-          Live now
-        </p>
+        <div className="mt-8 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-300">
+            Live now
+          </p>
+          {streams.length > 0 && (
+            <p className="text-[10px] text-white/40">
+              Auto-refreshes every 15s
+            </p>
+          )}
+        </div>
 
         {loading && <LiveSkeleton />}
 
@@ -96,12 +118,6 @@ export default function Live() {
             <p className="max-w-xs text-sm text-white/60">
               Be the first to go live. Show your energy, answer questions, and meet people in real time.
             </p>
-            <button
-              onClick={() => setShowGoLive(true)}
-              className="btn-gold px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]"
-            >
-              Go Live now
-            </button>
           </div>
         )}
 
@@ -115,7 +131,7 @@ export default function Live() {
               >
                 <button
                   onClick={() => navigate(`/live/${s.id}`)}
-                  className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-ink-900/60 text-left hover:border-gold-400/30"
+                  className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-ink-900/60 text-left transition hover:border-gold-400/30"
                 >
                   <div className="relative aspect-[3/4] overflow-hidden">
                     {s.broadcaster?.photoUrl ? (
@@ -134,11 +150,11 @@ export default function Live() {
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
                       LIVE
                     </div>
-                    <div className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-white">
-                      ♥ {s.viewerCount}
+                    <div className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white">
+                      👁 {s.viewerCount}
                     </div>
                     <div className="absolute inset-x-0 bottom-0 p-3">
-                      <p className="line-clamp-2 text-sm font-medium text-white">{s.title}</p>
+                      <p className="line-clamp-2 text-sm font-semibold text-white">{s.title}</p>
                       <p className="mt-0.5 text-xs text-white/70">
                         {s.broadcaster?.displayName ?? 'Unknown'}
                       </p>
@@ -202,18 +218,24 @@ function GoLiveModal({ title, onTitleChange, onConfirm, onClose, submitting, err
         className="w-full max-w-md rounded-t-3xl border-t border-gold-400/30 bg-ink-950 p-6 pb-safe"
       >
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/20" />
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">Go Live</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">Start a stream</p>
         <p className="mt-2 text-sm text-white/70">
-          Your camera and mic will be on. Viewers can join and chat in real time.
+          Give your stream a title. Your camera and mic will turn on next.
         </p>
 
         <input
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
           maxLength={120}
+          autoFocus
           placeholder="What are you up to?"
           className="input-luxe mt-4 w-full rounded-xl border border-white/10 bg-ink-900 px-3 py-3 text-base text-white placeholder:text-white/40"
         />
+
+        <div className="mt-3 flex items-center gap-2 text-xs text-white/50">
+          <span>🎙</span>
+          <span>Camera + mic will be requested</span>
+        </div>
 
         {error && (
           <p className="mt-3 text-xs text-red-400" role="alert">
@@ -225,9 +247,9 @@ function GoLiveModal({ title, onTitleChange, onConfirm, onClose, submitting, err
           <button
             onClick={onConfirm}
             disabled={submitting || title.trim().length < 2}
-            className="btn-gold w-full py-3 text-sm font-semibold uppercase tracking-[0.18em] disabled:opacity-50"
+            className="w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600 disabled:opacity-30"
           >
-            {submitting ? 'Starting…' : 'Start streaming'}
+            {submitting ? 'Starting…' : '● Go Live'}
           </button>
           <button
             onClick={onClose}

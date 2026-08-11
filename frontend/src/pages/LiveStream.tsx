@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
 import { endStream, getStreamChat, listLiveStreams } from '../api/live';
 import type { LiveChatMessage, LiveStream } from '../api/live';
@@ -12,10 +12,13 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
+type ConnectionState = 'loading' | 'preview' | 'connecting' | 'live' | 'ended' | 'error';
+
 export default function LiveStreamPage() {
   const navigate = useNavigate();
   const { id: streamId } = useParams<{ id: string }>();
   const { user } = useAuth();
+
   const [stream, setStream] = useState<LiveStream | null>(null);
   const [isBroadcaster, setIsBroadcaster] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,8 +26,10 @@ export default function LiveStreamPage() {
   const [messages, setMessages] = useState<LiveChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [hearts, setHearts] = useState<{ id: number; x: number }[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [streamEnded, setStreamEnded] = useState(false);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('loading');
+  const [cameraReady, setCameraReady] = useState(false);
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [cameraEnabled, setCameraEnabled] = useState(true);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -32,30 +37,58 @@ export default function LiveStreamPage() {
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const socketRef = useRef<Socket | null>(null);
   const heartIdRef = useRef(0);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // Load stream metadata
   useEffect(() => {
     if (!streamId) return;
+    let cancelled = false;
     void (async () => {
       try {
         const res = await listLiveStreams();
         const found = res.streams.find((s) => s.id === streamId);
+        if (cancelled) return;
         if (!found) {
-          setError('Stream not found or ended');
+          setError('Stream not found or has ended');
+          setConnectionState('error');
           return;
         }
         setStream(found);
-        setIsBroadcaster(found.broadcaster?.userId === user?.id);
+        const isBroadcasterNow = found.broadcaster?.userId === user?.id;
+        setIsBroadcaster(isBroadcasterNow);
         setViewerCount(found.viewerCount);
+        if (isBroadcasterNow) {
+          // Broadcaster: show preview first, then "going live" once socket connects
+          setConnectionState('preview');
+        } else {
+          setConnectionState('connecting');
+        }
       } catch (e) {
-        setError((e as Error).message);
+        if (!cancelled) {
+          setError((e as Error).message);
+          setConnectionState('error');
+        }
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [streamId, user?.id]);
 
-  // Set up socket + webrtc
+  // Broadcaster: start camera preview as soon as the page loads (preview state)
+  useEffect(() => {
+    if (!isBroadcaster || connectionState !== 'preview') return;
+    void startCamera();
+    return () => {
+      stopLocalStream();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBroadcaster, connectionState]);
+
+  // Set up socket + rtc
   useEffect(() => {
     if (!streamId || !user) return;
+    if (!isBroadcaster && connectionState === 'preview') return; // not yet ready
     const token = localStorage.getItem('simp_access');
     if (!token) return;
 
@@ -67,24 +100,27 @@ export default function LiveStreamPage() {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      setConnected(true);
       if (isBroadcaster) {
+        setConnectionState('live');
         socket.emit('live:broadcast', { streamId });
       } else {
+        setConnectionState('live');
         socket.emit('live:join', { streamId });
       }
     });
 
-    socket.on('disconnect', () => setConnected(false));
+    socket.on('disconnect', () => {
+      if (!socket.connected) setConnectionState('connecting');
+    });
 
     socket.on('live:error', (payload: { error: string }) => {
       setError(payload.error);
+      setConnectionState('error');
     });
 
     socket.on('live:viewer-joined', (payload: { userId: string; viewerCount: number }) => {
       setViewerCount(payload.viewerCount);
       if (isBroadcaster && payload.userId !== user.id) {
-        // Create a peer connection for the new viewer
         createPeerConnectionForViewer(payload.userId, streamId);
       }
     });
@@ -128,18 +164,23 @@ export default function LiveStreamPage() {
 
     socket.on('live:chat', (msg: LiveChatMessage) => {
       setMessages((prev) => [...prev, msg].slice(-100));
+      setTimeout(() => {
+        if (chatScrollRef.current) {
+          chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+        }
+      }, 50);
     });
 
     socket.on('live:heart', () => {
-      spawnHeart(socketRef.current ? true : false);
+      spawnHeart();
     });
 
     socket.on('live:ended', () => {
-      setStreamEnded(true);
+      setConnectionState('ended');
       stopLocalStream();
     });
 
-    // Load existing chat history
+    // Load existing chat
     getStreamChat(streamId)
       .then((res) => setMessages(res.messages))
       .catch(() => null);
@@ -151,31 +192,59 @@ export default function LiveStreamPage() {
       peerConnectionsRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streamId, user?.id, isBroadcaster]);
+  }, [streamId, user?.id, isBroadcaster, connectionState]);
 
-  // Broadcaster: start camera + mic
+  // Auto-scroll chat to bottom on new messages
   useEffect(() => {
-    if (!isBroadcaster || !connected) return;
-    void (async () => {
-      try {
-        const media = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 720 }, height: { ideal: 1280 }, facingMode: 'user' },
-          audio: true,
-        });
-        localStreamRef.current = media;
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = media;
-          localVideoRef.current.muted = true;
-        }
-      } catch (e) {
-        setError('Camera/mic permission denied. Please allow access to go live.');
-      }
-    })();
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [messages]);
 
-    return () => {
-      stopLocalStream();
-    };
-  }, [isBroadcaster, connected]);
+  async function startCamera() {
+    try {
+      const media = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+        audio: true,
+      });
+      localStreamRef.current = media;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = media;
+        localVideoRef.current.muted = true;
+      }
+      setCameraReady(true);
+    } catch (e) {
+      setError('Camera/mic permission denied. Please allow access and try again.');
+      setConnectionState('error');
+    }
+  }
+
+  function stopLocalStream() {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+  }
+
+  function toggleMic() {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      setMicEnabled(audioTrack.enabled);
+    }
+  }
+
+  function toggleCamera() {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      setCameraEnabled(videoTrack.enabled);
+    }
+  }
 
   function getOrCreatePeerConnection(peerId: string, sid: string): RTCPeerConnection {
     let pc = peerConnectionsRef.current.get(peerId);
@@ -185,7 +254,7 @@ export default function LiveStreamPage() {
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
-        pc!.addTrack(track, localStreamRef.current!);
+        if (track.enabled) pc!.addTrack(track, localStreamRef.current!);
       });
     }
 
@@ -217,13 +286,6 @@ export default function LiveStreamPage() {
     }
   }
 
-  function stopLocalStream() {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
-      localStreamRef.current = null;
-    }
-  }
-
   function sendChatMessage() {
     const body = chatInput.trim();
     if (!body || !streamId) return;
@@ -234,16 +296,16 @@ export default function LiveStreamPage() {
   function sendHeart() {
     if (!streamId) return;
     socketRef.current?.emit('live:heart', { streamId });
-    spawnHeart(true);
+    spawnHeart();
   }
 
-  function spawnHeart(fromSelf: boolean) {
+  function spawnHeart() {
     const id = ++heartIdRef.current;
-    const x = 20 + Math.random() * 60; // 20% to 80% horizontal
+    const x = 20 + Math.random() * 60;
     setHearts((prev) => [...prev, { id, x }]);
     setTimeout(() => {
       setHearts((prev) => prev.filter((h) => h.id !== id));
-    }, 4000);
+    }, 3000);
   }
 
   async function handleEndStream() {
@@ -255,15 +317,16 @@ export default function LiveStreamPage() {
       console.error('end stream failed', e);
     }
     stopLocalStream();
-    navigate('/live', { replace: true });
+    setConnectionState('ended');
+    setTimeout(() => navigate('/live', { replace: true }), 1500);
   }
 
-  if (error && !stream) {
+  if (connectionState === 'error' && !stream) {
     return (
       <Scaffold onBack={() => navigate('/live')}>
         <div className="flex flex-1 items-center justify-center p-6 text-center">
           <div>
-            <p className="text-sm text-red-300">{error}</p>
+            <p className="text-sm text-red-300">{error ?? 'Something went wrong.'}</p>
             <button
               onClick={() => navigate('/live')}
               className="mt-4 btn-gold-outline px-5 py-2 text-xs font-medium uppercase tracking-[0.18em]"
@@ -279,118 +342,188 @@ export default function LiveStreamPage() {
   return (
     <Scaffold onBack={() => navigate('/live')}>
       <div className="relative flex-1">
-        {/* Video area */}
-        <div className="relative mx-auto aspect-[9/16] max-h-[80vh] w-full max-w-md overflow-hidden bg-black">
-          {/* Broadcaster sees their own video; viewer sees broadcaster via remote stream */}
-          {isBroadcaster ? (
+        <div className="mx-auto flex h-full max-w-5xl flex-col gap-0 px-3 pb-24 pt-3 lg:flex-row lg:gap-4 lg:px-4 lg:pb-6">
+          {/* Video stage */}
+          <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden rounded-2xl bg-black lg:aspect-auto lg:h-auto lg:flex-1">
+            {/* The video element always renders so we can attach the stream when ready */}
             <video
-              ref={localVideoRef}
+              ref={isBroadcaster ? localVideoRef : remoteVideoRef}
               autoPlay
               playsInline
               muted
-              className="h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full object-cover"
             />
-          ) : (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="h-full w-full object-cover"
-            />
-          )}
 
-          {/* Empty state when stream hasn't connected yet */}
-          {!connected && (
-            <div className="absolute inset-0 flex items-center justify-center bg-ink-950">
-              <div className="text-center">
-                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-gold-400 border-t-transparent" />
-                <p className="mt-4 text-xs uppercase tracking-[0.2em] text-white/60">Connecting…</p>
+            {/* Connecting state */}
+            {(connectionState === 'connecting' || connectionState === 'loading') && (
+              <div className="absolute inset-0 flex items-center justify-center bg-ink-950">
+                <div className="text-center">
+                  <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-gold-400 border-t-transparent" />
+                  <p className="mt-4 text-xs uppercase tracking-[0.2em] text-white/60">Connecting…</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Stream ended overlay */}
-          {streamEnded && (
-            <div className="absolute inset-0 flex items-center justify-center bg-ink-950/90">
-              <div className="text-center">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gold-300">Stream ended</p>
-                <button
-                  onClick={() => navigate('/live')}
-                  className="mt-6 btn-gold px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]"
+            {/* Preview state (broadcaster: camera ready, not yet "live") */}
+            {connectionState === 'preview' && (
+              <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black via-black/40 to-transparent">
+                <div className="p-6 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
+                    Camera ready
+                  </p>
+                  <p className="mt-2 text-sm text-white/80">
+                    Tap <span className="font-semibold text-white">Go Live</span> to start streaming
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Ended state */}
+            {connectionState === 'ended' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-ink-950/95">
+                <div className="text-center">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gold-300">
+                    Stream ended
+                  </p>
+                  <button
+                    onClick={() => navigate('/live')}
+                    className="mt-6 btn-gold px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]"
+                  >
+                    Back to Live
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Top overlay — LIVE badge + viewer count */}
+            {connectionState === 'live' && (
+              <div className="absolute left-3 right-3 top-3 flex items-center justify-between">
+                <div className="flex items-center gap-1 rounded-full bg-red-500 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                  LIVE
+                </div>
+                <div className="flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[10px] text-white">
+                  <span>👁</span>
+                  <span className="font-semibold">{viewerCount}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Broadcaster title + controls */}
+            {stream && (
+              <div className="absolute left-3 right-3 top-12 flex items-center gap-2">
+                {stream.broadcaster?.photoUrl && (
+                  <img
+                    src={stream.broadcaster.photoUrl}
+                    alt=""
+                    className="h-9 w-9 rounded-full border border-white/40 object-cover"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-white">
+                    {stream.broadcaster?.displayName}
+                  </p>
+                  <p className="truncate text-[11px] text-white/80">{stream.title}</p>
+                </div>
+                {isBroadcaster && connectionState === 'live' && (
+                  <button
+                    onClick={handleEndStream}
+                    className="rounded-full border border-white/40 bg-black/40 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white hover:bg-red-500"
+                  >
+                    End
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Floating hearts */}
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              {hearts.map((h) => (
+                <motion.div
+                  key={h.id}
+                  initial={{ y: '100%', opacity: 1, scale: 0.6 }}
+                  animate={{ y: '-20%', opacity: 0, scale: 1.4 }}
+                  transition={{ duration: 2.5, ease: 'easeOut' }}
+                  className="absolute text-3xl text-red-500 drop-shadow"
+                  style={{ left: `${h.x}%` }}
                 >
-                  Back to Live
-                </button>
-              </div>
+                  ♥
+                </motion.div>
+              ))}
             </div>
-          )}
 
-          {/* Top overlay: LIVE badge + viewer count */}
-          <div className="absolute left-3 right-3 top-3 flex items-center justify-between">
-            <div className="flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-              LIVE
-            </div>
-            <div className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-white">
-              ♥ {viewerCount}
-            </div>
-          </div>
-
-          {/* Title + broadcaster */}
-          {stream && (
-            <div className="absolute left-3 right-3 top-12 flex items-center gap-2">
-              {stream.broadcaster?.photoUrl && (
-                <img
-                  src={stream.broadcaster.photoUrl}
-                  alt=""
-                  className="h-8 w-8 rounded-full border border-white/30 object-cover"
+            {/* Broadcaster: bottom controls (mic toggle, camera toggle, end stream) */}
+            {isBroadcaster && (connectionState === 'preview' || connectionState === 'live') && (
+              <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-3 px-3">
+                <BroadcasterControlButton
+                  active={micEnabled}
+                  onClick={toggleMic}
+                  disabled={connectionState === 'preview'}
+                  label={micEnabled ? 'Mic on' : 'Mic off'}
+                  icon={micEnabled ? '🎙' : '🔇'}
                 />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">{stream.broadcaster?.displayName}</p>
-                <p className="truncate text-[10px] text-white/70">{stream.title}</p>
+                <BroadcasterControlButton
+                  active={cameraEnabled}
+                  onClick={toggleCamera}
+                  disabled={connectionState === 'preview'}
+                  label={cameraEnabled ? 'Camera on' : 'Camera off'}
+                  icon={cameraEnabled ? '📹' : '📷'}
+                />
+                {connectionState === 'preview' && cameraReady && (
+                  <button
+                    onClick={() => setConnectionState('connecting')}
+                    className="rounded-full border-2 border-red-500 bg-red-500 px-6 py-3 text-xs font-bold uppercase tracking-[0.2em] text-white hover:bg-red-600"
+                  >
+                    ● Go Live
+                  </button>
+                )}
               </div>
-              {isBroadcaster && (
-                <button
-                  onClick={handleEndStream}
-                  className="rounded-full bg-red-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-white"
-                >
-                  End
-                </button>
-              )}
-            </div>
-          )}
+            )}
 
-          {/* Floating hearts */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            {hearts.map((h) => (
-              <motion.div
-                key={h.id}
-                initial={{ y: '100%', opacity: 1, scale: 0.6 }}
-                animate={{ y: '-20%', opacity: 0, scale: 1.4 }}
-                transition={{ duration: 3, ease: 'easeOut' }}
-                className="absolute text-2xl text-red-400"
-                style={{ left: `${h.x}%` }}
-              >
-                ♥
-              </motion.div>
-            ))}
+            {/* Viewer: tap to send heart */}
+            {!isBroadcaster && connectionState === 'live' && (
+              <button
+                onClick={sendHeart}
+                className="absolute inset-0"
+                aria-label="Send a heart"
+              />
+            )}
           </div>
 
-          {/* Chat overlay bottom */}
-          <div className="absolute inset-x-0 bottom-0 max-h-[40%] overflow-hidden bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3">
-            <div className="mb-2 max-h-40 space-y-1 overflow-y-auto">
+          {/* Chat panel (always-visible, separate from video) */}
+          <div className="mt-3 flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-ink-900/60 lg:mt-0 lg:w-80 lg:shrink-0">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
+                Live chat
+              </p>
+              <p className="text-[10px] text-white/40">
+                {viewerCount} watching
+              </p>
+            </div>
+
+            <div
+              ref={chatScrollRef}
+              className="flex-1 space-y-2 overflow-y-auto px-4 py-3 lg:max-h-[60vh]"
+            >
+              {messages.length === 0 && (
+                <p className="text-center text-xs text-white/40">
+                  Be the first to say something nice.
+                </p>
+              )}
               {messages.map((m) => (
-                <div key={m.id} className="text-xs">
-                  <span className="font-semibold text-gold-300">{m.senderName}:</span>{' '}
-                  <span className="text-white">{m.body}</span>
+                <div key={m.id} className="text-xs leading-snug">
+                  <span className="font-semibold text-gold-300">{m.senderName}</span>
+                  <span className="ml-1 text-white">{m.body}</span>
                 </div>
               ))}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 border-t border-white/10 p-3">
               <button
                 onClick={sendHeart}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg hover:bg-white/20"
+                disabled={connectionState !== 'live'}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg transition hover:bg-red-500/30 hover:text-red-400 disabled:opacity-40"
+                aria-label="Send heart"
               >
                 ♥
               </button>
@@ -401,12 +534,13 @@ export default function LiveStreamPage() {
                   if (e.key === 'Enter') sendChatMessage();
                 }}
                 maxLength={280}
+                disabled={connectionState !== 'live'}
                 placeholder="Say something nice…"
-                className="flex-1 rounded-full border border-white/10 bg-black/40 px-3 py-2 text-xs text-white placeholder:text-white/40"
+                className="flex-1 rounded-full border border-white/10 bg-ink-950 px-3 py-2 text-xs text-white placeholder:text-white/40 disabled:opacity-50"
               />
               <button
                 onClick={sendChatMessage}
-                disabled={!chatInput.trim()}
+                disabled={!chatInput.trim() || connectionState !== 'live'}
                 className="rounded-full bg-gold-400 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-ink-950 disabled:opacity-30"
               >
                 Send
@@ -416,6 +550,32 @@ export default function LiveStreamPage() {
         </div>
       </div>
     </Scaffold>
+  );
+}
+
+interface BroadcasterButtonProps {
+  active: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  label: string;
+  icon: string;
+}
+
+function BroadcasterControlButton({ active, onClick, disabled, label, icon }: BroadcasterButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={`flex h-10 w-10 items-center justify-center rounded-full border transition disabled:opacity-30 ${
+        active
+          ? 'border-white/30 bg-black/40 text-white hover:bg-white/20'
+          : 'border-red-400/40 bg-red-500/20 text-red-400 hover:bg-red-500/30'
+      }`}
+    >
+      <span className="text-base">{icon}</span>
+    </button>
   );
 }
 
