@@ -7,12 +7,16 @@ import Onboarding from './pages/Onboarding';
 import Signup from './pages/Signup';
 import Login from './pages/Login';
 import ProfileSetup from './pages/ProfileSetup';
+import ProfileView from './pages/ProfileView';
+import ProfileEdit from './pages/ProfileEdit';
+import Settings from './pages/Settings';
 import Home from './pages/Home';
 import Discover from './pages/Discover';
 import Matches from './pages/Matches';
 import MatchDetail from './pages/MatchDetail';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoadingScreen } from './components/LoadingScreen';
+import { BottomTabBar } from './components/BottomTabBar';
 
 const MIN_LOADING_MS = 1600;
 
@@ -73,6 +77,30 @@ export default function App() {
               }
             />
             <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfileView />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile/edit"
+              element={
+                <ProtectedRoute>
+                  <ProfileEdit />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/discover"
               element={
                 <ProtectedRoute>
@@ -98,6 +126,7 @@ export default function App() {
             />
             <Route path="*" element={<Navigate to="/welcome" replace />} />
           </Routes>
+          <BottomTabBar />
         </motion.div>
       )}
     </AnimatePresence>

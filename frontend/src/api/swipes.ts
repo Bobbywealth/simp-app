@@ -15,3 +15,9 @@ export function createSwipe(input: {
 export function getReceivedNotes() {
   return apiFetch<{ notes: ReceivedNote[] }>('/swipes/received-notes');
 }
+
+export function undoSwipe(swipeId: string) {
+  return apiFetch<{ ok: boolean; swipedId: string }>(`/swipes/${swipeId}`, {
+    method: 'DELETE',
+  });
+}

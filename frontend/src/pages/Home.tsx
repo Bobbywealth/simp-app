@@ -15,8 +15,8 @@ export default function Home() {
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
       <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
-      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-safe">
-        <header className="flex items-center justify-between pt-6">
+      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-6">
+        <header className="flex items-center justify-between">
           <SimpLogo size={48} variant="emblem" />
           <button
             onClick={handleLogout}
@@ -52,23 +52,21 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="mt-10 rounded-2xl border border-gold-400/20 bg-ink-800/60 p-5">
+          <div className="mt-8 rounded-2xl border border-gold-400/20 bg-ink-800/60 p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-300">
-              Coming next
+              What&apos;s next
             </p>
             <ul className="mt-3 space-y-2 text-sm text-white/80">
               <li>· Messaging — real-time chat with your matches</li>
-              <li>· Live — go live and build your audience</li>
+              <li>· Live streaming — go live and build your audience</li>
               <li>· Experiences — dinner, travel, events</li>
               <li>· Premium — unlock unlimited likes and boosts</li>
             </ul>
           </div>
         </div>
 
-        <div className="pb-safe py-6">
-          <Button variant="gold-outline" onClick={() => navigate('/welcome')}>
-            Back to welcome
-          </Button>
+        <div className="pb-24 py-6">
+          <Button onClick={() => navigate('/profile/edit')}>Edit profile</Button>
         </div>
       </main>
     </div>

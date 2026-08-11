@@ -43,12 +43,8 @@ export default function Matches() {
         <span className="w-12" />
       </header>
 
-      <main className="relative z-10 flex-1 px-6 pt-6 pb-safe">
-        {loading && (
-          <div className="flex items-center justify-center py-20 text-sm text-white/50">
-            Loading your matches…
-          </div>
-        )}
+      <main className="relative z-10 flex-1 px-6 pt-6 pb-24">
+        {loading && <MatchesSkeleton />}
 
         {error && !loading && (
           <div className="flex flex-col items-center gap-3 py-20 text-center">
@@ -62,21 +58,7 @@ export default function Matches() {
           </div>
         )}
 
-        {!loading && !error && matches.length === 0 && (
-          <div className="flex flex-col items-center gap-4 py-20 text-center">
-            <SimpLogo size={64} variant="emblem" />
-            <h2 className="display-heading text-2xl font-light">No matches yet</h2>
-            <p className="max-w-xs text-sm text-white/60">
-              When you and someone else like each other, you&apos;ll see them here.
-            </p>
-            <button
-              onClick={() => navigate('/discover')}
-              className="btn-gold px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]"
-            >
-              Start swiping
-            </button>
-          </div>
-        )}
+        {!loading && !error && matches.length === 0 && <EmptyMatches />}
 
         {!loading && !error && matches.length > 0 && (
           <>
@@ -93,8 +75,11 @@ export default function Matches() {
                 >
                   <button
                     onClick={() => navigate(`/matches/${m.matchId}`)}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-ink-900/60 p-3 text-left hover:border-gold-400/30 hover:bg-ink-800/60"
+                    className="relative flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-ink-900/60 p-3 text-left hover:border-gold-400/30 hover:bg-ink-800/60"
                   >
+                    {m.noteFromOther && (
+                      <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-gold-400" />
+                    )}
                     <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-gold-400/30">
                       {m.otherUser.photoUrl ? (
                         <img
@@ -137,6 +122,41 @@ export default function Matches() {
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function MatchesSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-ink-900/60 p-3">
+          <div className="h-16 w-16 animate-pulse rounded-full bg-ink-800" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-32 animate-pulse rounded bg-ink-800" />
+            <div className="h-3 w-48 animate-pulse rounded bg-ink-800" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyMatches() {
+  const navigate = useNavigate();
+  return (
+    <div className="flex flex-col items-center gap-4 py-20 text-center">
+      <SimpLogo size={64} variant="emblem" />
+      <h2 className="display-heading text-2xl font-light">No matches yet</h2>
+      <p className="max-w-xs text-sm text-white/60">
+        When you and someone else like each other, you&apos;ll see them here.
+      </p>
+      <button
+        onClick={() => navigate('/discover')}
+        className="btn-gold px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]"
+      >
+        Start swiping
+      </button>
     </div>
   );
 }

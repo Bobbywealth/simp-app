@@ -12,6 +12,7 @@ import { discoveryRouter } from './routes/discovery.routes.js';
 import { swipesRouter } from './routes/swipes.routes.js';
 import { matchesRouter } from './routes/matches.routes.js';
 import { photosRouter } from './routes/photos.routes.js';
+import { moderationRouter } from './routes/moderation.routes.js';
 import { errorHandler } from './middleware/error.js';
 
 export function createApp() {
@@ -52,6 +53,22 @@ export function createApp() {
   });
   app.use('/auth', authLimiter);
 
+  const swipeLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/swipes', swipeLimiter);
+
+  const uploadLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use('/photos/upload', uploadLimiter);
+
   app.use('/health', healthRouter);
   app.use('/auth', authRouter);
   app.use('/users', usersRouter);
@@ -59,6 +76,7 @@ export function createApp() {
   app.use(swipesRouter);
   app.use(matchesRouter);
   app.use(photosRouter);
+  app.use(moderationRouter);
 
   app.use((_req, res) => res.status(404).json({ error: 'not_found' }));
   app.use(errorHandler);

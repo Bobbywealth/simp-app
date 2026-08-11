@@ -6,20 +6,28 @@ import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 export const discoveryRouter = Router();
 
 /**
- * Returns the swipe deck for the current user.
+ * GET /discovery — swipe deck for the current user
+ *
+ * Query params:
+ *  - minAge:    minimum age (default 18)
+ *  - maxAge:    maximum age (default 99)
+ *  - cursor:    pagination token (last userId from previous page)
+ *  - limit:     page size (default 20, max 50)
  *
  * Filters:
- *  - Excludes the user themselves
- *  - Excludes already-swiped users
- *  - Matches the user's `lookingFor` against the candidate's `gender`
- *  - Excludes users with no profile (incomplete onboarding)
- *  - Excludes users with no photos (looks empty without photos)
- *
- * Returns up to 20 profiles with photo URLs, prompts, and interests.
+ *  - Excludes self, already-swiped, blocked-by-me, blocked-of-me
+ *  - Matches user's lookingFor against candidate gender
+ *  - Excludes users with no profile or no photos
+ *  - Age range (computed from birthDate)
  */
 discoveryRouter.get('/discovery', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const userId = req.userId!;
+
+    const minAge = Math.max(18, Math.min(99, parseInt(String(req.query.minAge ?? '18'), 10) || 18));
+    const maxAge = Math.max(minAge, Math.min(99, parseInt(String(req.query.maxAge ?? '99'), 10) || 99));
+    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? '20'), 10) || 20));
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
 
     const me = await prisma.user.findUnique({
       where: { id: userId },
@@ -30,7 +38,6 @@ discoveryRouter.get('/discovery', requireAuth, async (req: AuthedRequest, res, n
       return res.status(400).json({ error: 'profile_required' });
     }
 
-    // Map user's lookingFor → candidate gender filter
     const genderFilter: Gender[] =
       me.profile.lookingFor === 'WOMEN'
         ? ['WOMAN']
@@ -38,19 +45,34 @@ discoveryRouter.get('/discovery', requireAuth, async (req: AuthedRequest, res, n
         ? ['MAN']
         : ['WOMAN', 'MAN', 'NONBINARY'];
 
-    // Users we've already swiped on
     const swiped = await prisma.swipe.findMany({
       where: { swiperId: userId },
       select: { swipedId: true },
     });
     const swipedIds = swiped.map((s) => s.swipedId);
 
-    // Query through User to get photos/prompts/interests
+    const blocked = await prisma.block.findMany({
+      where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+      select: { blockerId: true, blockedId: true },
+    });
+    const blockedIds = new Set<string>();
+    blocked.forEach((b) => {
+      if (b.blockerId === userId) blockedIds.add(b.blockedId);
+      else blockedIds.add(b.blockerId);
+    });
+
+    const excludeIds = new Set<string>([userId, ...swipedIds, ...blockedIds]);
+
+    const now = new Date();
+    const maxBirth = new Date(now.getFullYear() - minAge, now.getMonth(), now.getDate());
+    const minBirth = new Date(now.getFullYear() - maxAge - 1, now.getMonth(), now.getDate() + 1);
+
     const candidates = await prisma.user.findMany({
       where: {
-        id: { not: userId, notIn: swipedIds },
+        id: { notIn: Array.from(excludeIds) },
         profile: {
           gender: { in: genderFilter },
+          birthDate: { gte: minBirth, lte: maxBirth },
         },
         photos: { some: {} },
       },
@@ -61,13 +83,17 @@ discoveryRouter.get('/discovery', requireAuth, async (req: AuthedRequest, res, n
         interests: { include: { interest: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 20,
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
 
-    const now = Date.now();
-    const payload = candidates.flatMap((u) => {
+    const hasMore = candidates.length > limit;
+    const page = hasMore ? candidates.slice(0, limit) : candidates;
+    const nextCursor = hasMore ? page[page.length - 1]?.id : null;
+
+    const payload = page.flatMap((u) => {
       if (!u.profile) return [];
-      const ageMs = now - u.profile.birthDate.getTime();
+      const ageMs = Date.now() - u.profile.birthDate.getTime();
       const age = Math.floor(ageMs / (365.25 * 24 * 60 * 60 * 1000));
       return [
         {
@@ -96,7 +122,11 @@ discoveryRouter.get('/discovery', requireAuth, async (req: AuthedRequest, res, n
       ];
     });
 
-    res.json({ profiles: payload });
+    res.json({
+      profiles: payload,
+      nextCursor,
+      hasMore,
+    });
   } catch (e) {
     next(e);
   }

@@ -41,12 +41,12 @@ export default function Login() {
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
       <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
-      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-safe">
+      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="flex flex-1 flex-col justify-center py-10"
+          className="flex flex-col py-10"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}

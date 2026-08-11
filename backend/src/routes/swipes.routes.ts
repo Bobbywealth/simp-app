@@ -140,3 +140,37 @@ swipesRouter.get('/swipes/received-notes', requireAuth, async (req: AuthedReques
     next(e);
   }
 });
+
+/**
+ * DELETE /swipes/:id — undo/retract a swipe you made
+ *
+ * If this swipe created a match (mutual like), the match is also deactivated.
+ * Returns the swiped userId so the client can re-insert the profile into the deck.
+ */
+swipesRouter.delete('/swipes/:id', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const userId = req.userId!;
+    const swipeId = req.params.id!;
+
+    const swipe = await prisma.swipe.findUnique({ where: { id: swipeId } });
+    if (!swipe) return res.status(404).json({ error: 'swipe_not_found' });
+    if (swipe.swiperId !== userId) return res.status(403).json({ error: 'not_your_swipe' });
+
+    const swipedId = swipe.swipedId;
+
+    const userAId = userId < swipedId ? userId : swipedId;
+    const userBId = userId < swipedId ? swipedId : userId;
+    await prisma.match
+      .update({
+        where: { userAId_userBId: { userAId, userBId } },
+        data: { isActive: false },
+      })
+      .catch(() => null);
+
+    await prisma.swipe.delete({ where: { id: swipeId } });
+
+    res.json({ ok: true, swipedId });
+  } catch (e) {
+    next(e);
+  }
+});

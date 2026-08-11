@@ -29,6 +29,12 @@ export interface Profile {
   isVerified: boolean;
   isPremium: boolean;
   interests: { interest: { id: string; slug: string; label: string } }[];
+  user?: {
+    id: string;
+    email: string;
+    photos: DiscoveryPhoto[];
+    prompts: DiscoveryPrompt[];
+  };
 }
 
 export interface Interest {
@@ -72,6 +78,13 @@ export interface SwipeResult {
   swipeId: string;
   matched: boolean;
   matchId?: string;
+}
+
+// Optional full Discovery wrapper (with pagination)
+export interface DiscoveryResponse {
+  profiles: DiscoveryProfile[];
+  nextCursor: string | null;
+  hasMore: boolean;
 }
 
 export interface MatchSummary {

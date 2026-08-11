@@ -11,10 +11,21 @@ matchesRouter.get('/matches', requireAuth, async (req: AuthedRequest, res, next)
   try {
     const userId = req.userId!;
 
+    // Users I've blocked (hide from matches list too)
+    const blocked = await prisma.block.findMany({
+      where: { blockerId: userId },
+      select: { blockedId: true },
+    });
+    const blockedIds = blocked.map((b) => b.blockedId);
+
     const matches = await prisma.match.findMany({
       where: {
         isActive: true,
         OR: [{ userAId: userId }, { userBId: userId }],
+        AND: {
+          userAId: { notIn: blockedIds },
+          userBId: { notIn: blockedIds },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });

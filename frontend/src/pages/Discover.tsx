@@ -2,47 +2,73 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { getDiscovery } from '../api/discovery';
-import { createSwipe } from '../api/swipes';
+import { createSwipe, undoSwipe } from '../api/swipes';
+import { blockUser, reportUser, REPORT_REASONS, type ReportReason } from '../api/moderation';
 import type { DiscoveryProfile, SwipeAction } from '../types';
 import { SimpLogo } from '../components/SimpLogo';
+import { DiscoverFilters } from '../components/DiscoverFilters';
 
 type DeckState = 'loading' | 'ready' | 'empty' | 'error';
 
-const CARD_DECK_LIMIT = 20;
+interface SwipedRecord {
+  swipeId: string;
+  profile: DiscoveryProfile;
+}
 
 export default function Discover() {
   const navigate = useNavigate();
   const [deck, setDeck] = useState<DeckState>('loading');
   const [profiles, setProfiles] = useState<DiscoveryProfile[]>([]);
   const [topIndex, setTopIndex] = useState(0);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Match modal
+  const [minAge, setMinAge] = useState(18);
+  const [maxAge, setMaxAge] = useState(99);
+  const [showFilters, setShowFilters] = useState(false);
+
   const [matchedProfile, setMatchedProfile] = useState<DiscoveryProfile | null>(null);
   const [matchedNote, setMatchedNote] = useState<string | null>(null);
 
-  // Convince Me modal
   const [pendingLike, setPendingLike] = useState<DiscoveryProfile | null>(null);
   const [convinceText, setConvinceText] = useState('');
 
-  // Earned reveal: per-profile peek state
   const [peekedProfiles, setPeekedProfiles] = useState<Set<string>>(new Set());
+
+  const [swipeHistory, setSwipeHistory] = useState<SwipedRecord[]>([]);
+
+  const [photoIndex, setPhotoIndex] = useState<Record<string, number>>({});
+
+  const [reportTarget, setReportTarget] = useState<DiscoveryProfile | null>(null);
 
   const loadingRef = useRef(false);
 
   useEffect(() => {
-    void loadDeck();
-  }, []);
+    void loadDeck(true);
+  }, [minAge, maxAge]);
 
-  async function loadDeck() {
+  async function loadDeck(reset: boolean) {
     if (loadingRef.current) return;
     loadingRef.current = true;
-    setDeck('loading');
+    setDeck((prev) => (profiles.length === 0 ? 'loading' : prev));
     setError(null);
     try {
-      const res = await getDiscovery();
-      setProfiles(res.profiles);
-      setTopIndex(0);
+      const res = await getDiscovery({
+        minAge,
+        maxAge,
+        cursor: reset ? undefined : nextCursor ?? undefined,
+        limit: 20,
+      });
+      if (reset) {
+        setProfiles(res.profiles);
+        setTopIndex(0);
+        setSwipeHistory([]);
+      } else {
+        setProfiles((prev) => [...prev, ...res.profiles]);
+      }
+      setNextCursor(res.nextCursor);
+      setHasMore(res.hasMore);
       setDeck(res.profiles.length === 0 ? 'empty' : 'ready');
     } catch (e) {
       const err = e as Error;
@@ -53,18 +79,25 @@ export default function Discover() {
     }
   }
 
+  async function loadMore() {
+    if (!hasMore || loadingRef.current) return;
+    await loadDeck(false);
+  }
+
   function advanceDeck() {
     if (topIndex < profiles.length - 1) {
       setTopIndex((i) => i + 1);
+    } else if (hasMore) {
+      void loadMore();
     } else {
-      // Try to load more
-      void loadDeck();
+      setDeck('empty');
     }
   }
 
   async function doSwipe(profile: DiscoveryProfile, action: SwipeAction, note?: string | null) {
     try {
       const res = await createSwipe({ swipedId: profile.userId, action, note });
+      setSwipeHistory((prev) => [...prev, { swipeId: res.swipeId, profile }]);
       if (res.matched) {
         setMatchedProfile(profile);
         setMatchedNote(note ?? null);
@@ -77,7 +110,6 @@ export default function Discover() {
   }
 
   function onSwipeRight(profile: DiscoveryProfile) {
-    // Trigger "Convince Me" modal
     setPendingLike(profile);
     setConvinceText('');
   }
@@ -87,7 +119,6 @@ export default function Discover() {
   }
 
   function onSwipeUp(profile: DiscoveryProfile) {
-    // Superlike also opens Convince Me (it's more emphatic)
     setPendingLike(profile);
     setConvinceText('');
   }
@@ -106,6 +137,48 @@ export default function Discover() {
     setConvinceText('');
   }
 
+  function skipSwipeNote() {
+    if (!pendingLike) return;
+    const profile = pendingLike;
+    setPendingLike(null);
+    setConvinceText('');
+    void doSwipe(profile, 'LIKE', null);
+  }
+
+  async function handleUndo() {
+    const last = swipeHistory[swipeHistory.length - 1];
+    if (!last) return;
+    try {
+      await undoSwipe(last.swipeId);
+      setSwipeHistory((prev) => prev.slice(0, -1));
+      setTopIndex((i) => Math.max(0, i - 1));
+    } catch (e) {
+      console.error('undo failed', e);
+    }
+  }
+
+  async function handleBlock() {
+    if (!reportTarget) return;
+    try {
+      await blockUser(reportTarget.userId);
+      setReportTarget(null);
+      advanceDeck();
+    } catch (e) {
+      console.error('block failed', e);
+    }
+  }
+
+  async function handleReport(reason: ReportReason) {
+    if (!reportTarget) return;
+    try {
+      await reportUser(reportTarget.userId, reason);
+      setReportTarget(null);
+      advanceDeck();
+    } catch (e) {
+      console.error('report failed', e);
+    }
+  }
+
   function togglePeek(profileId: string) {
     setPeekedProfiles((prev) => {
       const next = new Set(prev);
@@ -115,22 +188,29 @@ export default function Discover() {
     });
   }
 
+  function cyclePhoto(profileId: string, direction: 1 | -1, max: number) {
+    setPhotoIndex((prev) => {
+      const current = prev[profileId] ?? 0;
+      const next = (current + direction + max) % max;
+      return { ...prev, [profileId]: next };
+    });
+  }
+
   if (deck === 'loading' && profiles.length === 0) {
-    return (
-      <Scaffold canGoBack onBack={() => navigate('/home')}>
-        <div className="flex flex-1 items-center justify-center">
-          <div className="text-white/50 text-sm">Curating your deck…</div>
-        </div>
-      </Scaffold>
-    );
+    return <DiscoverSkeleton />;
   }
 
   if (deck === 'error') {
     return (
-      <Scaffold canGoBack onBack={() => navigate('/home')}>
+      <Scaffold onBack={() => navigate('/home')} showFilters={() => setShowFilters(true)}>
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-          <p className="text-white/80">{error ?? 'Something went wrong.'}</p>
-          <RetryButton onClick={() => loadDeck()}>Try again</RetryButton>
+          <p className="text-sm text-white/80">{error ?? 'Something went wrong.'}</p>
+          <button
+            onClick={() => loadDeck(true)}
+            className="btn-gold-outline px-5 py-2 text-xs font-medium uppercase tracking-[0.18em]"
+          >
+            Try again
+          </button>
         </div>
       </Scaffold>
     );
@@ -138,7 +218,7 @@ export default function Discover() {
 
   if (deck === 'empty' || topIndex >= profiles.length) {
     return (
-      <Scaffold canGoBack onBack={() => navigate('/home')}>
+      <Scaffold onBack={() => navigate('/home')} showFilters={() => setShowFilters(true)}>
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <SimpLogo size={64} variant="emblem" />
           <h2 className="display-heading text-2xl font-light text-white">
@@ -147,32 +227,45 @@ export default function Discover() {
           <p className="text-sm text-white/60 max-w-xs">
             New curated profiles appear throughout the day. Check back soon.
           </p>
-          <ActionButton onClick={() => loadDeck()}>Refresh</ActionButton>
-          <ActionButton onClick={() => navigate('/matches')} variant="outline">
-            See your matches
-          </ActionButton>
+          <button onClick={() => loadDeck(true)} className="btn-gold px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]">
+            Refresh
+          </button>
         </div>
       </Scaffold>
     );
   }
 
-  // Render the top 3 cards as a stack
   const top = profiles[topIndex];
+  if (!top) {
+    return (
+      <Scaffold onBack={() => navigate('/home')} showFilters={() => setShowFilters(true)}>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-white/50 text-sm">Loading more…</div>
+        </div>
+      </Scaffold>
+    );
+  }
   const stack: DiscoveryProfile[] = [];
   for (let i = 0; i < 3; i++) {
     const p = profiles[topIndex + i];
     if (p) stack.push(p);
   }
 
+  const canUndo = swipeHistory.length > 0;
+
   return (
-    <Scaffold canGoBack onBack={() => navigate('/home')}>
-      <div className="flex flex-1 px-4 pb-6">
-        <div className="relative mx-auto flex-1 max-w-md">
+    <Scaffold
+      onBack={() => navigate('/home')}
+      showFilters={() => setShowFilters(true)}
+      hasFilters={minAge !== 18 || maxAge !== 99}
+    >
+      <div className="flex-1 pb-20">
+        <div className="relative mx-auto h-full max-w-md px-4">
           {stack
             .slice()
-            .reverse() // render bottom first
+            .reverse()
             .map((p, i) => {
-              const stackIndex = stack.length - 1 - i; // top card has highest index
+              const stackIndex = stack.length - 1 - i;
               return (
                 <SwipeCard
                   key={p.userId}
@@ -180,15 +273,71 @@ export default function Discover() {
                   isTop={stackIndex === stack.length - 1}
                   stackDepth={stackIndex}
                   peeked={peekedProfiles.has(p.userId)}
+                  photoIndex={photoIndex[p.userId] ?? 0}
                   onTogglePeek={() => togglePeek(p.userId)}
+                  onCyclePhoto={(dir) => cyclePhoto(p.userId, dir, p.photos.length)}
                   onSwipeRight={() => onSwipeRight(p)}
                   onSwipeLeft={() => onSwipeLeft(p)}
                   onSwipeUp={() => onSwipeUp(p)}
+                  onReport={() => setReportTarget(p)}
                 />
               );
             })}
         </div>
+
+        <div className="mt-4 flex items-center justify-center gap-4 px-4">
+          <ActionButton
+            onClick={handleUndo}
+            disabled={!canUndo}
+            variant="circle"
+            label="Undo"
+            title="Undo last swipe"
+          >
+            ↺
+          </ActionButton>
+          <ActionButton onClick={() => onSwipeLeft(top)} variant="circle" tone="red" label="Pass" title="Pass">
+            ✕
+          </ActionButton>
+          <ActionButton
+            onClick={() => onSwipeUp(top)}
+            variant="circle"
+            tone="cyan"
+            label="Super"
+            title="Super Like"
+          >
+            ★
+          </ActionButton>
+          <ActionButton
+            onClick={() => onSwipeRight(top)}
+            variant="circle"
+            tone="green"
+            label="Like"
+            title="Like (with note)"
+          >
+            ♥
+          </ActionButton>
+          <ActionButton
+            onClick={() => setReportTarget(top)}
+            variant="circle"
+            label="Report"
+            title="Report or block"
+          >
+            ⋯
+          </ActionButton>
+        </div>
       </div>
+
+      <DiscoverFilters
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        minAge={minAge}
+        maxAge={maxAge}
+        onApply={(min, max) => {
+          setMinAge(min);
+          setMaxAge(max);
+          setShowFilters(false);
+        }}
+      />
 
       <ConvinceMeModal
         open={pendingLike !== null}
@@ -197,14 +346,7 @@ export default function Discover() {
         onTextChange={setConvinceText}
         onConfirm={confirmSwipe}
         onCancel={cancelSwipe}
-        onSkip={() => {
-          if (pendingLike) {
-            const profile = pendingLike;
-            setPendingLike(null);
-            setConvinceText('');
-            void doSwipe(profile, 'LIKE', null);
-          }
-        }}
+        onSkip={skipSwipeNote}
       />
 
       <MatchModal
@@ -220,35 +362,44 @@ export default function Discover() {
           navigate('/matches');
         }}
       />
+
+      <ReportModal
+        profile={reportTarget}
+        onClose={() => setReportTarget(null)}
+        onReport={handleReport}
+        onBlock={handleBlock}
+      />
     </Scaffold>
   );
 }
 
 interface ScaffoldProps {
-  canGoBack?: boolean;
-  onBack?: () => void;
   children: React.ReactNode;
+  onBack: () => void;
+  showFilters?: () => void;
+  hasFilters?: boolean;
 }
 
-function Scaffold({ canGoBack, onBack, children }: ScaffoldProps) {
+function Scaffold({ children, onBack, showFilters, hasFilters }: ScaffoldProps) {
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
       <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
       <header className="relative z-10 flex items-center justify-between px-6 pt-safe pt-6">
-        {canGoBack ? (
-          <button
-            onClick={onBack}
-            className="text-xs font-medium uppercase tracking-[0.2em] text-white/60 hover:text-white"
-          >
-            ‹ Back
-          </button>
-        ) : (
-          <span />
-        )}
-        <h1 className="text-xs font-medium uppercase tracking-[0.3em] text-gold-300">
-          Discover
-        </h1>
-        <span className="w-12" />
+        <button
+          onClick={onBack}
+          className="text-xs font-medium uppercase tracking-[0.2em] text-white/60 hover:text-white"
+        >
+          ‹ Back
+        </button>
+        <h1 className="text-xs font-medium uppercase tracking-[0.3em] text-gold-300">Discover</h1>
+        <button
+          onClick={showFilters}
+          className={`text-xs font-medium uppercase tracking-[0.2em] ${
+            hasFilters ? 'text-gold-300' : 'text-white/60 hover:text-white'
+          }`}
+        >
+          {hasFilters ? 'Active' : 'Filters'}
+        </button>
       </header>
       <main className="relative z-10 flex flex-1 flex-col">{children}</main>
     </div>
@@ -258,12 +409,15 @@ function Scaffold({ canGoBack, onBack, children }: ScaffoldProps) {
 interface SwipeCardProps {
   profile: DiscoveryProfile;
   isTop: boolean;
-  stackDepth: number; // 0 = behind, 1 = middle, 2+ = top
+  stackDepth: number;
   peeked: boolean;
+  photoIndex: number;
   onTogglePeek: () => void;
+  onCyclePhoto: (direction: 1 | -1) => void;
   onSwipeRight: () => void;
   onSwipeLeft: () => void;
   onSwipeUp: () => void;
+  onReport: () => void;
 }
 
 function SwipeCard({
@@ -271,10 +425,13 @@ function SwipeCard({
   isTop,
   stackDepth,
   peeked,
+  photoIndex,
   onTogglePeek,
+  onCyclePhoto,
   onSwipeRight,
   onSwipeLeft,
   onSwipeUp,
+  onReport,
 }: SwipeCardProps) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -283,10 +440,7 @@ function SwipeCard({
   const nopeOpacity = useTransform(x, [-150, -50], [1, 0]);
   const superLikeOpacity = useTransform(y, [-150, -50], [1, 0]);
 
-  const photoUrl = profile.photos[0]?.url;
-  const blurPhotos = !peeked && !isTop; // show blurry on stack-below cards (always below)
-
-  // For the top card, photos are blurred by default — user can peek
+  const photo = profile.photos[photoIndex];
   const showBlurredTop = isTop && !peeked;
 
   const handleDragEnd = (_: unknown, info: { offset: { x: number; y: number } }) => {
@@ -319,62 +473,113 @@ function SwipeCard({
         opacity: stackDepth > 2 ? 0 : 1,
       }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="absolute inset-x-0 top-0 bottom-0 mx-auto origin-bottom cursor-grab active:cursor-grabbing"
+      className="absolute inset-x-0 top-0 mx-auto h-full origin-bottom cursor-grab active:cursor-grabbing"
     >
-      <div className="relative h-full overflow-hidden rounded-3xl border border-gold-400/15 bg-ink-900 shadow-2xl">
-        {photoUrl && (
-          <img
-            src={photoUrl}
-            alt={profile.displayName}
-            className={`absolute inset-0 h-full w-full object-cover transition-[filter] duration-300 ${
-              blurPhotos || showBlurredTop ? 'blur-2xl scale-110' : ''
-            }`}
-            draggable={false}
-          />
-        )}
-
-        {/* Earned reveal overlay — gold overlay + CTA when blurred (top card only) */}
-        {showBlurredTop && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-ink-950/40 backdrop-blur-sm">
-            <div className="rounded-full border border-gold-400/40 bg-ink-950/70 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-gold-300">
-              Earned Reveal
-            </div>
-            <p className="mt-3 max-w-[80%] text-center text-sm text-white/80">
-              Photos unlock when you match. Take a chance and look.
-            </p>
-            <button
-              onClick={onTogglePeek}
-              className="mt-4 rounded-full border border-gold-400/40 bg-gold-400/10 px-5 py-2 text-xs font-medium uppercase tracking-[0.18em] text-gold-200 hover:bg-gold-400/20"
-            >
-              Tap to peek
-            </button>
-          </div>
-        )}
-
-        {/* Bottom info panel */}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/80 to-transparent p-5 pt-20">
-          <div className="flex items-end justify-between gap-2">
-            <div>
-              <h2 className="flex items-baseline gap-2 text-2xl font-light text-white">
-                {profile.displayName}
-                <span className="text-xl text-white/70">{profile.age}</span>
-                {profile.isVerified && (
-                  <span className="ml-1 rounded-full border border-gold-400/40 bg-gold-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold-200">
-                    Verified
-                  </span>
-                )}
-              </h2>
-              <p className="mt-0.5 text-xs text-white/60">
-                {profile.occupation}
-                {profile.occupation && profile.city ? ' · ' : ''}
-                {profile.city}
-              </p>
-            </div>
-          </div>
-
-          {profile.bio && (
-            <p className="mt-3 line-clamp-2 text-sm text-white/80">{profile.bio}</p>
+      <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-gold-400/15 bg-ink-900 shadow-2xl">
+        <div className="relative flex-1 overflow-hidden">
+          {photo && (
+            <img
+              src={photo.url}
+              alt={profile.displayName}
+              className={`absolute inset-0 h-full w-full object-cover transition-[filter] duration-300 ${
+                showBlurredTop ? 'blur-md scale-100' : ''
+              }`}
+              draggable={false}
+            />
           )}
+
+          {profile.photos.length > 1 && !showBlurredTop && (
+            <div className="absolute left-0 right-0 top-2 flex gap-1 px-2">
+              {profile.photos.map((p, i) => (
+                <div
+                  key={p.id}
+                  className={`h-1 flex-1 rounded-full transition ${
+                    i === photoIndex ? 'bg-white' : 'bg-white/30'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
+          {isTop && profile.photos.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCyclePhoto(-1);
+                }}
+                className="absolute left-0 top-10 bottom-16 w-1/3"
+                aria-label="Previous photo"
+              />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCyclePhoto(1);
+                }}
+                className="absolute right-0 top-10 bottom-16 w-1/3"
+                aria-label="Next photo"
+              />
+            </>
+          )}
+
+          {showBlurredTop && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-ink-950/40 backdrop-blur-sm">
+              <div className="rounded-full border border-gold-400/40 bg-ink-950/70 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-gold-300">
+                Earned Reveal
+              </div>
+              <p className="mt-3 max-w-[80%] text-center text-sm text-white/80">
+                Photos unlock when you match. Take a chance and look.
+              </p>
+              <button
+                onClick={onTogglePeek}
+                className="mt-4 rounded-full border border-gold-400/40 bg-gold-400/10 px-5 py-2 text-xs font-medium uppercase tracking-[0.18em] text-gold-200 hover:bg-gold-400/20"
+              >
+                Tap to peek
+              </button>
+            </div>
+          )}
+
+          {isTop && (
+            <>
+              <motion.div
+                style={{ opacity: likeOpacity }}
+                className="pointer-events-none absolute left-6 top-12 rounded-lg border-2 border-green-400 px-3 py-1 text-2xl font-bold uppercase tracking-wider text-green-400"
+              >
+                Like
+              </motion.div>
+              <motion.div
+                style={{ opacity: nopeOpacity }}
+                className="pointer-events-none absolute right-6 top-12 rounded-lg border-2 border-red-400 px-3 py-1 text-2xl font-bold uppercase tracking-wider text-red-400"
+              >
+                Pass
+              </motion.div>
+              <motion.div
+                style={{ opacity: superLikeOpacity }}
+                className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-lg border-2 border-cyan-400 px-3 py-1 text-2xl font-bold uppercase tracking-wider text-cyan-400"
+              >
+                Super
+              </motion.div>
+            </>
+          )}
+        </div>
+
+        <div className="max-h-[40%] overflow-y-auto bg-gradient-to-t from-black via-black/80 to-transparent px-5 pb-4 pt-6">
+          <h2 className="flex items-baseline gap-2 text-2xl font-light text-white">
+            {profile.displayName}
+            <span className="text-xl text-white/70">{profile.age}</span>
+            {profile.isVerified && (
+              <span className="ml-1 rounded-full border border-gold-400/40 bg-gold-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold-200">
+                Early Access
+              </span>
+            )}
+          </h2>
+          <p className="mt-0.5 text-xs text-white/60">
+            {profile.occupation}
+            {profile.occupation && profile.city ? ' · ' : ''}
+            {profile.city}
+          </p>
+
+          {profile.bio && <p className="mt-3 line-clamp-3 text-sm text-white/80">{profile.bio}</p>}
 
           {profile.prompts[0] && (
             <div className="mt-3 rounded-xl border border-gold-400/20 bg-ink-900/60 p-3">
@@ -398,32 +603,50 @@ function SwipeCard({
             </div>
           )}
         </div>
-
-        {/* Drag indicators */}
-        {isTop && (
-          <>
-            <motion.div
-              style={{ opacity: likeOpacity }}
-              className="absolute left-6 top-6 rounded-lg border-2 border-green-400 px-3 py-1 text-2xl font-bold uppercase tracking-wider text-green-400"
-            >
-              Like
-            </motion.div>
-            <motion.div
-              style={{ opacity: nopeOpacity }}
-              className="absolute right-6 top-6 rounded-lg border-2 border-red-400 px-3 py-1 text-2xl font-bold uppercase tracking-wider text-red-400"
-            >
-              Pass
-            </motion.div>
-            <motion.div
-              style={{ opacity: superLikeOpacity }}
-              className="absolute left-1/2 top-10 -translate-x-1/2 rounded-lg border-2 border-cyan-400 px-3 py-1 text-2xl font-bold uppercase tracking-wider text-cyan-400"
-            >
-              Super
-            </motion.div>
-          </>
-        )}
       </div>
     </motion.div>
+  );
+}
+
+interface ActionButtonProps {
+  children: React.ReactNode;
+  onClick: () => void;
+  variant?: 'outline' | 'circle';
+  disabled?: boolean;
+  tone?: 'red' | 'green' | 'cyan';
+  label?: string;
+  title?: string;
+}
+
+function ActionButton({ children, onClick, variant, disabled, tone, label, title }: ActionButtonProps) {
+  if (variant === 'circle') {
+    const toneClasses: Record<string, string> = {
+      red: 'border-red-400/40 text-red-400 hover:bg-red-400/10',
+      green: 'border-green-400/40 text-green-400 hover:bg-green-400/10',
+      cyan: 'border-cyan-400/40 text-cyan-400 hover:bg-cyan-400/10',
+    };
+    return (
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        title={title}
+        aria-label={label}
+        className={`flex h-12 w-12 items-center justify-center rounded-full border-2 bg-ink-900 text-lg transition disabled:opacity-30 disabled:cursor-not-allowed ${
+          tone ? toneClasses[tone] : 'border-white/20 text-white/60 hover:bg-white/10'
+        }`}
+      >
+        {children}
+      </button>
+    );
+  }
+  const className =
+    variant === 'outline'
+      ? 'btn-gold-outline w-full max-w-xs px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]'
+      : 'btn-gold w-full max-w-xs px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]';
+  return (
+    <button onClick={onClick} className={className}>
+      {children}
+    </button>
   );
 }
 
@@ -437,15 +660,7 @@ interface ConvinceMeModalProps {
   onSkip: () => void;
 }
 
-function ConvinceMeModal({
-  open,
-  profile,
-  text,
-  onTextChange,
-  onConfirm,
-  onCancel,
-  onSkip,
-}: ConvinceMeModalProps) {
+function ConvinceMeModal({ open, profile, text, onTextChange, onConfirm, onCancel, onSkip }: ConvinceMeModalProps) {
   if (!profile) return null;
   const photoUrl = profile.photos[0]?.url;
   const overLimit = text.length > 280;
@@ -501,28 +716,16 @@ function ConvinceMeModal({
             </div>
 
             <div className="mt-4 flex flex-col gap-2">
-              <button
-                onClick={() => onConfirm(true)}
-                className="btn-gold w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]"
-              >
+              <button onClick={() => onConfirm(true)} className="btn-gold w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]">
                 Send Super Like
               </button>
-              <button
-                onClick={() => onConfirm(false)}
-                className="btn-gold-outline w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]"
-              >
+              <button onClick={() => onConfirm(false)} className="btn-gold-outline w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]">
                 Send Like
               </button>
-              <button
-                onClick={onSkip}
-                className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white/70"
-              >
+              <button onClick={onSkip} className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white/70">
                 Skip the note
               </button>
-              <button
-                onClick={onCancel}
-                className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/30 hover:text-white/50"
-              >
+              <button onClick={onCancel} className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/30 hover:text-white/50">
                 Cancel
               </button>
             </div>
@@ -561,9 +764,7 @@ function MatchModal({ profile, note, onClose, onViewMatches }: MatchModalProps) 
           className="relative mx-6 max-w-sm rounded-3xl border border-gold-400/40 bg-ink-900 p-6 text-center"
         >
           <div className="absolute inset-x-0 -top-px mx-auto h-1 w-32 rounded-full bg-gradient-to-r from-transparent via-gold-400 to-transparent" />
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gold-300">
-            It&apos;s a Match
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gold-300">It&apos;s a Match</p>
           <h2 className="display-heading mt-2 text-3xl font-light text-white">
             You and {profile.displayName}
           </h2>
@@ -579,9 +780,7 @@ function MatchModal({ profile, note, onClose, onViewMatches }: MatchModalProps) 
 
           {note && (
             <div className="mt-5 rounded-xl border border-gold-400/20 bg-ink-950/60 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300">
-                Your note
-              </p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300">Your note</p>
               <p className="mt-2 text-sm italic text-white/90">&ldquo;{note}&rdquo;</p>
             </div>
           )}
@@ -590,10 +789,7 @@ function MatchModal({ profile, note, onClose, onViewMatches }: MatchModalProps) 
             <button onClick={onViewMatches} className="btn-gold w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]">
               Send a message
             </button>
-            <button
-              onClick={onClose}
-              className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white/70"
-            >
+            <button onClick={onClose} className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white/70">
               Keep browsing
             </button>
           </div>
@@ -603,33 +799,94 @@ function MatchModal({ profile, note, onClose, onViewMatches }: MatchModalProps) 
   );
 }
 
-function ActionButton({
-  children,
-  onClick,
-  variant,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  variant?: 'outline';
-}) {
-  const className =
-    variant === 'outline'
-      ? 'btn-gold-outline w-full max-w-xs px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]'
-      : 'btn-gold w-full max-w-xs px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]';
+function DiscoverSkeleton() {
   return (
-    <button onClick={onClick} className={className}>
-      {children}
-    </button>
+    <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
+      <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
+      <header className="relative z-10 flex items-center justify-between px-6 pt-safe pt-6">
+        <span className="w-12 text-xs text-white/40">‹ Back</span>
+        <h1 className="text-xs font-medium uppercase tracking-[0.3em] text-gold-300">Discover</h1>
+        <span className="w-12 text-xs text-white/40">Filters</span>
+      </header>
+      <main className="relative z-10 flex flex-1 flex-col px-4 pb-20">
+        <div className="mt-4 max-w-md mx-auto w-full">
+          <div className="aspect-[3/4] w-full animate-pulse rounded-3xl bg-ink-800" />
+          <div className="mt-4 flex justify-center gap-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-12 w-12 animate-pulse rounded-full bg-ink-800" />
+            ))}
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }
 
-function RetryButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="btn-gold-outline px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]">
-      {children}
-    </button>
-  );
+interface ReportModalProps {
+  profile: DiscoveryProfile | null;
+  onClose: () => void;
+  onReport: (reason: ReportReason) => void;
+  onBlock: () => void;
 }
 
-// Unused but exported for tree-shaking guard
-export const _CARD_DECK_LIMIT = CARD_DECK_LIMIT;
+function ReportModal({ profile, onClose, onReport, onBlock }: ReportModalProps) {
+  if (!profile) return null;
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="report"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-md rounded-t-3xl border-t border-gold-400/30 bg-ink-950 p-6 pb-safe"
+        >
+          <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/20" />
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
+            Report or block {profile.displayName}
+          </p>
+          <p className="mt-2 text-sm text-white/70">
+            Blocking removes them from your deck. Reports send a private note to our team.
+          </p>
+
+          <div className="mt-4 space-y-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Report reason</p>
+            {REPORT_REASONS.map((r) => (
+              <button
+                key={r}
+                onClick={() => onReport(r)}
+                className="block w-full rounded-lg px-3 py-2 text-left text-sm text-white/80 hover:bg-white/5"
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <button
+              onClick={onBlock}
+              className="w-full rounded-full border border-red-400/30 bg-red-500/10 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-red-300 hover:bg-red-500/20"
+            >
+              Block {profile.displayName}
+            </button>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="mt-4 w-full py-2 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/60"
+          >
+            Cancel
+          </button>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
