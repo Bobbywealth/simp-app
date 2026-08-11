@@ -13,3 +13,6 @@ dist-ssr
 *~
 .turbo
 coverage
+*.tsbuildinfo
+pnpm-lock.yaml
+pnpm-workspace.yaml

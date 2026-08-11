@@ -1,5 +1,5 @@
 // Prisma schema for SIMP dating app
-// Models: User, Profile, Photo, RefreshToken, Interest
+// Models: User, Profile, Photo, RefreshToken, Interest, Swipe, Match, Prompt
 
 generator client {
   provider = "prisma-client-js"
@@ -23,6 +23,12 @@ enum LookingFor {
   EVERYONE
 }
 
+enum SwipeAction {
+  PASS
+  LIKE
+  SUPERLIKE
+}
+
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
@@ -31,16 +37,21 @@ model User {
   updatedAt     DateTime @updatedAt
   emailVerified Boolean  @default(false)
 
-  profile       Profile?
-  photos        Photo[]
-  refreshTokens RefreshToken[]
-  interests     UserInterest[]
+  profile        Profile?
+  photos         Photo[]
+  refreshTokens  RefreshToken[]
+  interests      UserInterest[]
+  swipesMade     Swipe[]        @relation("SwipesMade")
+  swipesReceived Swipe[]        @relation("SwipesReceived")
+  matchesAsA     Match[]        @relation("MatchesAsA")
+  matchesAsB     Match[]        @relation("MatchesAsB")
+  prompts        Prompt[]
 }
 
 model Profile {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   displayName String
   bio         String?
@@ -50,13 +61,13 @@ model Profile {
   city        String?
   occupation  String?
   heightCm    Int?
-  isVerified  Boolean  @default(false)
-  isPremium   Boolean  @default(false)
+  isVerified  Boolean    @default(false)
+  isPremium   Boolean    @default(false)
 
-  interests   UserInterest[] @relation("ProfileInterests")
+  interests UserInterest[] @relation("ProfileInterests")
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Photo {
@@ -69,29 +80,73 @@ model Photo {
 }
 
 model Interest {
-  id     String @id @default(cuid())
-  slug   String @unique
-  label  String
-  users  UserInterest[] @relation("InterestToUsers")
+  id    String         @id @default(cuid())
+  slug  String         @unique
+  label String
+  users UserInterest[] @relation("InterestToUsers")
 }
 
 model UserInterest {
   userId     String
   interestId String
   profileId  String?
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  interest   Interest  @relation("InterestToUsers", fields: [interestId], references: [id], onDelete: Cascade)
-  profile    Profile?  @relation("ProfileInterests", fields: [profileId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interest   Interest @relation("InterestToUsers", fields: [interestId], references: [id], onDelete: Cascade)
+  profile    Profile? @relation("ProfileInterests", fields: [profileId], references: [id], onDelete: Cascade)
 
   @@id([userId, interestId])
 }
 
 model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model Swipe {
+  id        String      @id @default(cuid())
+  swiperId  String
+  swipedId  String
+  action    SwipeAction
+  note      String? // "Convince Me" — max 280 chars
+  createdAt DateTime    @default(now())
+
+  swiper User @relation("SwipesMade", fields: [swiperId], references: [id], onDelete: Cascade)
+  swiped User @relation("SwipesReceived", fields: [swipedId], references: [id], onDelete: Cascade)
+
+  @@unique([swiperId, swipedId])
+  @@index([swiperId])
+  @@index([swipedId])
+}
+
+model Match {
+  id            String    @id @default(cuid())
+  userAId       String // smaller user id (alphabetical) — ensures unique pair regardless of order
+  userBId       String // larger user id
+  createdAt     DateTime  @default(now())
+  lastMessageAt DateTime?
+  isActive      Boolean   @default(true)
+
+  userA User @relation("MatchesAsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("MatchesAsB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+model Prompt {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
-  expiresAt DateTime
-  revokedAt DateTime?
+  question  String
+  answer    String
+  position  Int      @default(0)
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }

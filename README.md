@@ -1,4 +1,4 @@
-# SIMP — Superior · Intelligent · Male · Pleasers
+# SIMP — Successful · Intentional · Male · Providers
 
 A PWA-first dating app built with modern web technologies. Designed for mobile-first experiences with eventual native iOS/Android support via Capacitor.
 

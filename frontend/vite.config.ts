@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const APP_NAME = 'SIMP';
 const APP_SHORT = 'SIMP';
-const APP_DESCRIPTION = 'SIMP — Superior · Intelligent · Male · Pleasers. Real connections and experiences.';
+const APP_DESCRIPTION = 'SIMP — Successful · Intentional · Male · Providers. Real connections and experiences.';
 
 export default defineConfig({
   plugins: [

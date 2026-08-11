@@ -10,6 +10,8 @@ const schema = z.object({
   JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be at least 16 chars'),
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL: z.string().default('30d'),
+  UPLOAD_DIR: z.string().default('./uploads'),
+  PUBLIC_BASE_URL: z.string().default('http://localhost:4000'),
 });
 
 const parsed = schema.safeParse(process.env);

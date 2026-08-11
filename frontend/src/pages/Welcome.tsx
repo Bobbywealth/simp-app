@@ -96,7 +96,7 @@ export default function Welcome() {
           transition={{ duration: 0.8, delay: 0.15 }}
           className="whitespace-nowrap px-2 text-[10.5px] font-medium uppercase tracking-[0.18em] text-gold-300/80"
         >
-          Superior · Intelligent · Male · Pleasers
+          Successful · Intentional · Male · Providers
         </motion.p>
 
         <motion.div

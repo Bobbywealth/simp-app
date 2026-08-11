@@ -8,6 +8,9 @@ import Signup from './pages/Signup';
 import Login from './pages/Login';
 import ProfileSetup from './pages/ProfileSetup';
 import Home from './pages/Home';
+import Discover from './pages/Discover';
+import Matches from './pages/Matches';
+import MatchDetail from './pages/MatchDetail';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoadingScreen } from './components/LoadingScreen';
 
@@ -66,6 +69,30 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Home />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/discover"
+              element={
+                <ProtectedRoute>
+                  <Discover />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/matches"
+              element={
+                <ProtectedRoute>
+                  <Matches />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/matches/:id"
+              element={
+                <ProtectedRoute>
+                  <MatchDetail />
                 </ProtectedRoute>
               }
             />

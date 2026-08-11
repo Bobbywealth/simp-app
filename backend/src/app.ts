@@ -3,18 +3,23 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import path from 'node:path';
 import { env, allowedOrigins } from './config/env.js';
 import { healthRouter } from './routes/health.routes.js';
 import { authRouter } from './routes/auth.routes.js';
 import { usersRouter } from './routes/users.routes.js';
+import { discoveryRouter } from './routes/discovery.routes.js';
+import { swipesRouter } from './routes/swipes.routes.js';
+import { matchesRouter } from './routes/matches.routes.js';
+import { photosRouter } from './routes/photos.routes.js';
 import { errorHandler } from './middleware/error.js';
 
 export function createApp() {
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(helmet());
-  app.use(express.json({ limit: '1mb' }));
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  app.use(express.json({ limit: '10mb' })); // bumped to allow photo upload JSON metadata
   app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
   app.use(
@@ -30,6 +35,15 @@ export function createApp() {
     })
   );
 
+  // Static serve uploaded photos at /uploads/{filename}
+  app.use(
+    '/uploads',
+    express.static(path.resolve(process.cwd(), env.UPLOAD_DIR), {
+      maxAge: '7d',
+      fallthrough: false,
+    })
+  );
+
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 30,
@@ -41,6 +55,10 @@ export function createApp() {
   app.use('/health', healthRouter);
   app.use('/auth', authRouter);
   app.use('/users', usersRouter);
+  app.use(discoveryRouter);
+  app.use(swipesRouter);
+  app.use(matchesRouter);
+  app.use(photosRouter);
 
   app.use((_req, res) => res.status(404).json({ error: 'not_found' }));
   app.use(errorHandler);
