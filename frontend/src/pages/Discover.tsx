@@ -259,8 +259,8 @@ export default function Discover() {
       showFilters={() => setShowFilters(true)}
       hasFilters={minAge !== 18 || maxAge !== 99}
     >
-      <div className="flex-1 pb-20">
-        <div className="relative mx-auto h-full max-w-md px-4">
+      <div className="flex flex-1 pb-20">
+        <div className="relative mx-auto flex-1 max-w-md px-4">
           {stack
             .slice()
             .reverse()
