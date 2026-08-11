@@ -167,7 +167,7 @@ export default function Discover() {
   return (
     <Scaffold canGoBack onBack={() => navigate('/home')}>
       <div className="relative flex-1 px-4 pb-6">
-        <div className="relative mx-auto h-full max-w-md">
+        <div className="relative mx-auto h-full max-w-md min-h-0">
           {stack
             .slice()
             .reverse() // render bottom first
@@ -319,7 +319,7 @@ function SwipeCard({
         opacity: stackDepth > 2 ? 0 : 1,
       }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="absolute inset-x-0 top-0 mx-auto h-full origin-bottom cursor-grab active:cursor-grabbing"
+      className="absolute inset-x-0 top-0 bottom-0 mx-auto origin-bottom cursor-grab active:cursor-grabbing"
     >
       <div className="relative h-full overflow-hidden rounded-3xl border border-gold-400/15 bg-ink-900 shadow-2xl">
         {photoUrl && (
