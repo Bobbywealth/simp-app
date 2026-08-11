@@ -19,6 +19,7 @@ import MatchDetail from './pages/MatchDetail';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoadingScreen } from './components/LoadingScreen';
 import { BottomTabBar } from './components/BottomTabBar';
+import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 
 const MIN_LOADING_MS = 1600;
 
@@ -145,6 +146,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/welcome" replace />} />
           </Routes>
           <BottomTabBar />
+          <PwaUpdatePrompt />
         </motion.div>
       )}
     </AnimatePresence>
