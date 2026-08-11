@@ -8,7 +8,7 @@ interface Props {
 
 const ASSETS: Record<Variant, { src: string; alt: string }> = {
   full: {
-    src: '/simp-logo.svg',
+    src: '/simp-logo.png',
     alt: 'SIMP — Successful · Intentional · Male · Providers',
   },
   emblem: {
