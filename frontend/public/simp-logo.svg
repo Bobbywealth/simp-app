@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 720" width="600" height="720">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720" width="720" height="720">
   <defs>
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#FBE6A1" />
@@ -28,7 +28,7 @@
   <rect width="600" height="720" fill="url(#bgGrad)" />
 
   <!-- Crown: 5 points + base line -->
-  <g transform="translate(300, 110)" filter="url(#glow)">
+  <g transform="translate(360, 110)" filter="url(#glow)">
     <!-- Base line -->
     <line x1="-80" y1="40" x2="80" y2="40" stroke="url(#goldGrad)" stroke-width="3" stroke-linecap="round" />
     <!-- 5 triangle points -->
@@ -46,7 +46,7 @@
   </g>
 
   <!-- Large flowing "S" -->
-  <g transform="translate(300, 330)" filter="url(#glow)">
+  <g transform="translate(360, 330)" filter="url(#glow)">
     <path
       d="M 110,-180
          C 60,-200 -80,-180 -80,-90
@@ -62,7 +62,7 @@
   </g>
 
   <!-- Wordmark "S I M P" -->
-  <g transform="translate(300, 530)">
+  <g transform="translate(360, 530)">
     <text
       x="0"
       y="0"
@@ -77,7 +77,7 @@
   </g>
 
   <!-- Tagline -->
-  <g transform="translate(300, 620)">
+  <g transform="translate(360, 620)">
     <text
       x="0"
       y="0"
@@ -92,6 +92,6 @@
   </g>
 
   <!-- Thin gold divider lines on sides of tagline -->
-  <line x1="60" y1="615" x2="160" y2="615" stroke="url(#goldGradH)" stroke-width="1" />
-  <line x1="440" y1="615" x2="540" y2="615" stroke="url(#goldGradH)" stroke-width="1" />
+  <line x1="80" y1="615" x2="180" y2="615" stroke="url(#goldGradH)" stroke-width="1" />
+  <line x1="540" y1="615" x2="640" y2="615" stroke="url(#goldGradH)" stroke-width="1" />
 </svg>
