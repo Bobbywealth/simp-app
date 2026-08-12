@@ -30,12 +30,17 @@ export default function LiveStreamPage() {
   const [cameraReady, setCameraReady] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
+  // Tracks whether the user (broadcaster) has clicked "Go Live" so we know
+  // it's safe to open the socket. For viewers, this is flipped on as soon as
+  // the stream metadata loads.
+  const [connectInitiated, setConnectInitiated] = useState(false);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const socketRef = useRef<Socket | null>(null);
+  const intentionalDisconnectRef = useRef(false);
   const heartIdRef = useRef(0);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +67,8 @@ export default function LiveStreamPage() {
           setConnectionState('preview');
         } else {
           setConnectionState('connecting');
+          // Viewer is ready to open the socket once metadata loads
+          setConnectInitiated(true);
         }
       } catch (e) {
         if (!cancelled) {
@@ -85,13 +92,18 @@ export default function LiveStreamPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isBroadcaster, connectionState]);
 
-  // Set up socket + rtc
+  // Set up socket + rtc. NOTE: deliberately does NOT depend on `connectionState`
+  // — depending on it would create an infinite loop because disconnect during
+  // cleanup flips the state, which retriggers this effect, which disconnects
+  // again, forever.
   useEffect(() => {
     if (!streamId || !user) return;
-    if (!isBroadcaster && connectionState === 'preview') return; // not yet ready
+    if (!connectInitiated) return;
+    if (isBroadcaster && connectionState === 'preview') return;
     const token = localStorage.getItem('simp_access');
     if (!token) return;
 
+    intentionalDisconnectRef.current = false;
     const socket = io(API_BASE_URL, {
       path: '/socket.io',
       auth: { token },
@@ -100,17 +112,20 @@ export default function LiveStreamPage() {
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      setConnectionState('live');
       if (isBroadcaster) {
-        setConnectionState('live');
         socket.emit('live:broadcast', { streamId });
       } else {
-        setConnectionState('live');
         socket.emit('live:join', { streamId });
       }
     });
 
     socket.on('disconnect', () => {
-      if (!socket.connected) setConnectionState('connecting');
+      // Ignore disconnects that we triggered ourselves from this effect's
+      // cleanup — otherwise we'd flip back to 'connecting' and re-trigger the
+      // effect forever.
+      if (intentionalDisconnectRef.current) return;
+      setConnectionState('connecting');
     });
 
     socket.on('live:error', (payload: { error: string }) => {
@@ -186,13 +201,14 @@ export default function LiveStreamPage() {
       .catch(() => null);
 
     return () => {
+      intentionalDisconnectRef.current = true;
       socket.disconnect();
       socketRef.current = null;
       peerConnectionsRef.current.forEach((pc) => pc.close());
       peerConnectionsRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streamId, user?.id, isBroadcaster, connectionState]);
+  }, [streamId, user?.id, isBroadcaster, connectInitiated]);
 
   // Auto-scroll chat to bottom on new messages
   useEffect(() => {
@@ -342,8 +358,8 @@ export default function LiveStreamPage() {
   return (
     <Scaffold onBack={() => navigate('/live')}>
       <div className="relative flex-1">
-        <div className="mx-auto flex h-full max-w-5xl flex-col gap-0 px-3 pb-24 pt-3 lg:flex-row lg:items-stretch lg:gap-4 lg:px-4 lg:pb-6">
-          {/* Video stage */}
+        <div className="mx-auto flex h-full max-w-5xl flex-col px-3 pb-24 pt-3 lg:flex-row lg:items-stretch lg:gap-4 lg:px-4 lg:pb-6">
+          {/* Video stage — on mobile the chat overlays the bottom of this box */}
           <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden rounded-2xl bg-black lg:aspect-auto lg:h-full lg:min-h-[500px] lg:flex-1">
             {/* The video element always renders so we can attach the stream when ready */}
             <video
@@ -471,7 +487,10 @@ export default function LiveStreamPage() {
                 />
                 {connectionState === 'preview' && cameraReady && (
                   <button
-                    onClick={() => setConnectionState('connecting')}
+                    onClick={() => {
+                      setConnectionState('connecting');
+                      setConnectInitiated(true);
+                    }}
                     className="rounded-full border-2 border-red-500 bg-red-500 px-6 py-3 text-xs font-bold uppercase tracking-[0.2em] text-white hover:bg-red-600"
                   >
                     ● Go Live
@@ -480,19 +499,20 @@ export default function LiveStreamPage() {
               </div>
             )}
 
-            {/* Viewer: tap to send heart */}
+            {/* Viewer: tap to send heart (sits above the chat overlay so taps still register) */}
             {!isBroadcaster && connectionState === 'live' && (
               <button
                 onClick={sendHeart}
-                className="absolute inset-0"
+                className="absolute inset-x-0 top-0 z-0 h-[calc(100%-12rem)]"
                 aria-label="Send a heart"
               />
             )}
           </div>
 
-          {/* Chat panel (always-visible, separate from video) */}
-          <div className="mt-3 flex min-h-[300px] flex-1 flex-col rounded-2xl border border-white/10 bg-ink-900/60 lg:mt-0 lg:h-full lg:min-h-[500px] lg:w-80 lg:shrink-0">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          {/* Chat panel — overlaid on the video on mobile (so users can watch and chat at once),
+              side-by-side on desktop */}
+          <div className="relative z-10 -mt-40 flex flex-col rounded-t-2xl border border-white/10 bg-gradient-to-b from-ink-900/40 via-ink-900/80 to-ink-900/95 px-1 pb-1 pt-2 backdrop-blur-md lg:mt-0 lg:h-full lg:min-h-[500px] lg:w-80 lg:shrink-0 lg:rounded-2xl lg:border lg:bg-ink-900/60 lg:p-0 lg:backdrop-blur-0">
+            <div className="flex items-center justify-between border-b border-white/10 px-3 py-2 lg:px-4 lg:py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
                 Live chat
               </p>
@@ -503,7 +523,7 @@ export default function LiveStreamPage() {
 
             <div
               ref={chatScrollRef}
-              className="flex-1 space-y-2 overflow-y-auto px-4 py-3 lg:max-h-[60vh]"
+              className="h-40 space-y-2 overflow-y-auto px-3 py-2 lg:h-auto lg:flex-1 lg:max-h-[60vh] lg:px-4 lg:py-3"
             >
               {messages.length === 0 && (
                 <p className="text-center text-xs text-white/40">
@@ -518,7 +538,7 @@ export default function LiveStreamPage() {
               ))}
             </div>
 
-            <div className="flex items-center gap-2 border-t border-white/10 p-3">
+            <div className="flex items-center gap-2 border-t border-white/10 p-2 lg:p-3">
               <button
                 onClick={sendHeart}
                 disabled={connectionState !== 'live'}
