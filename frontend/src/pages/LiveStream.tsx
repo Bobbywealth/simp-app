@@ -496,7 +496,7 @@ export default function LiveStreamPage() {
                   </p>
                   <p className="truncate text-[11px] text-white/80">{stream.title}</p>
                 </div>
-                {isBroadcaster && connectionState === 'live' && (
+                {isBroadcaster && (connectionState === 'live' || connectionState === 'preview' || connectionState === 'connecting') && (
                   <button
                     onClick={handleEndStream}
                     className="rounded-full border border-white/40 bg-black/40 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white hover:bg-red-500"

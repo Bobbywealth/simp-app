@@ -7,6 +7,10 @@ export const liveRouter = Router();
 
 const startStreamSchema = z.object({
   title: z.string().min(2).max(120),
+  // When true, if the user already has a LIVE stream, end it first and start
+  // a fresh one. Used by the frontend recovery flow when the user previously
+  // crashed/closed the tab without ending their broadcast.
+  forceReplace: z.boolean().optional(),
 });
 
 /**
@@ -65,14 +69,21 @@ liveRouter.get('/live/streams', requireAuth, async (_req, res, next) => {
 liveRouter.post('/live/streams', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const userId = req.userId!;
-    const { title } = startStreamSchema.parse(req.body);
+    const { title, forceReplace } = startStreamSchema.parse(req.body);
 
-    // Block if user already has a LIVE stream
+    // Block if user already has a LIVE stream — but allow an explicit forceReplace
+    // (used by the frontend recovery flow) to end the orphan first.
     const existing = await prisma.liveStream.findFirst({
       where: { broadcasterId: userId, status: 'LIVE' },
     });
     if (existing) {
-      return res.status(409).json({ error: 'stream_already_live', streamId: existing.id });
+      if (!forceReplace) {
+        return res.status(409).json({ error: 'stream_already_live', streamId: existing.id });
+      }
+      await prisma.liveStream.update({
+        where: { id: existing.id },
+        data: { status: 'ENDED', endedAt: new Date() },
+      });
     }
 
     const stream = await prisma.liveStream.create({

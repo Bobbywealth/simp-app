@@ -29,10 +29,10 @@ export function listLiveStreams() {
   return apiFetch<{ streams: LiveStream[] }>('/live/streams');
 }
 
-export function startStream(title: string) {
+export function startStream(title: string, forceReplace = false) {
   return apiFetch<{ streamId: string; startedAt: string }>('/live/streams', {
     method: 'POST',
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, forceReplace }),
   });
 }
 

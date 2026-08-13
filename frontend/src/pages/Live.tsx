@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { listLiveStreams, startStream } from '../api/live';
+import { endStream, listLiveStreams, startStream } from '../api/live';
 import type { LiveStream } from '../api/live';
+import { useAuth } from '../store/auth';
 import { SimpLogo } from '../components/SimpLogo';
 
 export default function Live() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [streams, setStreams] = useState<LiveStream[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,17 +34,37 @@ export default function Live() {
     }
   }
 
-  async function handleStartStream() {
+  // Detect whether the current user already has a live stream (e.g. from a
+  // previous tab that crashed or was closed without ending the broadcast).
+  // When found, surface it in the hero CTA so the user can resume or end it
+  // instead of being blocked by the "stream_already_live" 409 response.
+  const myLiveStream = useMemo(() => {
+    if (!user?.id) return null;
+    return streams.find((s) => s.broadcaster?.userId === user.id) ?? null;
+  }, [streams, user?.id]);
+
+  async function handleStartStream(forceReplace = false) {
     if (streamTitle.trim().length < 2) return;
     setSubmitting(true);
     setError(null);
     try {
-      const res = await startStream(streamTitle.trim());
+      const res = await startStream(streamTitle.trim(), forceReplace);
       navigate(`/live/${res.streamId}`);
     } catch (e) {
       const err = e as Error;
       setError(err.message);
       setSubmitting(false);
+    }
+  }
+
+  async function handleEndMyStream() {
+    if (!myLiveStream) return;
+    try {
+      await endStream(myLiveStream.id);
+      setStreams((prev) => prev.filter((s) => s.id !== myLiveStream.id));
+    } catch (e) {
+      const err = e as Error;
+      setError(err.message);
     }
   }
 
@@ -61,30 +83,61 @@ export default function Live() {
       </header>
 
       <main className="relative z-10 flex-1 px-6 pt-6 pb-24">
-        {/* Hero "Go Live" CTA */}
-        <div className="overflow-hidden rounded-2xl border border-gold-400/30 bg-gradient-to-br from-ink-900 via-ink-800 to-ink-900 p-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
-              <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+        {/* Hero "Go Live" CTA — swaps to "You're live" recovery card when the
+            current user already has a LIVE stream (orphan from a previous tab). */}
+        {myLiveStream ? (
+          <div className="overflow-hidden rounded-2xl border border-red-400/40 bg-gradient-to-br from-red-900/40 via-ink-900 to-ink-900 p-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/30">
+                <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-300">
+                  You&apos;re live
+                </p>
+                <p className="mt-1 truncate text-sm text-white/80">{myLiveStream.title}</p>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
-                Go Live
-              </p>
-              <p className="mt-1 text-sm text-white/80">
-                {streams.length > 0
-                  ? `Join ${streams.length} live ${streams.length === 1 ? 'stream' : 'streams'} now.`
-                  : 'Be the first to go live today.'}
-              </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                onClick={() => navigate(`/live/${myLiveStream.id}`)}
+                className="w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600"
+              >
+                ● Resume stream
+              </button>
+              <button
+                onClick={handleEndMyStream}
+                className="w-full rounded-full border border-white/20 bg-transparent py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-red-400/40 hover:text-red-300"
+              >
+                End stream
+              </button>
             </div>
           </div>
-          <button
-            onClick={() => setShowGoLive(true)}
-            className="mt-4 w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600"
-          >
-            ● Start streaming
-          </button>
-        </div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-gold-400/30 bg-gradient-to-br from-ink-900 via-ink-800 to-ink-900 p-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
+                <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
+                  Go Live
+                </p>
+                <p className="mt-1 text-sm text-white/80">
+                  {streams.length > 0
+                    ? `Join ${streams.length} live ${streams.length === 1 ? 'stream' : 'streams'} now.`
+                    : 'Be the first to go live today.'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowGoLive(true)}
+              className="mt-4 w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600"
+            >
+              ● Start streaming
+            </button>
+          </div>
+        )}
 
         <div className="mt-8 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-300">
@@ -131,7 +184,11 @@ export default function Live() {
               >
                 <button
                   onClick={() => navigate(`/live/${s.id}`)}
-                  className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-ink-900/60 text-left transition hover:border-gold-400/30"
+                  className={`relative w-full overflow-hidden rounded-2xl border text-left transition ${
+                    s.id === myLiveStream?.id
+                      ? 'border-red-400/60 hover:border-red-400'
+                      : 'border-white/10 hover:border-gold-400/30'
+                  } bg-ink-900/60`}
                 >
                   <div className="relative aspect-[3/4] overflow-hidden">
                     {s.broadcaster?.photoUrl ? (
@@ -153,6 +210,11 @@ export default function Live() {
                     <div className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white">
                       👁 {s.viewerCount}
                     </div>
+                    {s.id === myLiveStream?.id && (
+                      <div className="absolute right-2 bottom-12 rounded-full bg-gold-400 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-950">
+                        You
+                      </div>
+                    )}
                     <div className="absolute inset-x-0 bottom-0 p-3">
                       <p className="line-clamp-2 text-sm font-semibold text-white">{s.title}</p>
                       <p className="mt-0.5 text-xs text-white/70">
@@ -171,13 +233,18 @@ export default function Live() {
         <GoLiveModal
           title={streamTitle}
           onTitleChange={setStreamTitle}
-          onConfirm={handleStartStream}
+          onConfirm={() => handleStartStream(false)}
+          onReplaceAndStart={() => handleStartStream(true)}
           onClose={() => {
             setShowGoLive(false);
             setStreamTitle('');
           }}
           submitting={submitting}
           error={error}
+          existingStream={myLiveStream}
+          onResumeExisting={() => {
+            if (myLiveStream) navigate(`/live/${myLiveStream.id}`);
+          }}
         />
       )}
     </div>
@@ -198,12 +265,30 @@ interface GoLiveModalProps {
   title: string;
   onTitleChange: (s: string) => void;
   onConfirm: () => void;
+  onReplaceAndStart: () => void;
   onClose: () => void;
   submitting: boolean;
   error: string | null;
+  existingStream: LiveStream | null;
+  onResumeExisting: () => void;
 }
 
-function GoLiveModal({ title, onTitleChange, onConfirm, onClose, submitting, error }: GoLiveModalProps) {
+function GoLiveModal({
+  title,
+  onTitleChange,
+  onConfirm,
+  onReplaceAndStart,
+  onClose,
+  submitting,
+  error,
+  existingStream,
+  onResumeExisting,
+}: GoLiveModalProps) {
+  // If a 409 came back we may already know about an existing stream from the
+  // page's on-load scan; if not, render a generic recovery prompt that lets
+  // the user either end+replace or cancel and try again.
+  const showRecovery = !!error && (!!existingStream || /already.?live/i.test(error));
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
@@ -238,25 +323,58 @@ function GoLiveModal({ title, onTitleChange, onConfirm, onClose, submitting, err
         </div>
 
         {error && (
-          <p className="mt-3 text-xs text-red-400" role="alert">
-            {error}
-          </p>
+          <div className="mt-3 rounded-lg border border-red-400/30 bg-red-500/10 p-3">
+            <p className="text-xs font-semibold text-red-300">
+              Couldn&apos;t start your stream
+            </p>
+            <p className="mt-1 text-[11px] text-red-200/80" role="alert">
+              {error}
+            </p>
+          </div>
         )}
 
         <div className="mt-5 flex flex-col gap-2">
-          <button
-            onClick={onConfirm}
-            disabled={submitting || title.trim().length < 2}
-            className="w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600 disabled:opacity-30"
-          >
-            {submitting ? 'Starting…' : '● Go Live'}
-          </button>
-          <button
-            onClick={onClose}
-            className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/60"
-          >
-            Cancel
-          </button>
+          {showRecovery ? (
+            <>
+              <button
+                onClick={onReplaceAndStart}
+                disabled={submitting || title.trim().length < 2}
+                className="w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600 disabled:opacity-30"
+              >
+                {submitting ? 'Starting…' : 'End existing & start new'}
+              </button>
+              {existingStream && (
+                <button
+                  onClick={onResumeExisting}
+                  className="w-full rounded-full border border-gold-400/40 bg-transparent py-3 text-xs font-semibold uppercase tracking-[0.2em] text-gold-300 transition hover:border-gold-300"
+                >
+                  Resume your live stream
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/60"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onConfirm}
+                disabled={submitting || title.trim().length < 2}
+                className="w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600 disabled:opacity-30"
+              >
+                {submitting ? 'Starting…' : '● Go Live'}
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/60"
+              >
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       </motion.div>
     </div>
