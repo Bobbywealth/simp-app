@@ -5,6 +5,7 @@ import { endStream, listLiveStreams, startStream } from '../api/live';
 import type { LiveStream } from '../api/live';
 import { useAuth } from '../store/auth';
 import { SimpLogo } from '../components/SimpLogo';
+import { LegalGateModal } from '../components/LegalGateModal';
 
 export default function Live() {
   const navigate = useNavigate();
@@ -15,6 +16,10 @@ export default function Live() {
   const [showGoLive, setShowGoLive] = useState(false);
   const [streamTitle, setStreamTitle] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // When the backend returns 451 legal_compliance_required from startStream,
+  // we open the gate modal with this list. Once the user completes the
+  // gate, we retry startStream automatically.
+  const [legalMissing, setLegalMissing] = useState<Array<'age' | 'tos' | 'privacy'> | null>(null);
 
   useEffect(() => {
     void loadStreams();
@@ -51,8 +56,34 @@ export default function Live() {
       const res = await startStream(streamTitle.trim(), forceReplace);
       navigate(`/live/${res.streamId}`);
     } catch (e) {
-      const err = e as Error;
+      const err = e as Error & { status?: number; code?: string; details?: { missing?: string[] } };
+      // 451 = "Unavailable For Legal Reasons". Backend returns the list of
+      // outstanding legal steps in `details.missing`; open the gate modal
+      // and let the user complete them, then we retry automatically.
+      if (err.status === 451 && err.code === 'legal_compliance_required' && err.details?.missing) {
+        setLegalMissing(err.details.missing as Array<'age' | 'tos' | 'privacy'>);
+        setSubmitting(false);
+        return;
+      }
       setError(err.message);
+      setSubmitting(false);
+    }
+  }
+
+  async function retryAfterLegal() {
+    setLegalMissing(null);
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await startStream(streamTitle.trim(), false);
+      navigate(`/live/${res.streamId}`);
+    } catch (e) {
+      const err = e as Error & { status?: number; code?: string; details?: { missing?: string[] } };
+      if (err.status === 451 && err.details?.missing) {
+        setLegalMissing(err.details.missing as Array<'age' | 'tos' | 'privacy'>);
+      } else {
+        setError(err.message);
+      }
       setSubmitting(false);
     }
   }
@@ -245,6 +276,14 @@ export default function Live() {
           onResumeExisting={() => {
             if (myLiveStream) navigate(`/live/${myLiveStream.id}`);
           }}
+        />
+      )}
+
+      {legalMissing && (
+        <LegalGateModal
+          missing={legalMissing}
+          onComplete={retryAfterLegal}
+          onClose={() => setLegalMissing(null)}
         />
       )}
     </div>

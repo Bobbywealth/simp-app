@@ -81,7 +81,7 @@ export async function apiFetch<T>(
 }
 
 async function toError(res: Response) {
-  let body: { error?: string; message?: string } = {};
+  let body: { error?: string; message?: string; [k: string]: unknown } = {};
   try {
     body = await res.json();
   } catch {
@@ -90,9 +90,18 @@ async function toError(res: Response) {
   const err = new Error(body.message || body.error || `Request failed (${res.status})`) as Error & {
     status?: number;
     code?: string;
+    /// Extra fields from the response body (e.g. `missing` from
+    /// 451 legal_compliance_required). Lets callers react to structured
+    /// error payloads without re-fetching.
+    details?: Record<string, unknown>;
   };
   err.status = res.status;
   err.code = body.error;
+  // Strip the two well-known fields, keep the rest as `details`.
+  const { error: _e, message: _m, ...rest } = body;
+  void _e;
+  void _m;
+  if (Object.keys(rest).length > 0) err.details = rest;
   return err;
 }
 

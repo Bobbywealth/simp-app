@@ -14,6 +14,7 @@ import { matchesRouter } from './routes/matches.routes.js';
 import { photosRouter } from './routes/photos.routes.js';
 import { moderationRouter } from './routes/moderation.routes.js';
 import { liveRouter } from './routes/live.routes.js';
+import { legalRouter } from './routes/legal.routes.js';
 import { errorHandler } from './middleware/error.js';
 
 export function createApp() {
@@ -79,6 +80,7 @@ export function createApp() {
   app.use(photosRouter);
   app.use(moderationRouter);
   app.use(liveRouter);
+  app.use(legalRouter);
 
   app.use((_req, res) => res.status(404).json({ error: 'not_found' }));
   app.use(errorHandler);

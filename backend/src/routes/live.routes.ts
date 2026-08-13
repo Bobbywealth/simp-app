@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/db.js';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireLegalCompliance } from '../middleware/legal.js';
 
 export const liveRouter = Router();
 
@@ -65,8 +66,17 @@ liveRouter.get('/live/streams', requireAuth, async (_req, res, next) => {
  *
  * Returns the new stream id. The actual WebRTC negotiation happens over
  * Socket.IO via the `live:join` event.
+ *
+ * Gated by `requireLegalCompliance` so users cannot broadcast until
+ * they have confirmed 18+ and accepted the current ToS / Privacy
+ * Policy. If they have not, returns 451 with a `missing` array so the
+ * frontend can show the legal gate.
  */
-liveRouter.post('/live/streams', requireAuth, async (req: AuthedRequest, res, next) => {
+liveRouter.post(
+  '/live/streams',
+  requireAuth,
+  requireLegalCompliance,
+  async (req: AuthedRequest, res, next) => {
   try {
     const userId = req.userId!;
     const { title, forceReplace } = startStreamSchema.parse(req.body);
