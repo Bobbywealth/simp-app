@@ -34,8 +34,9 @@ configRouter.get('/config/ice-servers', (_req, res) => {
   if (env.TURN_URLS) {
     const turnUrls = env.TURN_URLS.split(',').map((s) => s.trim()).filter(Boolean);
     if (turnUrls.length > 0) {
+      const urls: string | string[] = turnUrls.length === 1 ? turnUrls[0]! : turnUrls;
       iceServers.push({
-        urls: turnUrls.length === 1 ? turnUrls[0] : turnUrls,
+        urls,
         ...(env.TURN_USERNAME ? { username: env.TURN_USERNAME } : {}),
         ...(env.TURN_CREDENTIAL ? { credential: env.TURN_CREDENTIAL } : {}),
       });
