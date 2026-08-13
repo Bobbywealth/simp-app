@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../store/auth';
 import { listBlocks } from '../api/moderation';
 import { deleteMyAccount, exportMyData } from '../api/account';
+import { API_BASE_URL } from '../api/client';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -157,14 +158,14 @@ export default function Settings() {
             icon="📄"
             label="Privacy Policy"
             value="View in browser"
-            onClick={() => window.open('/legal/privacy', '_blank', 'noopener')}
+            onClick={() => window.open(`${API_BASE_URL}/privacy`, '_blank', 'noopener')}
           />
 
           <Row
             icon="📑"
             label="Terms of Service"
             value="View in browser"
-            onClick={() => window.open('/legal/tos', '_blank', 'noopener')}
+            onClick={() => window.open(`${API_BASE_URL}/terms`, '_blank', 'noopener')}
           />
 
           {/* Danger zone — hard account deletion. App Store 5.1.1(v)

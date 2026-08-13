@@ -248,9 +248,20 @@ function renderPage(opts: {
 }
 
 /**
- * GET /legal/tos — public HTML view of the current Terms of Service.
+ * GET /legal/tos.html — public HTML view of the current Terms of Service.
+ *
+ * (The auth-required JSON version is at /legal/tos — different route,
+ * mounted by legalRouter. The .html suffix keeps the two namespaces
+ * distinct so the auth middleware doesn't intercept this one.)
  */
-publicRouter.get('/legal/tos', async (_req, res, next) => {
+/**
+ * GET /terms, /privacy, /support — the canonical public URLs we put in
+ * App Store Connect / Play Console. These are unauthenticated, public,
+ * and render the same HTML the .html-suffixed variants do. The
+ * reason for two paths is that older bookmarks / shared links may use
+ * either form.
+ */
+publicRouter.get(['/terms', '/legal/tos.html'], async (_req, res, next) => {
   try {
     const tos = await prisma.tosVersion.findFirst({
       where: { type: 'tos' },
@@ -278,9 +289,9 @@ publicRouter.get('/legal/tos', async (_req, res, next) => {
 });
 
 /**
- * GET /legal/privacy — public HTML view of the current Privacy Policy.
+ * GET /legal/privacy.html — public HTML view of the current Privacy Policy.
  */
-publicRouter.get('/legal/privacy', async (_req, res, next) => {
+publicRouter.get(['/privacy', '/legal/privacy.html'], async (_req, res, next) => {
   try {
     const privacy = await prisma.tosVersion.findFirst({
       where: { type: 'privacy' },
@@ -311,12 +322,12 @@ publicRouter.get('/legal/privacy', async (_req, res, next) => {
 });
 
 /**
- * GET /legal/support — public contact page. Both stores require a
+ * GET /legal/support.html — public contact page. Both stores require a
  * working support URL that users (and reviewers) can reach. For now
  * this is a simple page; in production wire it to your real support
  * inbox or helpdesk system (Intercom, Crisp, Zendesk, etc.).
  */
-publicRouter.get('/legal/support', (_req, res) => {
+publicRouter.get(['/support', '/legal/support.html'], (_req, res) => {
   res.type('html').set('Cache-Control', 'public, max-age=600').send(`<!doctype html>
 <html lang="en">
 <head>
