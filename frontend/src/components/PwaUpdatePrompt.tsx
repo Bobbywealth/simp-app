@@ -42,7 +42,7 @@ export function PwaUpdatePrompt() {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
           transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          className="fixed bottom-20 left-4 right-4 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-gold-400/40 bg-ink-900/95 p-4 shadow-2xl backdrop-blur"
+          className="fixed bottom-28 left-4 right-4 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-gold-400/40 bg-ink-900/95 p-4 shadow-2xl backdrop-blur"
         >
           <div className="flex-1">
             <p className="text-sm font-semibold text-white">New version available</p>
