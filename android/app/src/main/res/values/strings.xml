@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SIMP</string>
+    <string name="title_activity_main">SIMP</string>
+    <string name="package_name">app.simp.client</string>
+    <string name="custom_url_scheme">simP</string>
+    <string name="default_notification_channel_id">simp-default</string>
+    <string name="default_notification_channel_name">SIMP</string>
+    <string name="default_notification_channel_description">Live stream alerts, new matches, and messages.</string>
+</resources>

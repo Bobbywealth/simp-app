@@ -2,7 +2,11 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import { initNative, hydrateTokensFromNative } from './capacitor';
 import './styles/globals.css';
+
+// Initialize Capacitor native bridge before React mounts. No-op on web.
+void initNative().then(() => hydrateTokensFromNative());
 
 // PWA: when a new service worker is waiting, dispatch a custom event the app can react to.
 if ('serviceWorker' in navigator) {

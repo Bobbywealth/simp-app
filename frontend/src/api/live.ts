@@ -45,3 +45,10 @@ export function endStream(streamId: string) {
 export function getStreamChat(streamId: string) {
   return apiFetch<{ messages: LiveChatMessage[] }>(`/live/streams/${streamId}/chat`);
 }
+
+export function reportStream(streamId: string, reason: string, details?: string) {
+  return apiFetch<{ ok: true; alreadyReported?: boolean }>(`/live/streams/${streamId}/report`, {
+    method: 'POST',
+    body: JSON.stringify({ reason, details }),
+  });
+}

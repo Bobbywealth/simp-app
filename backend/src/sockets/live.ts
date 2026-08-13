@@ -4,6 +4,15 @@ import { verifyAccessToken } from '../utils/jwt.js';
 import { prisma } from '../config/db.js';
 import { env, allowedOrigins } from '../config/env.js';
 
+/// Streams are auto-ended after this many milliseconds. The cap is
+/// enforced both by the periodic sweep below AND when the broadcaster
+/// joins (so a stream that started before a server restart still
+/// ends on time). Currently 4 hours.
+const STREAM_MAX_DURATION_MS = 4 * 60 * 60 * 1000;
+/// How often we sweep for overdue streams. 60 seconds is enough
+/// granularity for a 4-hour cap; raise if you want tighter enforcement.
+const STREAM_SWEEP_INTERVAL_MS = 60 * 1000;
+
 interface AuthedSocket extends Socket {
   data: {
     userId: string;
@@ -16,8 +25,36 @@ const broadcasters = new Map<string, string>(); // streamId -> broadcaster socke
 const viewers = new Map<string, Set<string>>(); // streamId -> set of viewer socketIds
 
 let io: Server | null = null;
+let sweepHandle: ReturnType<typeof setInterval> | null = null;
 
 export function attachLiveSocket(httpServer: HttpServer) {
+  // Kick off the periodic sweep that auto-ends any stream older than
+  // STREAM_MAX_DURATION_MS. Fire-and-forget: failures are logged, not
+  // thrown, so a single bad tick never kills the server.
+  sweepHandle = setInterval(async () => {
+    try {
+      const cutoff = new Date(Date.now() - STREAM_MAX_DURATION_MS);
+      const overdue = await prisma.liveStream.findMany({
+        where: { status: 'LIVE', startedAt: { lt: cutoff } },
+        select: { id: true },
+      });
+      for (const s of overdue) {
+        console.log(`[live] auto-ending stream ${s.id} (older than ${STREAM_MAX_DURATION_MS / 3600000}h)`);
+        await prisma.liveStream.update({
+          where: { id: s.id },
+          data: { status: 'ENDED', endedAt: new Date() },
+        });
+        io?.to(`stream:${s.id}`).emit('live:ended', { streamId: s.id, reason: 'duration_cap' });
+      }
+    } catch (e) {
+      console.error('[live] stream sweep failed:', (e as Error).message);
+    }
+  }, STREAM_SWEEP_INTERVAL_MS);
+
+  // Don't block the process on the sweep interval — we want the server
+  // to exit cleanly on SIGTERM.
+  sweepHandle.unref();
+
   io = new Server(httpServer, {
     cors: {
       origin: (origin, cb) => {
@@ -60,6 +97,19 @@ export function attachLiveSocket(httpServer: HttpServer) {
       }
       if (stream.status !== 'LIVE') {
         socket.emit('live:error', { error: 'stream_not_live' });
+        return;
+      }
+      // Duration cap: if the stream has already been live longer than
+      // STREAM_MAX_DURATION_MS, end it now instead of letting it run
+      // forever. The periodic sweep handles the normal case; this is a
+      // belt-and-suspenders check for streams that started before the
+      // server restarted.
+      if (Date.now() - stream.startedAt.getTime() > STREAM_MAX_DURATION_MS) {
+        await prisma.liveStream.update({
+          where: { id: streamId },
+          data: { status: 'ENDED', endedAt: new Date() },
+        });
+        socket.emit('live:ended', { streamId, reason: 'duration_cap' });
         return;
       }
       socket.data.streamId = streamId;

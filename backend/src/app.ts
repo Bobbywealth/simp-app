@@ -16,6 +16,8 @@ import { moderationRouter } from './routes/moderation.routes.js';
 import { liveRouter } from './routes/live.routes.js';
 import { legalRouter } from './routes/legal.routes.js';
 import { configRouter } from './routes/config.routes.js';
+import { publicRouter } from './routes/public.routes.js';
+import { accountRouter } from './routes/account.routes.js';
 import { errorHandler } from './middleware/error.js';
 
 export function createApp() {
@@ -83,6 +85,8 @@ export function createApp() {
   app.use(liveRouter);
   app.use(legalRouter);
   app.use(configRouter);
+  app.use(publicRouter);
+  app.use(accountRouter);
 
   app.use((_req, res) => res.status(404).json({ error: 'not_found' }));
   app.use(errorHandler);

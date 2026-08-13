@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
-import { endStream, getStreamChat, listLiveStreams } from '../api/live';
+import { endStream, getStreamChat, listLiveStreams, reportStream } from '../api/live';
 import type { LiveChatMessage, LiveStream } from '../api/live';
 import { useAuth } from '../store/auth';
 import { API_BASE_URL } from '../api/client';
@@ -35,6 +35,37 @@ export default function LiveStreamPage() {
     { urls: 'stun:stun.l.google.com:19302' },
   ]);
   const [turnWarning, setTurnWarning] = useState<string | null>(null);
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState('Inappropriate content');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportDone, setReportDone] = useState(false);
+  const REPORT_REASONS = [
+    'Fake photos or profile',
+    'Inappropriate content',
+    'Harassment or hate speech',
+    'Spam or scam',
+    'Underage',
+    'Other',
+  ];
+
+  async function submitReport() {
+    if (!streamId || reportSubmitting) return;
+    setReportSubmitting(true);
+    try {
+      await reportStream(streamId, reportReason, reportDetails || undefined);
+      setReportDone(true);
+      // Close the modal after a brief delay so the user sees the success state.
+      setTimeout(() => {
+        setShowReport(false);
+        setReportDone(false);
+        setReportDetails('');
+      }, 1500);
+    } catch (e) {
+      console.error('report failed', e);
+      setReportSubmitting(false);
+    }
+  }
   // Tracks whether the user (broadcaster) has clicked "Go Live" so we know
   // it's safe to open the socket. For viewers, this is flipped on as soon as
   // the stream metadata loads.
@@ -658,9 +689,20 @@ export default function LiveStreamPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
                 Live chat
               </p>
-              <p className="text-[10px] text-white/40">
-                {viewerCount} watching
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] text-white/40">
+                  {viewerCount} watching
+                </p>
+                {!isBroadcaster && (
+                  <button
+                    onClick={() => setShowReport(true)}
+                    aria-label="Report this stream"
+                    className="rounded-full p-1.5 text-white/40 hover:bg-red-500/20 hover:text-red-300"
+                  >
+                    🚩
+                  </button>
+                )}
+              </div>
             </div>
 
             <div
@@ -715,6 +757,88 @@ export default function LiveStreamPage() {
           </div>
         </div>
       </div>
+
+      {/* Report stream modal — viewer-side. Required by Apple App Store
+          Guideline 1.4.1 (in-app content reporting) and Google Play UGC
+          policy. */}
+      {showReport && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center"
+          onClick={() => !reportSubmitting && setShowReport(false)}
+        >
+          <motion.div
+            initial={{ y: '100%', opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: '100%', opacity: 0 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-t-3xl border-t border-gold-400/30 bg-ink-950 p-6 pb-safe sm:rounded-3xl sm:border"
+          >
+            <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/20 sm:hidden" />
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-300">
+              Report this stream
+            </p>
+            <p className="mt-1 text-sm text-white/70">
+              Tell us what's wrong. Reports are reviewed within 24 hours.
+            </p>
+
+            <div className="mt-4 space-y-2">
+              {REPORT_REASONS.map((r) => (
+                <label
+                  key={r}
+                  className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${
+                    reportReason === r
+                      ? 'border-red-400/60 bg-red-500/10'
+                      : 'border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="report-reason"
+                    value={r}
+                    checked={reportReason === r}
+                    onChange={() => setReportReason(r)}
+                    className="h-4 w-4 accent-red-400"
+                  />
+                  <span className="text-sm text-white">{r}</span>
+                </label>
+              ))}
+            </div>
+
+            <textarea
+              value={reportDetails}
+              onChange={(e) => setReportDetails(e.target.value)}
+              maxLength={500}
+              placeholder="Optional: add details (max 500 chars)"
+              className="mt-4 w-full rounded-lg border border-white/10 bg-ink-950 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-red-400/60 focus:outline-none"
+              rows={3}
+            />
+
+            {reportDone && (
+              <p className="mt-3 text-center text-sm text-green-300">
+                ✓ Report submitted. We'll review within 24 hours.
+              </p>
+            )}
+
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                onClick={submitReport}
+                disabled={reportSubmitting || reportDone}
+                className="w-full rounded-full bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.18em] text-white transition hover:bg-red-600 disabled:opacity-30"
+              >
+                {reportSubmitting ? 'Submitting…' : reportDone ? 'Submitted' : 'Submit report'}
+              </button>
+              <button
+                onClick={() => setShowReport(false)}
+                disabled={reportSubmitting}
+                className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/60"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </Scaffold>
   );
 }

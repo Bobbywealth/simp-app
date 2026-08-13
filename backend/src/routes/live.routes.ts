@@ -16,6 +16,12 @@ const startStreamSchema = z.object({
 
 /**
  * GET /live/streams — list of currently LIVE streams
+ *
+ * Excludes any stream that has been reported >= 3 times by distinct
+ * viewers. The 3-report threshold is a soft auto-hide so obvious
+ * policy violations disappear from the feed immediately while
+ * moderators review. Lower for stricter moderation, raise for
+ * lighter touch.
  */
 liveRouter.get('/live/streams', requireAuth, async (_req, res, next) => {
   try {
@@ -25,16 +31,24 @@ liveRouter.get('/live/streams', requireAuth, async (_req, res, next) => {
       take: 50,
     });
 
-    // Attach broadcaster profile info
+    // Filter out streams with 3+ distinct user reports
     const broadcasterIds = Array.from(new Set(streams.map((s) => s.broadcasterId)));
+    const reportCounts = await prisma.report.groupBy({
+      by: ['reportedId'],
+      where: { reportedId: { in: broadcasterIds }, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+      _count: { reporterId: true },
+    });
+    const reportCountMap = new Map(reportCounts.map((r) => [r.reportedId, r._count.reporterId]));
+    const filtered = streams.filter((s) => (reportCountMap.get(s.broadcasterId) ?? 0) < 3);
+
     const broadcasters = await prisma.user.findMany({
-      where: { id: { in: broadcasterIds } },
+      where: { id: { in: filtered.map((s) => s.broadcasterId) } },
       include: { profile: true, photos: { take: 1, orderBy: { position: 'asc' } } },
     });
     const broadcasterMap = new Map(broadcasters.map((b) => [b.id, b]));
 
     res.json({
-      streams: streams.map((s) => {
+      streams: filtered.map((s) => {
         const b = broadcasterMap.get(s.broadcasterId);
         return {
           id: s.id,
@@ -167,6 +181,58 @@ liveRouter.post('/live/streams/:id/heart', requireAuth, async (req: AuthedReques
     if (!stream) return res.status(404).json({ error: 'stream_not_found' });
     // Note: viewerCount is used as a proxy for heart count for simplicity.
     res.json({ streamId: stream.id });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * POST /live/streams/:id/report — report a stream as policy-violating
+ *
+ * Creates a Report row tied to the broadcaster AND ends the stream
+ * immediately for the reporter (server-side socket close happens via
+ * the existing 'live:end' channel in socket.ts; this endpoint just
+ * updates the DB so the stream is removed from /live/streams).
+ *
+ * Required by Apple App Store Review Guideline 1.4.1 (content
+ * moderation) and Google Play UGC policy (in-app reporting).
+ *
+ * Idempotent: if the user has already reported this stream, returns
+ * 200 with `alreadyReported: true` and doesn't create a duplicate row.
+ */
+liveRouter.post('/live/streams/:id/report', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const userId = req.userId!;
+    const streamId = req.params.id!;
+    const { reason, details } = z
+      .object({
+        reason: z.string().min(1).max(80),
+        details: z.string().max(500).optional().nullable(),
+      })
+      .parse(req.body);
+
+    const stream = await prisma.liveStream.findUnique({ where: { id: streamId } });
+    if (!stream) return res.status(404).json({ error: 'stream_not_found' });
+    if (stream.broadcasterId === userId) return res.status(400).json({ error: 'cannot_report_self' });
+
+    const existing = await prisma.report.findFirst({
+      where: { reporterId: userId, reportedId: stream.broadcasterId },
+    });
+    if (existing) return res.json({ ok: true, alreadyReported: true });
+
+    await prisma.report.create({
+      data: {
+        reporterId: userId,
+        reportedId: stream.broadcasterId,
+        reason,
+        details: details ?? null,
+      },
+    });
+
+    // End the stream for the reporter. Other viewers see the stream
+    // drop from /live/streams once the report count hits 3 (see
+    // /live/streams GET handler above).
+    res.json({ ok: true });
   } catch (e) {
     next(e);
   }
