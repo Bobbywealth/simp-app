@@ -480,7 +480,9 @@ export default function LiveStreamPage() {
               </div>
             )}
 
-            {/* Broadcaster title + controls */}
+            {/* Broadcaster title overlay (no controls here anymore — moved to a
+                dedicated toolbar below the video so the chat overlay doesn't
+                cover them). */}
             {stream && (
               <div className="absolute left-3 right-3 top-12 flex items-center gap-2">
                 {stream.broadcaster?.photoUrl && (
@@ -496,14 +498,6 @@ export default function LiveStreamPage() {
                   </p>
                   <p className="truncate text-[11px] text-white/80">{stream.title}</p>
                 </div>
-                {isBroadcaster && (connectionState === 'live' || connectionState === 'preview' || connectionState === 'connecting') && (
-                  <button
-                    onClick={handleEndStream}
-                    className="rounded-full border border-white/40 bg-black/40 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white hover:bg-red-500"
-                  >
-                    End
-                  </button>
-                )}
               </div>
             )}
 
@@ -523,44 +517,6 @@ export default function LiveStreamPage() {
               ))}
             </div>
 
-            {/* Broadcaster: bottom controls (mic toggle, camera toggle, end stream) */}
-            {isBroadcaster && (connectionState === 'preview' || connectionState === 'live') && (
-              <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-3 px-3">
-                <BroadcasterControlButton
-                  active={micEnabled}
-                  onClick={toggleMic}
-                  disabled={connectionState === 'preview'}
-                  label={micEnabled ? 'Mic on' : 'Mic off'}
-                  icon={micEnabled ? '🎙' : '🔇'}
-                />
-                <BroadcasterControlButton
-                  active={cameraEnabled}
-                  onClick={toggleCamera}
-                  disabled={connectionState === 'preview'}
-                  label={cameraEnabled ? 'Camera on' : 'Camera off'}
-                  icon={cameraEnabled ? '📹' : '📷'}
-                />
-                <BroadcasterControlButton
-                  active={facingMode === 'user'}
-                  onClick={flipCamera}
-                  disabled={!cameraReady}
-                  label={facingMode === 'user' ? 'Front camera' : 'Back camera'}
-                  icon="🔄"
-                />
-                {connectionState === 'preview' && cameraReady && (
-                  <button
-                    onClick={() => {
-                      setConnectionState('connecting');
-                      setConnectInitiated(true);
-                    }}
-                    className="rounded-full border-2 border-red-500 bg-red-500 px-6 py-3 text-xs font-bold uppercase tracking-[0.2em] text-white hover:bg-red-600"
-                  >
-                    ● Go Live
-                  </button>
-                )}
-              </div>
-            )}
-
             {/* Viewer: tap to send heart (sits above the chat overlay so taps still register) */}
             {!isBroadcaster && connectionState === 'live' && (
               <button
@@ -570,6 +526,94 @@ export default function LiveStreamPage() {
               />
             )}
           </div>
+
+          {/* Broadcaster toolbar — sits between video stage and chat panel so
+              the chat overlay never covers it. Shows mic toggle, camera
+              toggle, camera-flip, and End-stream. Always rendered when the
+              viewer is the broadcaster across preview / live / connecting
+              states. */}
+          {isBroadcaster && (
+            <div
+              className="relative z-20 mb-2 flex items-center justify-center gap-2 self-center rounded-full border border-white/15 bg-ink-950/90 px-3 py-2 shadow-2xl backdrop-blur-md lg:hidden"
+              role="toolbar"
+              aria-label="Broadcaster controls"
+            >
+              <BroadcasterControlButton
+                active={micEnabled}
+                onClick={toggleMic}
+                disabled={connectionState === 'preview'}
+                label={micEnabled ? 'Mic on' : 'Mic off'}
+                icon={micEnabled ? '🎙' : '🔇'}
+              />
+              <BroadcasterControlButton
+                active={cameraEnabled}
+                onClick={toggleCamera}
+                disabled={connectionState === 'preview'}
+                label={cameraEnabled ? 'Camera on' : 'Camera off'}
+                icon={cameraEnabled ? '📹' : '📷'}
+              />
+              <BroadcasterControlButton
+                active={facingMode === 'user'}
+                onClick={flipCamera}
+                disabled={!cameraReady}
+                label={facingMode === 'user' ? 'Front camera' : 'Back camera'}
+                icon="🔄"
+              />
+              {(connectionState === 'live' ||
+                connectionState === 'preview' ||
+                connectionState === 'connecting') && (
+                <button
+                  onClick={handleEndStream}
+                  className="ml-1 rounded-full border border-red-400/40 bg-red-500/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-red-200 hover:bg-red-500 hover:text-white"
+                >
+                  End
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Desktop-only broadcaster toolbar (shown on lg+ via the in-flow
+              flex row that wraps it; hidden on mobile because mobile has the
+              dedicated toolbar above the chat panel). */}
+          {isBroadcaster && (
+            <div
+              className="mb-2 hidden items-center justify-center gap-2 self-center rounded-full border border-white/15 bg-ink-950/90 px-3 py-2 shadow-2xl backdrop-blur-md lg:flex"
+              role="toolbar"
+              aria-label="Broadcaster controls"
+            >
+              <BroadcasterControlButton
+                active={micEnabled}
+                onClick={toggleMic}
+                disabled={connectionState === 'preview'}
+                label={micEnabled ? 'Mic on' : 'Mic off'}
+                icon={micEnabled ? '🎙' : '🔇'}
+              />
+              <BroadcasterControlButton
+                active={cameraEnabled}
+                onClick={toggleCamera}
+                disabled={connectionState === 'preview'}
+                label={cameraEnabled ? 'Camera on' : 'Camera off'}
+                icon={cameraEnabled ? '📹' : '📷'}
+              />
+              <BroadcasterControlButton
+                active={facingMode === 'user'}
+                onClick={flipCamera}
+                disabled={!cameraReady}
+                label={facingMode === 'user' ? 'Front camera' : 'Back camera'}
+                icon="🔄"
+              />
+              {(connectionState === 'live' ||
+                connectionState === 'preview' ||
+                connectionState === 'connecting') && (
+                <button
+                  onClick={handleEndStream}
+                  className="ml-1 rounded-full border border-red-400/40 bg-red-500/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-red-200 hover:bg-red-500 hover:text-white"
+                >
+                  End
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Chat panel — overlaid on the video on mobile (so users can watch and chat at once),
               side-by-side on desktop */}
@@ -614,9 +658,15 @@ export default function LiveStreamPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') sendChatMessage();
                 }}
+                inputMode="text"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="sentences"
+                spellCheck={false}
+                enterKeyHint="send"
                 maxLength={280}
                 placeholder="Say something nice…"
-                className="flex-1 rounded-full border border-white/10 bg-ink-950 px-3 py-2 text-xs text-white placeholder:text-white/40"
+                className="flex-1 rounded-full border border-white/10 bg-ink-950 px-3 py-2 text-base text-white placeholder:text-white/40 focus:border-gold-400/60 focus:outline-none focus:ring-2 focus:ring-gold-400/20 sm:text-xs"
               />
               <button
                 onClick={sendChatMessage}
@@ -648,13 +698,13 @@ function BroadcasterControlButton({ active, onClick, disabled, label, icon }: Br
       disabled={disabled}
       title={label}
       aria-label={label}
-      className={`flex h-10 w-10 items-center justify-center rounded-full border transition disabled:opacity-30 ${
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 ${
         active
-          ? 'border-white/30 bg-black/40 text-white hover:bg-white/20'
-          : 'border-red-400/40 bg-red-500/20 text-red-400 hover:bg-red-500/30'
+          ? 'border-white/30 bg-black/50 text-white hover:bg-white/20'
+          : 'border-red-400/50 bg-red-500/25 text-red-300 hover:bg-red-500/40'
       }`}
     >
-      <span className="text-base">{icon}</span>
+      <span className="text-lg leading-none">{icon}</span>
     </button>
   );
 }
