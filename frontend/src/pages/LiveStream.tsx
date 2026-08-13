@@ -6,11 +6,7 @@ import { endStream, getStreamChat, listLiveStreams } from '../api/live';
 import type { LiveChatMessage, LiveStream } from '../api/live';
 import { useAuth } from '../store/auth';
 import { API_BASE_URL } from '../api/client';
-
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-];
+import { getIceConfig, type IceServer } from '../api/config';
 
 type ConnectionState = 'loading' | 'preview' | 'connecting' | 'live' | 'ended' | 'error';
 
@@ -31,10 +27,45 @@ export default function LiveStreamPage() {
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  // ICE config (STUN + optional TURN) fetched from /config/ice-servers on
+  // mount. When TURN isn't configured on the backend, iceServers still
+  // contains STUN entries, which work for ~50% of viewers (those on open
+  // networks). A separate warning surfaces in the UI when TURN is off.
+  const [iceServers, setIceServers] = useState<RTCIceServer[]>([
+    { urls: 'stun:stun.l.google.com:19302' },
+  ]);
+  const [turnWarning, setTurnWarning] = useState<string | null>(null);
   // Tracks whether the user (broadcaster) has clicked "Go Live" so we know
   // it's safe to open the socket. For viewers, this is flipped on as soon as
   // the stream metadata loads.
   const [connectInitiated, setConnectInitiated] = useState(false);
+
+  // Load ICE server config (STUN + optional TURN) once on mount. Without
+  // TURN, cross-network viewers see a black screen; we surface that as a
+  // soft warning the broadcaster can see in the preview state.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cfg = await getIceConfig();
+        if (cancelled) return;
+        const servers: RTCIceServer[] = cfg.iceServers.map((s: IceServer) => ({
+          urls: s.urls,
+          ...(s.username ? { username: s.username } : {}),
+          ...(s.credential ? { credential: s.credential } : {}),
+        }));
+        if (servers.length > 0) setIceServers(servers);
+        if (!cfg.turnConfigured && cfg.recommendation) setTurnWarning(cfg.recommendation);
+      } catch {
+        // Fall back to the hardcoded STUN list so the page still works
+        // even if /config/ice-servers is unreachable. The warning stays
+        // null so we don't alarm the user about a config we couldn't fetch.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -306,7 +337,7 @@ export default function LiveStreamPage() {
     let pc = peerConnectionsRef.current.get(peerId);
     if (pc) return pc;
 
-    pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    pc = new RTCPeerConnection({ iceServers });
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
@@ -438,13 +469,18 @@ export default function LiveStreamPage() {
             {/* Preview state (broadcaster: camera ready, not yet "live") */}
             {connectionState === 'preview' && (
               <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black via-black/40 to-transparent">
-                <div className="p-6 text-center">
+                <div className="w-full p-6 text-center">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
                     Camera ready
                   </p>
                   <p className="mt-2 text-sm text-white/80">
                     Tap <span className="font-semibold text-white">Go Live</span> to start streaming
                   </p>
+                  {turnWarning && (
+                    <p className="mx-auto mt-3 max-w-xs rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-200">
+                      ⚠ {turnWarning}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
