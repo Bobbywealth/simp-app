@@ -5,6 +5,9 @@ import { useForm } from 'react-hook-form';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { SimpLogo } from '../components/SimpLogo';
+import { NavHeader } from '../components/NavHeader';
+import { useSwipeBack } from '../hooks/useSwipeBack';
+import { haptics } from '../lib/haptics';
 import { login, me } from '../api/auth';
 import { useAuth } from '../store/auth';
 
@@ -13,6 +16,8 @@ type FormValues = { email: string; password: string };
 export default function Login() {
   const navigate = useNavigate();
   const { setUser } = useAuth();
+  // iOS-style left-edge swipe-back to /welcome
+  useSwipeBack(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,9 +34,11 @@ export default function Login() {
       await login(data);
       const meData = await me();
       setUser(meData);
+      haptics.success();
       if (!meData.profile) navigate('/profile-setup', { replace: true });
       else navigate('/home', { replace: true });
     } catch (e) {
+      haptics.heavy();
       setError((e as Error).message || 'Log in failed');
     } finally {
       setSubmitting(false);
@@ -41,7 +48,8 @@ export default function Login() {
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
       <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
-      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-safe">
+      <NavHeader title="Welcome back" alwaysCompact showBack />
+      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-2">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { SimpLogo } from '../components/SimpLogo';
+import { haptics } from '../lib/haptics';
 
 export default function Welcome() {
   const navigate = useNavigate();
@@ -133,7 +134,10 @@ export default function Welcome() {
       >
         <button
           type="button"
-          onClick={() => navigate('/onboarding')}
+          onClick={() => {
+            haptics.medium();
+            navigate('/onboarding');
+          }}
           className="btn-gold w-full"
           data-testid="get-started"
         >
@@ -141,7 +145,10 @@ export default function Welcome() {
         </button>
         <button
           type="button"
-          onClick={() => navigate('/login')}
+          onClick={() => {
+            haptics.light();
+            navigate('/login');
+          }}
           className="btn-ghost w-full text-white/70"
         >
           Log In

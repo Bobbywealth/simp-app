@@ -1,10 +1,14 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, MouseEvent, ReactNode } from 'react';
+import { haptics } from '../lib/haptics';
 
 type Variant = 'gold' | 'gold-outline' | 'ghost';
+type HapticOpt = 'light' | 'medium' | 'heavy' | 'none';
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   loading?: boolean;
+  /** Haptic feedback on press. Defaults to 'light'. Set to 'none' to disable. */
+  haptic?: HapticOpt;
   children: ReactNode;
 }
 
@@ -14,10 +18,27 @@ const variants: Record<Variant, string> = {
   ghost: 'btn-ghost',
 };
 
-export function Button({ variant = 'gold', loading, className = '', children, disabled, ...rest }: Props) {
+export function Button({
+  variant = 'gold',
+  loading,
+  haptic = 'light',
+  className = '',
+  children,
+  disabled,
+  onClick,
+  ...rest
+}: Props) {
+  const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
+    if (!disabled && !loading && haptic !== 'none') {
+      haptics[haptic]?.();
+    }
+    onClick?.(e);
+  };
+
   return (
     <button
       {...rest}
+      onClick={handleClick}
       disabled={disabled || loading}
       className={`${variants[variant]} ${disabled || loading ? 'opacity-60 pointer-events-none' : ''} ${className} w-full`}
     >

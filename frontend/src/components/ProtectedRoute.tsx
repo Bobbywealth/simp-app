@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../store/auth';
+import { SkeletonScreen } from './Skeleton';
 
 interface Props {
   children: ReactNode;
@@ -9,12 +10,8 @@ interface Props {
 export function ProtectedRoute({ children }: Props) {
   const { user, ready } = useAuth();
   if (!ready) {
-    return (
-      <div className="flex h-full items-center justify-center bg-ink-950">
-        <div className="size-10 animate-spin rounded-full border-2 border-gold-400 border-t-transparent" />
-      </div>
-    );
+    return <SkeletonScreen label="Loading" />;
   }
-  if (!user) return <Navigate to="/welcome" replace />;
+  if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }

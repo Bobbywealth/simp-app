@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { OnboardingLayout } from '../components/OnboardingLayout';
+import { useSwipeBack } from '../hooks/useSwipeBack';
+import { haptics } from '../lib/haptics';
 
 type TitleSegment = { text: string; gold?: boolean };
 type TitleLine = TitleSegment[];
@@ -84,10 +86,15 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
   const total = slides.length;
   const slide = slides[step]!;
+  useSwipeBack(true);
 
   const next = () => {
+    haptics.light();
     if (step < total - 1) setStep(step + 1);
-    else navigate('/signup');
+    else {
+      haptics.medium();
+      navigate('/signup');
+    }
   };
 
   return (
