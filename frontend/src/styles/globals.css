@@ -77,9 +77,15 @@
     color: transparent;
   }
   .pt-safe {
-    padding-top: max(env(safe-area-inset-top), 0px);
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
   }
   .pb-safe {
-    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+  }
+  .pt-safe-min {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pb-safe-min {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
