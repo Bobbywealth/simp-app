@@ -24,12 +24,6 @@
     --sab: env(safe-area-inset-bottom);
   }
 
-  .pt-safe {
-    padding-top: max(env(safe-area-inset-top), 0px);
-  }
-  .pb-safe {
-    padding-bottom: max(env(safe-area-inset-bottom), 0px);
-  }
 }
 
 @layer components {
@@ -81,5 +75,11 @@
     background-clip: text;
     -webkit-text-fill-color: transparent;
     color: transparent;
+  }
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top), 0px);
+  }
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
   }
 }

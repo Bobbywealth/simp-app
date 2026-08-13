@@ -22,7 +22,7 @@ export function BottomTabBar() {
   }
 
   return (
-    <nav className="sticky bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-ink-950/95 backdrop-blur-md">
+    <nav className="sticky bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-ink-950/95 backdrop-blur-md pb-safe">
       <div className="mx-auto flex max-w-md items-stretch justify-around">
         {TABS.map((t) => (
           <NavLink

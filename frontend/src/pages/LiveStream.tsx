@@ -30,6 +30,7 @@ export default function LiveStreamPage() {
   const [cameraReady, setCameraReady] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   // Tracks whether the user (broadcaster) has clicked "Go Live" so we know
   // it's safe to open the socket. For viewers, this is flipped on as soon as
   // the stream metadata loads.
@@ -217,10 +218,10 @@ export default function LiveStreamPage() {
     }
   }, [messages]);
 
-  async function startCamera() {
+  async function startCamera(facing: 'user' | 'environment' = 'user') {
     try {
       const media = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: facing },
         audio: true,
       });
       localStreamRef.current = media;
@@ -229,6 +230,7 @@ export default function LiveStreamPage() {
         localVideoRef.current.muted = true;
       }
       setCameraReady(true);
+      setFacingMode(facing);
     } catch (e) {
       setError('Camera/mic permission denied. Please allow access and try again.');
       setConnectionState('error');
@@ -259,6 +261,44 @@ export default function LiveStreamPage() {
     if (videoTrack) {
       videoTrack.enabled = !videoTrack.enabled;
       setCameraEnabled(videoTrack.enabled);
+    }
+  }
+
+  async function flipCamera() {
+    if (!cameraReady || !localStreamRef.current) return;
+    const next: 'user' | 'environment' = facingMode === 'user' ? 'environment' : 'user';
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: next },
+        audio: false,
+      });
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      if (!newVideoTrack) return;
+
+      // Swap the video track in the local stream without tearing down audio
+      const oldVideoTracks = localStreamRef.current.getVideoTracks();
+      oldVideoTracks.forEach((t) => {
+        localStreamRef.current!.removeTrack(t);
+        t.stop();
+      });
+      localStreamRef.current.addTrack(newVideoTrack);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+
+      // Hot-swap the video track on every active peer connection so viewers
+      // see the new camera without a renegotiation round-trip.
+      peerConnectionsRef.current.forEach((pc) => {
+        const videoSender = pc.getSenders().find((s) => s.track?.kind === 'video');
+        if (videoSender) {
+          videoSender.replaceTrack(newVideoTrack).catch((e) => console.error('replaceTrack failed', e));
+        }
+      });
+
+      setFacingMode(next);
+    } catch (e) {
+      console.error('flipCamera failed', e);
+      setError('Could not switch camera. Try again.');
     }
   }
 
@@ -305,13 +345,28 @@ export default function LiveStreamPage() {
   function sendChatMessage() {
     const body = chatInput.trim();
     if (!body || !streamId) return;
-    socketRef.current?.emit('live:chat', { streamId, body });
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('live:chat', { streamId, body });
+    } else {
+      // Local fallback: echo the message into the chat overlay so the input
+      // feels alive while the socket/session is reconnecting.
+      const localMsg: LiveChatMessage = {
+        id: `local-${Date.now()}`,
+        senderId: user?.id ?? 'local',
+        senderName: user?.profile?.displayName ?? 'You',
+        body,
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, localMsg].slice(-100));
+    }
     setChatInput('');
   }
 
   function sendHeart() {
     if (!streamId) return;
-    socketRef.current?.emit('live:heart', { streamId });
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('live:heart', { streamId });
+    }
     spawnHeart();
   }
 
@@ -485,6 +540,13 @@ export default function LiveStreamPage() {
                   label={cameraEnabled ? 'Camera on' : 'Camera off'}
                   icon={cameraEnabled ? '📹' : '📷'}
                 />
+                <BroadcasterControlButton
+                  active={facingMode === 'user'}
+                  onClick={flipCamera}
+                  disabled={!cameraReady}
+                  label={facingMode === 'user' ? 'Front camera' : 'Back camera'}
+                  icon="🔄"
+                />
                 {connectionState === 'preview' && cameraReady && (
                   <button
                     onClick={() => {
@@ -541,8 +603,7 @@ export default function LiveStreamPage() {
             <div className="flex items-center gap-2 border-t border-white/10 p-2 lg:p-3">
               <button
                 onClick={sendHeart}
-                disabled={connectionState !== 'live'}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg transition hover:bg-red-500/30 hover:text-red-400 disabled:opacity-40"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg transition hover:bg-red-500/30 hover:text-red-400"
                 aria-label="Send heart"
               >
                 ♥
@@ -554,13 +615,12 @@ export default function LiveStreamPage() {
                   if (e.key === 'Enter') sendChatMessage();
                 }}
                 maxLength={280}
-                disabled={connectionState !== 'live'}
                 placeholder="Say something nice…"
-                className="flex-1 rounded-full border border-white/10 bg-ink-950 px-3 py-2 text-xs text-white placeholder:text-white/40 disabled:opacity-50"
+                className="flex-1 rounded-full border border-white/10 bg-ink-950 px-3 py-2 text-xs text-white placeholder:text-white/40"
               />
               <button
                 onClick={sendChatMessage}
-                disabled={!chatInput.trim() || connectionState !== 'live'}
+                disabled={!chatInput.trim()}
                 className="rounded-full bg-gold-400 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-ink-950 disabled:opacity-30"
               >
                 Send

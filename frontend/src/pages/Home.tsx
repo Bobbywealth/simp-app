@@ -15,7 +15,7 @@ export default function Home() {
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
       <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
-      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-6">
+      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-safe">
         <header className="flex items-center justify-between">
           <SimpLogo size={48} variant="emblem" />
           <button
