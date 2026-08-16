@@ -1,4 +1,4 @@
-# SIMP — Superior · Intelligent · Male · Pleasers
+# SIMP — Successful · Intentional · Male · Providers
 
 A PWA-first dating app built with modern web technologies. Designed for mobile-first experiences with eventual native iOS/Android support via Capacitor.
 
@@ -116,6 +116,70 @@ The `render.yaml` includes:
 - Auto-deploy from GitHub
 
 Just push to GitHub and Render deploys automatically.
+
+## TURN Setup (Required for Cross-Network Viewers)
+
+The live streaming feature uses WebRTC. Without a TURN server, ~50% of
+cross-network viewers (corporate firewalls, VPNs, symmetric NATs, hotel
+WiFi, etc.) will see a **black screen** because their browser can't
+establish a peer-to-peer path to the broadcaster.
+
+The app ships with STUN-only defaults (Google's free servers), which work
+for open-network viewers. To support cross-network viewers, configure a
+TURN server via env vars on the backend Render service:
+
+| Env var | Example | Notes |
+| --- | --- | --- |
+| `TURN_URLS` | `turn:global.turn.twilio.com:3478?transport=udp` | Comma-separated for multiple |
+| `TURN_USERNAME` | `...` | Provider-issued |
+| `TURN_CREDENTIAL` | `...` | Provider-issued (short-lived is fine) |
+| `TURN_PROVIDER` | `twilio` | Human-readable label for debugging |
+
+Set them via Render dashboard → simp-backend → Environment → add
+each key/value pair. The app reads them on boot and serves the merged
+STUN + TURN config at `GET /config/ice-servers` (which the frontend
+caches and uses for every `new RTCPeerConnection`).
+
+### Provider comparison
+
+| Provider | Cost (low scale) | Setup | Best for |
+| --- | --- | --- | --- |
+| **Twilio Network Traversal Service** | $0.0004/GB; 100 GB free trial | Create account, generate API key, hit `Tokens` endpoint for short-lived credentials | Quick start, no infra to manage |
+| **Cloudflare Calls** | Free tier (SFU + TURN) | Cloudflare account, dashboard config | Lowest cost at scale; bundles SFU if you migrate off WebRTC mesh |
+| **Self-hosted coturn** | Free (your VM) | Docker image, 30 min setup, manage credentials yourself | Tight budget, full control |
+
+### Twilio NTS quick start
+
+```bash
+# Install twilio-cli or just use the REST API directly
+curl -u "ACCOUNT_SID:AUTH_TOKEN" \
+  https://api.twilio.com/2010-04-01/Accounts/ACCOUNT_SID/Tokens.json
+# returns iceServers with username + credential valid for 24h
+```
+
+Paste the returned `username` / `credential` into Render's environment
+for the simp-backend service. Credentials auto-rotate; redeploy isn't
+required if you wire this through a refresh-on-deploy cron.
+
+### coturn (self-hosted) quick start
+
+```bash
+docker run -d --network=host \
+  -e TURN_USERNAME=simproducer \
+  -e TURN_CREDENTIAL=$(openssl rand -hex 32) \
+  -e TURN_REALM=turn.simp.app \
+  coturn/coturn \
+  -n --logfile=stdout \
+  --realm=turn.simp.app \
+  --static-auth-secret=simproducer:$(openssl rand -hex 32) \
+  --listening-port=3478 \
+  --min-port=49152 --max-port=65535 \
+  --use-auth-secret \
+  --no-tls --no-dtls
+```
+
+Then set `TURN_URLS=turn:turn.simp.app:3478?transport=udp`,
+`TURN_USERNAME`, `TURN_CREDENTIAL` on Render.
 
 ## Next Steps
 

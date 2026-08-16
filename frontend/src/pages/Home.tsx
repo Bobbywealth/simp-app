@@ -59,19 +59,36 @@ export default function Home() {
           </h1>
           <div className="gold-divider mt-4" />
           <p className="mt-4 text-sm text-white/70">
-            Your profile is set. The next milestone is discovery, matching, and messaging.
+            Curated profiles. Real conversations. Earned reveals.
           </p>
 
-          <div className="mt-10 w-full rounded-2xl border border-gold-400/20 bg-ink-800/60 p-5 text-left">
+          {/* iOS PWA: replaced stub nav grid with main's discovery grid */}
+          <div className="mt-8 grid grid-cols-2 gap-3">
+            <button
+              onClick={() => navigate('/discover')}
+              className="btn-gold flex flex-col items-center justify-center py-6 text-sm font-medium uppercase tracking-[0.18em]"
+            >
+              <span className="text-2xl">↗</span>
+              <span className="mt-1">Discover</span>
+            </button>
+            <button
+              onClick={() => navigate('/matches')}
+              className="btn-gold-outline flex flex-col items-center justify-center py-6 text-sm font-medium uppercase tracking-[0.18em]"
+            >
+              <span className="text-2xl">♥</span>
+              <span className="mt-1">Matches</span>
+            </button>
+          </div>
+
+          <div className="mt-8 rounded-2xl border border-gold-400/20 bg-ink-800/60 p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-300">
-              Coming next
+              What&apos;s next
             </p>
             <ul className="mt-3 space-y-2 text-sm text-white/80">
-              <li>· Discovery — swipe through curated profiles</li>
-              <li>· Matching — get notified when it&apos;s mutual</li>
-              <li>· Messaging — encrypted, real-time</li>
-              <li>· Live — go live and build your audience</li>
+              <li>· Messaging — real-time chat with your matches</li>
+              <li>· Live streaming — go live and build your audience</li>
               <li>· Experiences — dinner, travel, events</li>
+              <li>· Premium — unlock unlimited likes and boosts</li>
             </ul>
           </div>
         </div>

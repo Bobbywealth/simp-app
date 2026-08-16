@@ -1,5 +1,5 @@
 // Prisma schema for SIMP dating app
-// Models: User, Profile, Photo, RefreshToken, Interest
+// Models: User, Profile, Photo, RefreshToken, Interest, Swipe, Match, Prompt
 
 generator client {
   provider = "prisma-client-js"
@@ -23,6 +23,12 @@ enum LookingFor {
   EVERYONE
 }
 
+enum SwipeAction {
+  PASS
+  LIKE
+  SUPERLIKE
+}
+
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
@@ -31,16 +37,34 @@ model User {
   updatedAt     DateTime @updatedAt
   emailVerified Boolean  @default(false)
 
-  profile       Profile?
-  photos        Photo[]
-  refreshTokens RefreshToken[]
-  interests     UserInterest[]
+  profile         Profile?
+  photos          Photo[]
+  refreshTokens   RefreshToken[]
+  interests       UserInterest[]
+  swipesMade      Swipe[]        @relation("SwipesMade")
+  swipesReceived  Swipe[]        @relation("SwipesReceived")
+  matchesAsA      Match[]        @relation("MatchesAsA")
+  matchesAsB      Match[]        @relation("MatchesAsB")
+  prompts         Prompt[]
+  blocksMade      Block[]        @relation("BlocksMade")
+  blocksReceived  Block[]        @relation("BlocksReceived")
+  reportsMade     Report[]       @relation("ReportsMade")
+  reportsReceived Report[]       @relation("ReportsReceived")
+  streamsBroadcast LiveStream[]  @relation("StreamsBroadcast")
+  liveChatMessages LiveChatMessage[]
+  tosAcceptances   TosAcceptance[]
+
+  // Set once when the user explicitly confirms they are 18+ (or the
+  // applicable age of majority in their jurisdiction). Required before
+  // they can broadcast a live stream.
+  ageConfirmedAt   DateTime?
+  ageConfirmedIp   String?
 }
 
 model Profile {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   displayName String
   bio         String?
@@ -50,13 +74,13 @@ model Profile {
   city        String?
   occupation  String?
   heightCm    Int?
-  isVerified  Boolean  @default(false)
-  isPremium   Boolean  @default(false)
+  isVerified  Boolean    @default(false)
+  isPremium   Boolean    @default(false)
 
-  interests   UserInterest[] @relation("ProfileInterests")
+  interests UserInterest[] @relation("ProfileInterests")
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Photo {
@@ -69,29 +93,178 @@ model Photo {
 }
 
 model Interest {
-  id     String @id @default(cuid())
-  slug   String @unique
-  label  String
-  users  UserInterest[] @relation("InterestToUsers")
+  id    String         @id @default(cuid())
+  slug  String         @unique
+  label String
+  users UserInterest[] @relation("InterestToUsers")
 }
 
 model UserInterest {
   userId     String
   interestId String
   profileId  String?
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  interest   Interest  @relation("InterestToUsers", fields: [interestId], references: [id], onDelete: Cascade)
-  profile    Profile?  @relation("ProfileInterests", fields: [profileId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interest   Interest @relation("InterestToUsers", fields: [interestId], references: [id], onDelete: Cascade)
+  profile    Profile? @relation("ProfileInterests", fields: [profileId], references: [id], onDelete: Cascade)
 
   @@id([userId, interestId])
 }
 
 model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model Swipe {
+  id        String      @id @default(cuid())
+  swiperId  String
+  swipedId  String
+  action    SwipeAction
+  note      String? // "Convince Me" — max 280 chars
+  createdAt DateTime    @default(now())
+
+  swiper User @relation("SwipesMade", fields: [swiperId], references: [id], onDelete: Cascade)
+  swiped User @relation("SwipesReceived", fields: [swipedId], references: [id], onDelete: Cascade)
+
+  @@unique([swiperId, swipedId])
+  @@index([swiperId])
+  @@index([swipedId])
+}
+
+model Match {
+  id            String    @id @default(cuid())
+  userAId       String // smaller user id (alphabetical) — ensures unique pair regardless of order
+  userBId       String // larger user id
+  createdAt     DateTime  @default(now())
+  lastMessageAt DateTime?
+  isActive      Boolean   @default(true)
+
+  userA User @relation("MatchesAsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("MatchesAsB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+model Prompt {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
-  expiresAt DateTime
-  revokedAt DateTime?
+  question  String
+  answer    String
+  position  Int      @default(0)
   createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker   User     @relation("BlocksMade",    fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+}
+
+model Report {
+  id         String   @id @default(cuid())
+  reporterId String
+  reportedId String
+  reason     String
+  details    String?
+  createdAt  DateTime @default(now())
+
+  reporter   User     @relation("ReportsMade",    fields: [reporterId], references: [id], onDelete: Cascade)
+  reported   User     @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+
+  @@index([reporterId])
+  @@index([reportedId])
+}
+
+model LiveStream {
+  id              String           @id @default(cuid())
+  broadcasterId   String
+  title           String
+  status          LiveStreamStatus @default(LIVE)
+  viewerCount     Int              @default(0)
+  startedAt       DateTime         @default(now())
+  endedAt         DateTime?
+
+  broadcaster     User             @relation("StreamsBroadcast", fields: [broadcasterId], references: [id], onDelete: Cascade)
+  chatMessages    LiveChatMessage[]
+
+  @@index([status])
+  @@index([broadcasterId])
+}
+
+enum LiveStreamStatus {
+  LIVE
+  ENDED
+}
+
+model LiveChatMessage {
+  id          String   @id @default(cuid())
+  streamId    String
+  senderId    String
+  body        String
+  createdAt   DateTime @default(now())
+
+  stream      LiveStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  sender      User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([streamId, createdAt])
+}
+
+/// Versioned Terms of Service / Privacy Policy documents. Each row is a
+/// published snapshot; users accept a specific version (see
+/// `TosAcceptance`) and a bump in `version` triggers a re-prompt.
+model TosVersion {
+  id          String   @id @default(cuid())
+  /// Document type: "tos" (Terms of Service) or "privacy" (Privacy Policy).
+  type        String
+  /// Semantic version string, e.g. "1.0", "1.1".
+  version     String
+  /// Short, plain-language summary shown in the gate modal (1-3 sentences).
+  summary     String
+  /// Full markdown content of the document. Stored inline so the gate UI
+  /// can render without a separate CMS round-trip.
+  content     String
+  effectiveAt DateTime @default(now())
+
+  acceptances TosAcceptance[]
+
+  @@unique([type, version])
+  @@index([type, effectiveAt])
+}
+
+/// One row per user-per-document-version acceptance event. Persisted for
+/// legal record-keeping; supports GDPR/CCPA "when did I agree to what"
+/// inquiries.
+model TosAcceptance {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tosVersionId String
+  tosVersion   TosVersion @relation(fields: [tosVersionId], references: [id], onDelete: Cascade)
+  /// Document type, copied from the parent version for fast filtering.
+  type        String
+  /// Version string, copied for the same reason.
+  version     String
+  acceptedAt  DateTime @default(now())
+  ipAddress   String?
+  userAgent   String?
+
+  @@index([userId, type, version])
 }

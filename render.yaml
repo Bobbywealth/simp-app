@@ -3,7 +3,7 @@ services:
     name: simp-backend
     plan: standard
     runtime: node
-    buildCommand: cd backend && npm install --no-audit --no-fund && npm run build
+    buildCommand: cd backend && npm install --no-audit --no-fund && npx prisma migrate deploy && npm run build
     startCommand: cd backend && node dist/server.js
     envVars:
       - key: NODE_ENV
@@ -24,6 +24,20 @@ services:
         value: 30d
       - key: ALLOWED_ORIGINS
         value: https://simp-web.onrender.com
+      # ICE / WebRTC relay configuration. Without a TURN server, ~50% of
+      # cross-network viewers (corporate firewalls, VPNs, symmetric NATs)
+      # see a black screen. STUN-only works for open networks. See README
+      # "TURN setup" for Twilio NTS / Cloudflare Calls / self-hosted coturn.
+      - key: STUN_URLS
+        value: stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302
+      - key: TURN_URLS
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false
+      - key: TURN_PROVIDER
+        sync: false
     healthCheckPath: /health
 
   - type: static
@@ -31,6 +45,10 @@ services:
     plan: free
     buildCommand: cd frontend && npm install --no-audit --no-fund && npm run build
     staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_API_BASE_URL
         value: https://simp-backend-b8nz.onrender.com

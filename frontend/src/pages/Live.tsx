@@ -1,297 +1,421 @@
-import { useState, type FormEvent } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../components/Button';
-import { Input } from '../components/Input';
-import { SimpLogo } from '../components/SimpLogo';
-import { TabBar, type TabItem } from '../components/TabBar';
+import { motion } from 'framer-motion';
+import { endStream, listLiveStreams, startStream } from '../api/live';
+import type { LiveStream } from '../api/live';
 import { useAuth } from '../store/auth';
-import { haptics } from '../lib/haptics';
-
-// Tab list for the stub. Mirrors the production nav (Home / Live / Profile).
-// As Discover / Matches ship, append them here so the bottom bar stays in sync.
-const TABS: TabItem[] = [
-  {
-    key: 'home',
-    label: 'Home',
-    to: '/home',
-    iconPath:
-      'M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1z',
-  },
-  {
-    key: 'live',
-    label: 'Live',
-    to: '/live',
-    iconPath:
-      'M15.5 8.5 21 5v14l-5.5-3.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h8.5a2 2 0 0 1 2 2z',
-  },
-  {
-    key: 'profile',
-    label: 'Profile',
-    to: '/profile',
-    iconPath:
-      'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 9a7 7 0 0 1 14 0',
-  },
-];
-
-// Sample chat drives the overlay animation so the layout reads as a real live
-// page. Replaced with real socket-driven chat once the backend lands.
-const SAMPLE_MESSAGES: { id: number; user: string; text: string; color: string; host?: boolean }[] = [
-  { id: 1, user: 'Maya', text: 'Hey y’all! 🙌', color: '#FFD66B' },
-  { id: 2, user: 'Devon', text: 'Where in NJ are you based?', color: '#7FD8BE' },
-  { id: 3, user: 'Aaliyah', text: '🔥🔥🔥', color: '#FF8A8A' },
-  { id: 4, user: 'Marcus', text: 'Love the energy tonight', color: '#A0C4FF' },
-  { id: 5, user: 'Zara', text: 'First time here — this UI is gorgeous', color: '#FFD66B' },
-  { id: 6, user: 'You', text: 'Welcome everyone!', color: '#FFD66B', host: true },
-];
-
-const ACTION_PATHS = {
-  heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
-  comment: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z',
-  share: 'M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13',
-  gift: 'M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z',
-} as const;
+import { SimpLogo } from '../components/SimpLogo';
+import { LegalGateModal } from '../components/LegalGateModal';
 
 export default function Live() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [email, setEmail] = useState('');
-  const [notified, setNotified] = useState(false);
-  const [error, setError] = useState('');
+  const [streams, setStreams] = useState<LiveStream[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showGoLive, setShowGoLive] = useState(false);
+  const [streamTitle, setStreamTitle] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  // When the backend returns 451 legal_compliance_required from startStream,
+  // we open the gate modal with this list. Once the user completes the
+  // gate, we retry startStream automatically.
+  const [legalMissing, setLegalMissing] = useState<Array<'age' | 'tos' | 'privacy'> | null>(null);
 
-  const handleNotify = (e: FormEvent) => {
-    e.preventDefault();
-    const trimmed = email.trim();
-    if (!trimmed.includes('@') || !trimmed.includes('.')) {
-      setError('Enter a valid email');
-      return;
+  useEffect(() => {
+    void loadStreams();
+    const intv = setInterval(loadStreams, 15000);
+    return () => clearInterval(intv);
+  }, []);
+
+  async function loadStreams() {
+    try {
+      const res = await listLiveStreams();
+      setStreams(res.streams);
+    } catch (e) {
+      const err = e as Error;
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setError('');
-    haptics.success();
-    setNotified(true);
-    // TODO: POST /live/notify when the backend ships.
-  };
+  }
 
-  const displayName = user?.profile?.displayName ?? 'You';
+  // Detect whether the current user already has a live stream (e.g. from a
+  // previous tab that crashed or was closed without ending the broadcast).
+  // When found, surface it in the hero CTA so the user can resume or end it
+  // instead of being blocked by the "stream_already_live" 409 response.
+  const myLiveStream = useMemo(() => {
+    if (!user?.id) return null;
+    return streams.find((s) => s.broadcaster?.userId === user.id) ?? null;
+  }, [streams, user?.id]);
+
+  async function handleStartStream(forceReplace = false) {
+    if (streamTitle.trim().length < 2) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await startStream(streamTitle.trim(), forceReplace);
+      navigate(`/live/${res.streamId}`);
+    } catch (e) {
+      const err = e as Error & { status?: number; code?: string; details?: { missing?: string[] } };
+      // 451 = "Unavailable For Legal Reasons". Backend returns the list of
+      // outstanding legal steps in `details.missing`; open the gate modal
+      // and let the user complete them, then we retry automatically.
+      if (err.status === 451 && err.code === 'legal_compliance_required' && err.details?.missing) {
+        setLegalMissing(err.details.missing as Array<'age' | 'tos' | 'privacy'>);
+        setSubmitting(false);
+        return;
+      }
+      setError(err.message);
+      setSubmitting(false);
+    }
+  }
+
+  async function retryAfterLegal() {
+    setLegalMissing(null);
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await startStream(streamTitle.trim(), false);
+      navigate(`/live/${res.streamId}`);
+    } catch (e) {
+      const err = e as Error & { status?: number; code?: string; details?: { missing?: string[] } };
+      if (err.status === 451 && err.details?.missing) {
+        setLegalMissing(err.details.missing as Array<'age' | 'tos' | 'privacy'>);
+      } else {
+        setError(err.message);
+      }
+      setSubmitting(false);
+    }
+  }
+
+  async function handleEndMyStream() {
+    if (!myLiveStream) return;
+    try {
+      await endStream(myLiveStream.id);
+      setStreams((prev) => prev.filter((s) => s.id !== myLiveStream.id));
+    } catch (e) {
+      const err = e as Error;
+      setError(err.message);
+    }
+  }
 
   return (
-    <div className="relative h-[100dvh] w-full overflow-hidden bg-black text-white">
-      {/* ── Background placeholder (real video player lands here later) ── */}
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-ink-900 via-black to-ink-950" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(212,175,55,0.18),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_70%,rgba(168,85,247,0.12),transparent_50%)]" />
-        <motion.div
-          aria-hidden
-          className="absolute inset-0 opacity-40"
-          animate={{ backgroundPosition: ['0% 0%', '200% 200%'] }}
-          transition={{ duration: 24, repeat: Infinity, ease: 'linear' }}
-          style={{
-            backgroundImage:
-              'linear-gradient(45deg, transparent 30%, rgba(212,175,55,0.12) 50%, transparent 70%)',
-            backgroundSize: '200% 200%',
-          }}
-        />
-      </div>
+    <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
+      <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
+      <header className="relative z-10 flex items-center justify-between px-6 pt-safe pt-6">
+        <button
+          onClick={() => navigate('/home')}
+          className="text-xs font-medium uppercase tracking-[0.2em] text-white/60 hover:text-white"
+        >
+          ‹ Back
+        </button>
+        <h1 className="text-xs font-medium uppercase tracking-[0.3em] text-gold-300">Live</h1>
+        <span className="w-12" />
+      </header>
 
-      {/* ── Top overlay: host + close ── */}
-      <div className="absolute inset-x-0 top-0 z-30 safe-top">
-        <div className="flex items-center justify-between gap-3 px-4 pt-3">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="size-11 rounded-full bg-gradient-to-br from-gold-300 to-gold-500 p-[2px]">
-                <div className="flex size-full items-center justify-center rounded-full bg-ink-950">
-                  <SimpLogo size={30} variant="emblem" />
-                </div>
+      <main className="relative z-10 flex-1 px-6 pt-6 pb-24">
+        {/* Hero "Go Live" CTA — swaps to "You're live" recovery card when the
+            current user already has a LIVE stream (orphan from a previous tab). */}
+        {myLiveStream ? (
+          <div className="overflow-hidden rounded-2xl border border-red-400/40 bg-gradient-to-br from-red-900/40 via-ink-900 to-ink-900 p-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/30">
+                <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
               </div>
-              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-red-500 px-1.5 py-[2px] text-[8px] font-bold uppercase tracking-wider text-white shadow-md">
-                Live
-              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-300">
+                  You&apos;re live
+                </p>
+                <p className="mt-1 truncate text-sm text-white/80">{myLiveStream.title}</p>
+              </div>
             </div>
-            <div className="leading-tight">
-              <p className="text-[15px] font-semibold text-white">{displayName}</p>
-              <p className="text-[11px] font-medium text-white/75">
-                <span className="mr-1 inline-block size-1.5 animate-pulse rounded-full bg-red-500 align-middle" />
-                LIVE · <span className="font-semibold">0</span> watching
-              </p>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                onClick={() => navigate(`/live/${myLiveStream.id}`)}
+                className="w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600"
+              >
+                ● Resume stream
+              </button>
+              <button
+                onClick={handleEndMyStream}
+                className="w-full rounded-full border border-white/20 bg-transparent py-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-red-400/40 hover:text-red-300"
+              >
+                End stream
+              </button>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            aria-label="Close live"
-            className="flex size-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md transition active:scale-95"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="size-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-gold-400/30 bg-gradient-to-br from-ink-900 via-ink-800 to-ink-900 p-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
+                <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
+                  Go Live
+                </p>
+                <p className="mt-1 text-sm text-white/80">
+                  {streams.length > 0
+                    ? `Join ${streams.length} live ${streams.length === 1 ? 'stream' : 'streams'} now.`
+                    : 'Be the first to go live today.'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowGoLive(true)}
+              className="mt-4 w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600"
             >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
+              ● Start streaming
+            </button>
+          </div>
+        )}
 
-      {/* ── Right-side floating actions (TikTok Live style) ── */}
-      <div className="absolute right-3 bottom-44 z-20 flex flex-col items-center gap-5">
-        <ActionButton icon="heart" label="0" />
-        <ActionButton icon="comment" label="0" />
-        <ActionButton icon="share" label="Share" />
-        <ActionButton icon="gift" label="Gift" />
-      </div>
-
-      {/* ── Center hero: "Coming Soon" with notify-me CTA ── */}
-      <div className="absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 px-6 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
-        >
-          <SimpLogo size={72} variant="emblem" className="mx-auto opacity-90" />
-          <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.35em] text-gold-300">
-            Coming Soon
+        <div className="mt-8 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-300">
+            Live now
           </p>
-          <h1 className="mt-2 text-[34px] font-bold leading-[1.05] text-white">
-            Go live.
-            <br />
-            <span className="text-gold-gradient">Get seen.</span>
-          </h1>
-          <p className="mx-auto mt-3 max-w-xs text-[14px] leading-snug text-white/75">
-            Real-time video chat. Host your audience. Build the room.
-          </p>
-
-          {!notified ? (
-            <form
-              onSubmit={handleNotify}
-              className="mx-auto mt-7 max-w-[18rem] space-y-2"
-              noValidate
-            >
-              <Input
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                placeholder="you@email.com"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (error) setError('');
-                }}
-                error={error}
-                className="!bg-black/55 !border-white/15 text-center text-white placeholder:text-white/35"
-              />
-              <Button type="submit" variant="gold" haptic="medium">
-                Notify me when Live drops
-              </Button>
-            </form>
-          ) : (
-            <motion.div
-              initial={{ scale: 0.92, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="mx-auto mt-7 max-w-[18rem] rounded-2xl border border-gold-400/40 bg-gold-400/10 p-4 backdrop-blur-md"
-            >
-              <p className="text-[14px] font-semibold text-gold-300">
-                You&rsquo;re on the list.
-              </p>
-              <p className="mt-1 text-[12px] text-white/70">
-                We&rsquo;ll text you the moment Live goes live.
-              </p>
-            </motion.div>
+          {streams.length > 0 && (
+            <p className="text-[10px] text-white/40">
+              Auto-refreshes every 15s
+            </p>
           )}
-        </motion.div>
-      </div>
+        </div>
 
-      {/* ── Chat overlay (sits ON the video, not below) ── */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-[72px] z-20">
-        <div className="mx-3 mb-2 max-h-44 overflow-hidden">
-          <AnimatePresence initial={false}>
-            {SAMPLE_MESSAGES.map((msg, i) => (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 8 }}
+        {loading && <LiveSkeleton />}
+
+        {error && !loading && (
+          <div className="mt-4 rounded-xl border border-red-400/30 bg-red-500/10 p-4">
+            <p className="text-sm text-red-300">{error}</p>
+            <button
+              onClick={() => loadStreams()}
+              className="mt-2 text-xs text-white/60 hover:text-white"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && streams.length === 0 && (
+          <div className="mt-12 flex flex-col items-center gap-4 text-center">
+            <SimpLogo size={64} variant="emblem" />
+            <h2 className="display-heading text-2xl font-light">Nobody&apos;s live right now</h2>
+            <p className="max-w-xs text-sm text-white/60">
+              Be the first to go live. Show your energy, answer questions, and meet people in real time.
+            </p>
+          </div>
+        )}
+
+        {!loading && streams.length > 0 && (
+          <ul className="mt-4 grid grid-cols-2 gap-3">
+            {streams.map((s) => (
+              <motion.li
+                key={s.id}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 + i * 0.45, duration: 0.45 }}
-                className="mb-1.5 flex items-baseline gap-1.5"
               >
-                <span
-                  className="rounded-full bg-black/45 px-2 py-[3px] backdrop-blur-md"
-                  style={{ boxShadow: `inset 2px 0 0 ${msg.color}` }}
+                <button
+                  onClick={() => navigate(`/live/${s.id}`)}
+                  className={`relative w-full overflow-hidden rounded-2xl border text-left transition ${
+                    s.id === myLiveStream?.id
+                      ? 'border-red-400/60 hover:border-red-400'
+                      : 'border-white/10 hover:border-gold-400/30'
+                  } bg-ink-900/60`}
                 >
-                  <span
-                    className="text-[11px] font-semibold"
-                    style={{ color: msg.color }}
-                  >
-                    {msg.user}
-                    {msg.host ? ' · host' : ''}
-                  </span>
-                </span>
-                <span className="rounded-2xl bg-black/45 px-3 py-1 backdrop-blur-md">
-                  <span className="text-[12.5px] leading-snug text-white">
-                    {msg.text}
-                  </span>
-                </span>
-              </motion.div>
+                  <div className="relative aspect-[3/4] overflow-hidden">
+                    {s.broadcaster?.photoUrl ? (
+                      <img
+                        src={s.broadcaster.photoUrl}
+                        alt={s.broadcaster.displayName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-ink-800 text-white/40">
+                        ?
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+                    <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                      LIVE
+                    </div>
+                    <div className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white">
+                      👁 {s.viewerCount}
+                    </div>
+                    {s.id === myLiveStream?.id && (
+                      <div className="absolute right-2 bottom-12 rounded-full bg-gold-400 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-950">
+                        You
+                      </div>
+                    )}
+                    <div className="absolute inset-x-0 bottom-0 p-3">
+                      <p className="line-clamp-2 text-sm font-semibold text-white">{s.title}</p>
+                      <p className="mt-0.5 text-xs text-white/70">
+                        {s.broadcaster?.displayName ?? 'Unknown'}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </motion.li>
             ))}
-          </AnimatePresence>
-        </div>
+          </ul>
+        )}
+      </main>
 
-        <div className="pointer-events-auto mx-3 flex items-center gap-2 rounded-full border border-white/15 bg-black/55 px-4 py-2 backdrop-blur-xl">
-          <input
-            type="text"
-            placeholder="Be the first to say something nice…"
-            disabled
-            aria-label="Live chat (coming soon)"
-            className="flex-1 bg-transparent text-[14px] text-white placeholder:text-white/40 focus:outline-none disabled:opacity-70"
-          />
-          <button
-            type="button"
-            disabled
-            className="rounded-full bg-gold-400/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gold-300"
-          >
-            Send
-          </button>
-        </div>
-      </div>
+      {showGoLive && (
+        <GoLiveModal
+          title={streamTitle}
+          onTitleChange={setStreamTitle}
+          onConfirm={() => handleStartStream(false)}
+          onReplaceAndStart={() => handleStartStream(true)}
+          onClose={() => {
+            setShowGoLive(false);
+            setStreamTitle('');
+          }}
+          submitting={submitting}
+          error={error}
+          existingStream={myLiveStream}
+          onResumeExisting={() => {
+            if (myLiveStream) navigate(`/live/${myLiveStream.id}`);
+          }}
+        />
+      )}
 
-      {/* ── Bottom tab bar ── */}
-      <TabBar tabs={TABS} />
+      {legalMissing && (
+        <LegalGateModal
+          missing={legalMissing}
+          onComplete={retryAfterLegal}
+          onClose={() => setLegalMissing(null)}
+        />
+      )}
     </div>
   );
 }
 
-function ActionButton({
-  icon,
-  label,
-}: {
-  icon: keyof typeof ACTION_PATHS;
-  label: string;
-}) {
+function LiveSkeleton() {
   return (
-    <button
-      type="button"
-      aria-label={icon}
-      className="flex flex-col items-center gap-1 text-white"
+    <div className="mt-4 grid grid-cols-2 gap-3">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-ink-800" />
+      ))}
+    </div>
+  );
+}
+
+interface GoLiveModalProps {
+  title: string;
+  onTitleChange: (s: string) => void;
+  onConfirm: () => void;
+  onReplaceAndStart: () => void;
+  onClose: () => void;
+  submitting: boolean;
+  error: string | null;
+  existingStream: LiveStream | null;
+  onResumeExisting: () => void;
+}
+
+function GoLiveModal({
+  title,
+  onTitleChange,
+  onConfirm,
+  onReplaceAndStart,
+  onClose,
+  submitting,
+  error,
+  existingStream,
+  onResumeExisting,
+}: GoLiveModalProps) {
+  // If a 409 came back we may already know about an existing stream from the
+  // page's on-load scan; if not, render a generic recovery prompt that lets
+  // the user either end+replace or cancel and try again.
+  const showRecovery = !!error && (!!existingStream || /already.?live/i.test(error));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
     >
-      <span className="flex size-11 items-center justify-center rounded-full bg-black/45 backdrop-blur-md transition active:scale-95">
-        <svg
-          viewBox="0 0 24 24"
-          className="size-5"
-          fill={icon === 'heart' ? 'currentColor' : 'none'}
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d={ACTION_PATHS[icon]} />
-        </svg>
-      </span>
-      <span className="text-[10px] font-semibold tracking-wide text-white/80">
-        {label}
-      </span>
-    </button>
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-t-3xl border-t border-gold-400/30 bg-ink-950 p-6 pb-safe"
+      >
+        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/20" />
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">Start a stream</p>
+        <p className="mt-2 text-sm text-white/70">
+          Give your stream a title. Your camera and mic will turn on next.
+        </p>
+
+        <input
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          maxLength={120}
+          autoFocus
+          placeholder="What are you up to?"
+          className="input-luxe mt-4 w-full rounded-xl border border-white/10 bg-ink-900 px-3 py-3 text-base text-white placeholder:text-white/40"
+        />
+
+        <div className="mt-3 flex items-center gap-2 text-xs text-white/50">
+          <span>🎙</span>
+          <span>Camera + mic will be requested</span>
+        </div>
+
+        {error && (
+          <div className="mt-3 rounded-lg border border-red-400/30 bg-red-500/10 p-3">
+            <p className="text-xs font-semibold text-red-300">
+              Couldn&apos;t start your stream
+            </p>
+            <p className="mt-1 text-[11px] text-red-200/80" role="alert">
+              {error}
+            </p>
+          </div>
+        )}
+
+        <div className="mt-5 flex flex-col gap-2">
+          {showRecovery ? (
+            <>
+              <button
+                onClick={onReplaceAndStart}
+                disabled={submitting || title.trim().length < 2}
+                className="w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600 disabled:opacity-30"
+              >
+                {submitting ? 'Starting…' : 'End existing & start new'}
+              </button>
+              {existingStream && (
+                <button
+                  onClick={onResumeExisting}
+                  className="w-full rounded-full border border-gold-400/40 bg-transparent py-3 text-xs font-semibold uppercase tracking-[0.2em] text-gold-300 transition hover:border-gold-300"
+                >
+                  Resume your live stream
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/60"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onConfirm}
+                disabled={submitting || title.trim().length < 2}
+                className="w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600 disabled:opacity-30"
+              >
+                {submitting ? 'Starting…' : '● Go Live'}
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/60"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+      </motion.div>
+    </div>
   );
 }

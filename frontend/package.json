@@ -2,25 +2,46 @@
   "name": "simp-app-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "SIMP dating app — PWA frontend (Vite + React + Tailwind + vite-plugin-pwa)",
+  "description": "SIMP dating app — PWA frontend (Vite + React + Tailwind + vite-plugin-pwa) wrapped with Capacitor for iOS + Android",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ext .ts,.tsx"
+    "lint": "eslint . --ext .ts,.tsx",
+    "cap:sync": "cap sync android ios",
+    "cap:open:ios": "cap open ios",
+    "cap:open:android": "cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/device": "^6.0.2",
+    "@capacitor/dialog": "^6.0.2",
+    "@capacitor/haptics": "^6.0.2",
+    "@capacitor/ios": "^6.2.0",
+    "@capacitor/keyboard": "^6.0.2",
+    "@capacitor/network": "^6.0.2",
+    "@capacitor/preferences": "^6.0.3",
+    "@capacitor/push-notifications": "^6.0.3",
+    "@capacitor/safe-area": "^6.0.2",
+    "@capacitor/share": "^6.0.3",
+    "@capacitor/splash-screen": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2",
+    "@capacitor/store": "^6.0.2",
     "framer-motion": "^11.11.17",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.53.2",
     "react-router-dom": "^6.28.0",
+    "socket.io-client": "^4.8.3",
     "zod": "^3.23.8",
     "zustand": "^5.0.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
     "@types/node": "^22.20.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -37,3 +58,4 @@
     "node": ">=20"
   }
 }
+
