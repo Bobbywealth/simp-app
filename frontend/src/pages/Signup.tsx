@@ -5,6 +5,9 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { NavHeader } from '../components/NavHeader';
+import { useSwipeBack } from '../hooks/useSwipeBack';
+import { haptics } from '../lib/haptics';
 import { signup } from '../api/auth';
 import { useAuth } from '../store/auth';
 
@@ -19,6 +22,7 @@ type FormValues = z.infer<typeof schema>;
 export default function Signup() {
   const navigate = useNavigate();
   const { setUser } = useAuth();
+  useSwipeBack(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,8 +45,10 @@ export default function Signup() {
       // Force a refresh of the auth user state
       const me = await (await import('../api/auth')).me();
       setUser(me);
+      haptics.success();
       navigate('/profile-setup', { replace: true });
     } catch (e) {
+      haptics.heavy();
       setError((e as Error).message || 'Sign up failed');
     } finally {
       setSubmitting(false);
@@ -52,7 +58,8 @@ export default function Signup() {
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
       <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
-      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-safe">
+      <NavHeader title="Create account" alwaysCompact showBack />
+      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-2">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}

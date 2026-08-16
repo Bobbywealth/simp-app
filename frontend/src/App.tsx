@@ -1,25 +1,29 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, lazy, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from './store/auth';
-import Welcome from './pages/Welcome';
-import Onboarding from './pages/Onboarding';
-import Signup from './pages/Signup';
-import Login from './pages/Login';
-import ProfileSetup from './pages/ProfileSetup';
-import ProfileView from './pages/ProfileView';
-import ProfileEdit from './pages/ProfileEdit';
-import Settings from './pages/Settings';
-import Home from './pages/Home';
-import Discover from './pages/Discover';
-import Live from './pages/Live';
-import LiveStream from './pages/LiveStream';
-import Matches from './pages/Matches';
-import MatchDetail from './pages/MatchDetail';
-import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoadingScreen } from './components/LoadingScreen';
-import { BottomTabBar } from './components/BottomTabBar';
+import { PageTransition } from './components/PageTransition';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { InstallPrompt } from './components/InstallPrompt';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
+
+// Lazy-load each page so the initial bundle stays small.
+// Framer Motion is intentionally NOT lazy-loaded (used everywhere).
+const Welcome = lazy(() => import('./pages/Welcome'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const Signup = lazy(() => import('./pages/Signup'));
+const Login = lazy(() => import('./pages/Login'));
+const ProfileSetup = lazy(() => import('./pages/ProfileSetup'));
+const Home = lazy(() => import('./pages/Home'));
+const Live = lazy(() => import('./pages/Live'));
+const ProfileView = lazy(() => import('./pages/ProfileView'));
+const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Discover = lazy(() => import('./pages/Discover'));
+const LiveStream = lazy(() => import('./pages/LiveStream'));
+const Matches = lazy(() => import('./pages/Matches'));
+const MatchDetail = lazy(() => import('./pages/MatchDetail'));
 
 const MIN_LOADING_MS = 1600;
 
@@ -38,117 +42,121 @@ export default function App() {
   const showLoader = !ready || !minTimeElapsed;
 
   return (
-    <AnimatePresence mode="wait">
-      {showLoader ? (
-        <motion.div
-          key="loader"
-          initial={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.45, ease: 'easeOut' }}
-          className="fixed inset-0 z-50"
-        >
-          <LoadingScreen />
-        </motion.div>
-      ) : (
-        <motion.div
-          key="app"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.45, ease: 'easeOut' }}
-          className="contents"
-        >
-          <Routes>
-            <Route path="/" element={<Navigate to="/welcome" replace />} />
-            <Route path="/welcome" element={<Welcome />} />
-            <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/profile-setup"
-              element={
-                <ProtectedRoute>
-                  <ProfileSetup />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/home"
-              element={
-                <ProtectedRoute>
-                  <Home />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <ProfileView />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile/edit"
-              element={
-                <ProtectedRoute>
-                  <ProfileEdit />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/discover"
-              element={
-                <ProtectedRoute>
-                  <Discover />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/live"
-              element={
-                <ProtectedRoute>
-                  <Live />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/live/:id"
-              element={
-                <ProtectedRoute>
-                  <LiveStream />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/matches"
-              element={
-                <ProtectedRoute>
-                  <Matches />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/matches/:id"
-              element={
-                <ProtectedRoute>
-                  <MatchDetail />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/welcome" replace />} />
-          </Routes>
-          <BottomTabBar />
-          <PwaUpdatePrompt />
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <Suspense fallback={<LoadingScreen />}>
+      <InstallPrompt />
+      <AnimatePresence mode="wait">
+        {showLoader ? (
+          <motion.div
+            key="loader"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            className="fixed inset-0 z-50"
+          >
+            <LoadingScreen />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="app"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            className="contents"
+          >
+            <Routes>
+              {/* iOS PWA: land on /login instead of /welcome */}
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/welcome" element={<PageTransition routeKey="/welcome"><Welcome /></PageTransition>} />
+              <Route path="/onboarding" element={<PageTransition routeKey="/onboarding"><Onboarding /></PageTransition>} />
+              <Route path="/signup" element={<PageTransition routeKey="/signup"><Signup /></PageTransition>} />
+              <Route path="/login" element={<PageTransition routeKey="/login"><Login /></PageTransition>} />
+              <Route
+                path="/profile-setup"
+                element={
+                  <ProtectedRoute>
+                    <PageTransition routeKey="/profile-setup"><ProfileSetup /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/home"
+                element={
+                  <ProtectedRoute>
+                    <PageTransition routeKey="/home"><Home /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <PageTransition routeKey="/profile"><ProfileView /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile/edit"
+                element={
+                  <ProtectedRoute>
+                    <PageTransition routeKey="/profile/edit"><ProfileEdit /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <PageTransition routeKey="/settings"><Settings /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/discover"
+                element={
+                  <ProtectedRoute>
+                    <PageTransition routeKey="/discover"><Discover /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/live"
+                element={
+                  <ProtectedRoute>
+                    <PageTransition routeKey="/live"><Live /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/live/:id"
+                element={
+                  <ProtectedRoute>
+                    <PageTransition routeKey="/live/:id"><LiveStream /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/matches"
+                element={
+                  <ProtectedRoute>
+                    <PageTransition routeKey="/matches"><Matches /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/matches/:id"
+                element={
+                  <ProtectedRoute>
+                    <PageTransition routeKey="/matches/:id"><MatchDetail /></PageTransition>
+                  </ProtectedRoute>
+                }
+              />
+              {/* iOS PWA: unknown routes redirect to /login */}
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+            <PwaUpdatePrompt />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Suspense>
   );
 }
