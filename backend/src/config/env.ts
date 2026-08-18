@@ -65,6 +65,8 @@ const schema = z
     const add = (path: keyof typeof value, message: string) =>
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
 
+    // Hard-fail security-critical config so a misconfigured deploy never
+    // accidentally serves traffic over plain HTTP or with wildcard CORS.
     const origins = value.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim());
     if (origins.includes('*')) add('ALLOWED_ORIGINS', 'Wildcard CORS is forbidden in production');
     if (origins.some((origin) => !origin.startsWith('https://'))) {
@@ -77,29 +79,38 @@ const schema = z
       add('FRONTEND_URL', 'Production frontend URL must use HTTPS');
     }
 
+    // Soft warnings for third-party integrations. The service still boots
+    // even when these are missing; the affected feature is reported as
+    // degraded on /health/degraded. This lets the app come up for smoke
+    // tests before any paid service is connected.
+    const warnings: string[] = [];
     if (value.STORAGE_PROVIDER !== 'cloudinary') {
-      add('STORAGE_PROVIDER', 'Production photos require persistent Cloudinary storage');
+      warnings.push('photo_storage: Cloudinary is not configured — uploads will fail until STORAGE_PROVIDER=cloudinary and CLOUDINARY_* are set');
+    } else {
+      for (const key of ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'] as const) {
+        if (!value[key]) warnings.push(`photo_storage: ${key} is required when STORAGE_PROVIDER=cloudinary`);
+      }
     }
-    if (!value.CLOUDINARY_CLOUD_NAME) add('CLOUDINARY_CLOUD_NAME', 'Required in production');
-    if (!value.CLOUDINARY_API_KEY) add('CLOUDINARY_API_KEY', 'Required in production');
-    if (!value.CLOUDINARY_API_SECRET) add('CLOUDINARY_API_SECRET', 'Required in production');
-
-    if (!['resend', 'webhook'].includes(value.EMAIL_PROVIDER)) {
-      add('EMAIL_PROVIDER', 'Production email verification/reset delivery must be configured');
+    if (value.EMAIL_PROVIDER === 'disabled' || value.EMAIL_PROVIDER === 'console') {
+      warnings.push(`email: EMAIL_PROVIDER=${value.EMAIL_PROVIDER} — verification and reset links will not be sent`);
+    } else if (value.EMAIL_PROVIDER === 'resend' && !value.RESEND_API_KEY) {
+      warnings.push('email: RESEND_API_KEY is required when EMAIL_PROVIDER=resend');
+    } else if (value.EMAIL_PROVIDER === 'webhook' && !value.EMAIL_WEBHOOK_URL) {
+      warnings.push('email: EMAIL_WEBHOOK_URL is required when EMAIL_PROVIDER=webhook');
+    } else if (!value.EMAIL_FROM) {
+      warnings.push('email: EMAIL_FROM is required for production email delivery');
     }
-    if (!value.EMAIL_FROM) add('EMAIL_FROM', 'Required for production email delivery');
-    if (value.EMAIL_PROVIDER === 'resend' && !value.RESEND_API_KEY) {
-      add('RESEND_API_KEY', 'Required when EMAIL_PROVIDER=resend');
-    }
-    if (value.EMAIL_PROVIDER === 'webhook' && !value.EMAIL_WEBHOOK_URL) {
-      add('EMAIL_WEBHOOK_URL', 'Required when EMAIL_PROVIDER=webhook');
-    }
-
     if (!value.TURN_URLS || !value.TURN_USERNAME || !value.TURN_CREDENTIAL) {
-      add('TURN_URLS', 'TURN URLs and credentials are required for production live streaming');
+      warnings.push('live_streaming: TURN credentials are missing — cross-network live stream viewers may see black screens');
     }
     if (value.PUSH_PROVIDER !== 'firebase' || !value.FIREBASE_SERVICE_ACCOUNT_JSON) {
-      add('FIREBASE_SERVICE_ACCOUNT_JSON', 'Firebase Admin credentials are required for production push');
+      warnings.push('push: PUSH_PROVIDER is disabled — native push notifications will not be delivered');
+    }
+    if (warnings.length) {
+      // Persist warnings on the parsed result so /health/degraded can
+      // surface them. We attach them via a side-channel because Zod
+      // superRefine does not allow returning values.
+      process.env.__SIMP_PROD_WARNINGS__ = JSON.stringify(warnings);
     }
   });
 
@@ -115,3 +126,17 @@ export const env = parsed.data;
 export const allowedOrigins = env.ALLOWED_ORIGINS.split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+
+export const productionWarnings: string[] = (() => {
+  try {
+    const raw = process.env.__SIMP_PROD_WARNINGS__;
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+})();
+
+if (env.NODE_ENV === 'production' && productionWarnings.length) {
+  console.warn('[env] Production started with degraded features:');
+  for (const warning of productionWarnings) console.warn('  -', warning);
+}

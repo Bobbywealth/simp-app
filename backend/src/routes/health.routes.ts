@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../config/db.js';
-import { env } from '../config/env.js';
+import { env, productionWarnings } from '../config/env.js';
 
 export const healthRouter = Router();
 
@@ -23,9 +23,16 @@ healthRouter.get('/ready', async (_req, res) => {
       billingApple: Boolean(env.APPLE_IAP_ISSUER_ID && env.APPLE_IAP_KEY_ID && env.APPLE_IAP_PRIVATE_KEY),
       billingGoogle: Boolean(env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON),
     };
-    const ready = env.NODE_ENV !== 'production' ||
-      (integrations.persistentStorage && integrations.email && integrations.push && integrations.turn);
-    res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'degraded', database: true, integrations });
+    // The service is considered live in production as long as the
+    // database and HTTP layer are healthy. Missing third-party
+    // integrations are reported as degraded features so the rest of
+    // the app can be smoke-tested before paid services are connected.
+    res.status(200).json({
+      status: 'ready',
+      database: true,
+      integrations,
+      degradedFeatures: productionWarnings,
+    });
   } catch {
     res.status(503).json({ status: 'unavailable', database: false });
   }

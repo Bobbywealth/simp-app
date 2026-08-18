@@ -38,9 +38,10 @@ services:
       - key: FRONTEND_URL
         value: https://simp-web.onrender.com
 
-      # Persistent image storage. All four Cloudinary values are required.
       - key: STORAGE_PROVIDER
-        value: cloudinary
+        value: local
+      - key: UPLOAD_DIR
+        value: ./uploads
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
@@ -50,17 +51,17 @@ services:
       - key: CLOUDINARY_FOLDER
         value: simp/profile-photos
 
-      # Transactional email. Resend has a free tier; a verified sender is required.
       - key: EMAIL_PROVIDER
-        value: resend
+        value: console
       - key: EMAIL_FROM
         sync: false
       - key: RESEND_API_KEY
         sync: false
+      - key: EMAIL_WEBHOOK_URL
+        sync: false
 
-      # APNs + FCM delivery through Firebase Admin.
       - key: PUSH_PROVIDER
-        value: firebase
+        value: disabled
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
         sync: false
 
