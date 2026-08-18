@@ -1,134 +1,147 @@
-/**
- * Capacitor native-bridge initialization.
- *
- * Runs on app start (see main.tsx). When the app is loaded as a web
- * PWA (no native bridge), all imports no-op gracefully so the same
- * bundle works for both web and native.
- *
- * What this does on native:
- *  - Hides the splash screen once React mounts
- *  - Styles the status bar to match the dark-gold theme
- *  - Configures the keyboard to resize the WebView (so the chat input
- *    works on iOS, fixing the same issue we already fixed with
- *    `interactive-widget=resizes-content` on the web side)
- *  - Wires up push notification registration; the token is forwarded
- *    to /users/me/push-token for server-side APNs/FCM routing
- *  - Persists auth tokens in the native Keychain (iOS) /
- *    EncryptedSharedPreferences (Android) instead of localStorage, so
- *    they survive app uninstall and don't appear in WebView backups
- */
 import { Capacitor } from '@capacitor/core';
 
-export const isNative = (): boolean => Capacitor.isNativePlatform();
-export const platform = (): 'ios' | 'android' | 'web' => Capacitor.getPlatform() as 'ios' | 'android' | 'web';
+export const isNative = () => Capacitor.isNativePlatform();
+export const platform = (): 'ios' | 'android' | 'web' =>
+  Capacitor.getPlatform() as 'ios' | 'android' | 'web';
 
 let initialized = false;
+let secureStorageReady = false;
+
+async function prepareSecureStorage() {
+  if (!isNative() || secureStorageReady) return;
+  const { SecureStorage, KeychainAccess } = await import('@aparajita/capacitor-secure-storage');
+  await SecureStorage.setKeyPrefix('simp_');
+  if (platform() === 'ios') {
+    await SecureStorage.setDefaultKeychainAccess(KeychainAccess.whenUnlockedThisDeviceOnly);
+  }
+  secureStorageReady = true;
+}
 
 export async function initNative(): Promise<void> {
   if (!isNative() || initialized) return;
   initialized = true;
 
-  // Status bar + splash
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar');
     await StatusBar.setStyle({ style: Style.Dark });
     await StatusBar.setBackgroundColor({ color: '#050505' });
-  } catch (e) {
-    console.warn('[native] status-bar init failed', e);
+  } catch {
+    // Optional native chrome must never block app launch.
   }
 
   try {
     const { SplashScreen } = await import('@capacitor/splash-screen');
     await SplashScreen.hide();
-  } catch (e) {
-    console.warn('[native] splash-screen hide failed', e);
+  } catch {
+    // Splash may already be hidden by the native shell.
   }
 
-  // Keyboard
   try {
-    const { Keyboard, KeyboardResize } = await import('@capacitor/keyboard');
+    const { Keyboard, KeyboardResize, KeyboardStyle } = await import('@capacitor/keyboard');
     await Keyboard.setResizeMode({ mode: KeyboardResize.Body });
-    await Keyboard.setStyle({ style: 'DARK' as 'DARK' });
-  } catch (e) {
-    console.warn('[native] keyboard init failed', e);
+    await Keyboard.setStyle({ style: KeyboardStyle.Dark });
+  } catch {
+    // Keyboard customization is best effort.
   }
 
-  // Safe area (for devices with notches / Dynamic Island)
   try {
-    const { SafeArea } = await import('@capacitor/safe-area');
-    await SafeArea.enable({ config: true });
-  } catch (e) {
-    console.warn('[native] safe-area init failed', e);
+    await prepareSecureStorage();
+  } catch {
+    // Auth initialization will surface a secure-storage error if it is needed.
   }
 
-  // Push notifications
   try {
-    const { PushNotifications } = await import('@capacitor/push-notifications');
-    let permStatus = await PushNotifications.checkPermissions();
-    if (permStatus.receive === 'prompt') {
-      permStatus = await PushNotifications.requestPermissions();
-    }
-    if (permStatus.receive === 'granted') {
-      await PushNotifications.register();
-    }
-    // The registration listener is wired up in App.tsx so it can
-    // dispatch the token to our backend. See `usePushNotifications` in
-    // a follow-up.
-  } catch (e) {
-    console.warn('[native] push-notifications init failed', e);
+    const { App } = await import('@capacitor/app');
+    await App.addListener('appUrlOpen', ({ url }) => {
+      window.dispatchEvent(new CustomEvent('simp:deeplink', { detail: { url } }));
+    });
+  } catch {
+    // Deep links remain available through normal web routing.
   }
 }
 
-/**
- * Helper to push the access/refresh tokens into native secure storage
- * once login succeeds. Called from the auth store after a successful
- * login or refresh.
- */
-export async function persistTokensNative(access: string, refresh: string): Promise<void> {
+export async function persistRefreshTokenNative(refresh: string | null): Promise<void> {
   if (!isNative()) return;
-  try {
-    const { Preferences } = await import('@capacitor/preferences');
-    await Preferences.set({ key: 'simp_access', value: access });
-    await Preferences.set({ key: 'simp_refresh', value: refresh });
-  } catch (e) {
-    console.warn('[native] token persist failed', e);
-  }
+  await prepareSecureStorage();
+  const { SecureStorage } = await import('@aparajita/capacitor-secure-storage');
+  if (refresh) await SecureStorage.setItem('refresh', refresh);
+  else await SecureStorage.removeItem('refresh');
 }
 
-/**
- * Read tokens from native storage (if any) and seed them into the
- * web localStorage so the rest of the app (which uses
- * `localStorage.getItem('simp_access')` in api/client.ts) works the
- * same on native and web.
- */
-export async function hydrateTokensFromNative(): Promise<{
-  access: string | null;
-  refresh: string | null;
-}> {
-  if (!isNative()) return { access: null, refresh: null };
-  try {
-    const { Preferences } = await import('@capacitor/preferences');
-    const { value: access } = await Preferences.get({ key: 'simp_access' });
-    const { value: refresh } = await Preferences.get({ key: 'simp_refresh' });
-    if (access) localStorage.setItem('simp_access', access);
-    if (refresh) localStorage.setItem('simp_refresh', refresh);
-    return { access: access ?? null, refresh: refresh ?? null };
-  } catch (e) {
-    console.warn('[native] token hydrate failed', e);
-    return { access: null, refresh: null };
-  }
+export async function hydrateRefreshTokenNative(): Promise<string | null> {
+  if (!isNative()) return null;
+  await prepareSecureStorage();
+  const { SecureStorage } = await import('@aparajita/capacitor-secure-storage');
+  return SecureStorage.getItem('refresh');
 }
 
-/**
- * Clear native-stored tokens on logout.
- */
 export async function clearTokensNative(): Promise<void> {
-  if (!isNative()) return;
+  await persistRefreshTokenNative(null);
+}
+
+// Backward-compatible wrappers for code written before secure refresh-only storage.
+export async function persistTokensNative(_access: string, refresh: string) {
+  await persistRefreshTokenNative(refresh);
+}
+export async function hydrateTokensFromNative() {
+  return { access: null, refresh: await hydrateRefreshTokenNative() };
+}
+
+export async function getDeviceContext(): Promise<{
+  deviceId?: string;
+  deviceName?: string;
+  platform: 'IOS' | 'ANDROID' | 'WEB';
+}> {
+  if (!isNative()) return { platform: 'WEB' };
   try {
-    const { Preferences } = await import('@capacitor/preferences');
-    await Preferences.remove({ key: 'simp_access' });
-    await Preferences.remove({ key: 'simp_refresh' });
-  } catch (e) {
-    console.warn('[native] token clear failed', e);
+    const { Device } = await import('@capacitor/device');
+    const [id, info] = await Promise.all([Device.getId(), Device.getInfo()]);
+    return {
+      deviceId: id.identifier,
+      deviceName: [info.manufacturer, info.model].filter(Boolean).join(' ').slice(0, 120),
+      platform: platform() === 'ios' ? 'IOS' : 'ANDROID',
+    };
+  } catch {
+    return { platform: platform() === 'ios' ? 'IOS' : 'ANDROID' };
   }
+}
+
+export async function requestNativePushPermission(callbacks: {
+  onToken: (token: string) => void | Promise<void>;
+  onRoute: (route: string) => void;
+}): Promise<'granted' | 'denied' | 'unsupported'> {
+  if (!isNative()) return 'unsupported';
+  const { PushNotifications } = await import('@capacitor/push-notifications');
+  let permission = await PushNotifications.checkPermissions();
+  if (permission.receive === 'prompt') permission = await PushNotifications.requestPermissions();
+  if (permission.receive !== 'granted') return 'denied';
+
+  await PushNotifications.removeAllListeners();
+  await PushNotifications.addListener('registration', ({ value }) => void callbacks.onToken(value));
+  await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
+    const route = notification.data?.route;
+    if (typeof route === 'string' && route.startsWith('/')) callbacks.onRoute(route);
+  });
+  await PushNotifications.register();
+  return 'granted';
+}
+
+export async function requestApproximateLocation(): Promise<{ latitude: number; longitude: number }> {
+  const { Geolocation } = await import('@capacitor/geolocation');
+  let permission = await Geolocation.checkPermissions();
+  if (permission.location === 'prompt' || permission.coarseLocation === 'prompt') {
+    permission = await Geolocation.requestPermissions({ permissions: ['coarseLocation'] });
+  }
+  if (permission.location !== 'granted' && permission.coarseLocation !== 'granted') {
+    throw new Error('Location permission is off. You can keep using your city instead.');
+  }
+  const position = await Geolocation.getCurrentPosition({
+    enableHighAccuracy: false,
+    timeout: 12_000,
+    maximumAge: 15 * 60_000,
+  });
+  return {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+  };
 }

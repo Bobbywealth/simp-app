@@ -1,204 +1,210 @@
 import { Router } from 'express';
 import { prisma } from '../config/db.js';
-import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireAuth, requireVerifiedEmail, type AuthedRequest } from '../middleware/auth.js';
+import { AppError } from '../utils/errors.js';
+import { cloudinaryThumbnailUrl } from '../services/cloudinary.service.js';
 
 export const matchesRouter = Router();
 
-/**
- * GET /matches — list all matches for the current user
- */
-matchesRouter.get('/matches', requireAuth, async (req: AuthedRequest, res, next) => {
+function ageFromBirthDate(birthDate: Date) {
+  const now = new Date();
+  let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
+  if (
+    now.getUTCMonth() < birthDate.getUTCMonth() ||
+    (now.getUTCMonth() === birthDate.getUTCMonth() && now.getUTCDate() < birthDate.getUTCDate())
+  ) {
+    age -= 1;
+  }
+  return age;
+}
+
+matchesRouter.get('/matches', requireAuth, requireVerifiedEmail, async (req: AuthedRequest, res, next) => {
   try {
     const userId = req.userId!;
-
-    // Users I've blocked (hide from matches list too)
+    const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit ?? '20'), 10) || 20));
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
     const blocked = await prisma.block.findMany({
-      where: { blockerId: userId },
-      select: { blockedId: true },
+      where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+      select: { blockerId: true, blockedId: true },
     });
-    const blockedIds = blocked.map((b) => b.blockedId);
-
-    const matches = await prisma.match.findMany({
+    const blockedIds = blocked.map((item) => (item.blockerId === userId ? item.blockedId : item.blockerId));
+    const rows = await prisma.match.findMany({
       where: {
         isActive: true,
         OR: [{ userAId: userId }, { userBId: userId }],
-        AND: {
-          userAId: { notIn: blockedIds },
-          userBId: { notIn: blockedIds },
+        userAId: { notIn: blockedIds },
+        userBId: { notIn: blockedIds },
+        userA: { status: 'ACTIVE' },
+        userB: { status: 'ACTIVE' },
+      },
+      include: {
+        userA: { select: { id: true, profile: true, photos: { take: 1, orderBy: { position: 'asc' } } } },
+        userB: { select: { id: true, profile: true, photos: { take: 1, orderBy: { position: 'asc' } } } },
+        conversation: {
+          include: {
+            messages: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
+            _count: {
+              select: {
+                messages: { where: { senderId: { not: userId }, readAt: null, deletedAt: null } },
+              },
+            },
+          },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const otherIds = page.map((match) => (match.userAId === userId ? match.userBId : match.userAId));
+    const notes = await prisma.swipe.findMany({
+      where: { swiperId: { in: otherIds }, swipedId: userId, action: { in: ['LIKE', 'SUPERLIKE'] } },
+    });
+    const noteMap = new Map(notes.map((note) => [note.swiperId, note.note]));
 
-    const payload = await Promise.all(
-      matches.map(async (m) => {
-        const otherUserId = m.userAId === userId ? m.userBId : m.userAId;
-        const other = await prisma.user.findUnique({
-          where: { id: otherUserId },
-          include: {
-            profile: true,
-            photos: { orderBy: { position: 'asc' }, take: 1 },
+    res.json({
+      matches: page.flatMap((match) => {
+        const other = match.userAId === userId ? match.userB : match.userA;
+        if (!other.profile) return [];
+        const photo = other.photos[0];
+        return [
+          {
+            matchId: match.id,
+            conversationId: match.conversation?.id ?? null,
+            matchedAt: match.createdAt,
+            lastMessageAt: match.lastMessageAt,
+            otherUser: {
+              userId: other.id,
+              profileId: other.profile.id,
+              displayName: other.profile.displayName,
+              age: ageFromBirthDate(other.profile.birthDate),
+              city: other.profile.city,
+              occupation: other.profile.occupation,
+              isVerified: other.profile.isVerified,
+              photoUrl: photo?.url ?? null,
+              thumbnailUrl: photo ? cloudinaryThumbnailUrl(photo.url) : null,
+            },
+            noteFromOther: noteMap.get(other.id) ?? null,
+            latestMessage: match.conversation?.messages[0] ?? null,
+            unreadCount: match.conversation?._count.messages ?? 0,
           },
-        });
-
-        const noteFromOther = await prisma.swipe.findFirst({
-          where: {
-            swiperId: otherUserId,
-            swipedId: userId,
-            action: { in: ['LIKE', 'SUPERLIKE'] },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
-
-        const p = other?.profile;
-        if (!p) return null;
-        const ageMs = Date.now() - p.birthDate.getTime();
-        const age = Math.floor(ageMs / (365.25 * 24 * 60 * 60 * 1000));
-
-        return {
-          matchId: m.id,
-          matchedAt: m.createdAt,
-          otherUser: {
-            userId: other!.id,
-            profileId: p.id,
-            displayName: p.displayName,
-            age,
-            city: p.city,
-            occupation: p.occupation,
-            isVerified: p.isVerified,
-            isPremium: p.isPremium,
-            photoUrl: other!.photos[0]?.url ?? null,
-          },
-          noteFromOther: noteFromOther?.note ?? null,
-        };
-      })
-    );
-
-    res.json({ matches: payload.filter((m) => m !== null) });
-  } catch (e) {
-    next(e);
+        ];
+      }),
+      nextCursor: hasMore ? page.at(-1)?.id ?? null : null,
+      hasMore,
+    });
+  } catch (error) {
+    next(error);
   }
 });
 
-/**
- * GET /matches/:id — full match detail with unlocked photos
- */
 matchesRouter.get('/matches/:id', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const userId = req.userId!;
-    const matchId = req.params.id;
-
     const match = await prisma.match.findUnique({
-      where: { id: matchId },
+      where: { id: req.params.id },
+      include: { conversation: true },
     });
-
-    if (!match) {
-      return res.status(404).json({ error: 'match_not_found' });
+    if (!match || (match.userAId !== userId && match.userBId !== userId)) {
+      throw new AppError('match_not_found', 404, 'Match not found.');
     }
-
-    if (match.userAId !== userId && match.userBId !== userId) {
-      return res.status(403).json({ error: 'not_your_match' });
-    }
-
+    if (!match.isActive) throw new AppError('match_inactive', 409, 'This match is no longer active.');
     const otherUserId = match.userAId === userId ? match.userBId : match.userAId;
-    const other = await prisma.user.findUnique({
-      where: { id: otherUserId },
-      include: {
-        profile: true,
-        photos: { orderBy: { position: 'asc' } },
-        prompts: { orderBy: { position: 'asc' } },
-        interests: { include: { interest: true } },
-      },
-    });
-
-    if (!other?.profile) {
-      return res.status(404).json({ error: 'other_profile_missing' });
-    }
-
-    const p = other.profile;
-    const ageMs = Date.now() - p.birthDate.getTime();
-    const age = Math.floor(ageMs / (365.25 * 24 * 60 * 60 * 1000));
-
-    const myNote = await prisma.swipe.findFirst({
-      where: {
-        swiperId: userId,
-        swipedId: otherUserId,
-        action: { in: ['LIKE', 'SUPERLIKE'] },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const theirNote = await prisma.swipe.findFirst({
-      where: {
-        swiperId: otherUserId,
-        swipedId: userId,
-        action: { in: ['LIKE', 'SUPERLIKE'] },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [blocked, other, notes] = await Promise.all([
+      prisma.block.findFirst({
+        where: {
+          OR: [
+            { blockerId: userId, blockedId: otherUserId },
+            { blockerId: otherUserId, blockedId: userId },
+          ],
+        },
+      }),
+      prisma.user.findFirst({
+        where: { id: otherUserId, status: 'ACTIVE' },
+        include: {
+          profile: true,
+          photos: { orderBy: { position: 'asc' } },
+          prompts: { orderBy: { position: 'asc' } },
+          interests: { include: { interest: true } },
+          entitlements: {
+            where: {
+              status: { in: ['ACTIVE', 'GRACE_PERIOD'] },
+              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+            },
+            take: 1,
+          },
+        },
+      }),
+      prisma.swipe.findMany({
+        where: {
+          OR: [
+            { swiperId: userId, swipedId: otherUserId },
+            { swiperId: otherUserId, swipedId: userId },
+          ],
+          action: { in: ['LIKE', 'SUPERLIKE'] },
+        },
+      }),
+    ]);
+    if (blocked || !other?.profile) throw new AppError('profile_not_available', 404, 'Profile unavailable.');
+    const myNote = notes.find((note) => note.swiperId === userId)?.note ?? null;
+    const theirNote = notes.find((note) => note.swiperId === otherUserId)?.note ?? null;
 
     res.json({
       matchId: match.id,
+      conversationId: match.conversation?.id ?? null,
       matchedAt: match.createdAt,
       lastMessageAt: match.lastMessageAt,
       otherUser: {
         userId: other.id,
-        profileId: p.id,
-        displayName: p.displayName,
-        bio: p.bio,
-        age,
-        gender: p.gender,
-        city: p.city,
-        occupation: p.occupation,
-        heightCm: p.heightCm,
-        isVerified: p.isVerified,
-        isPremium: p.isPremium,
-        photos: other.photos.map((ph) => ({ id: ph.id, url: ph.url, position: ph.position })),
-        prompts: other.prompts.map((pr) => ({
-          id: pr.id,
-          question: pr.question,
-          answer: pr.answer,
+        profileId: other.profile.id,
+        displayName: other.profile.displayName,
+        bio: other.profile.bio,
+        age: ageFromBirthDate(other.profile.birthDate),
+        gender: other.profile.gender,
+        city: other.profile.city,
+        occupation: other.profile.occupation,
+        heightCm: other.profile.heightCm,
+        isVerified: other.profile.isVerified,
+        isPremium: other.entitlements.length > 0,
+        photos: other.photos.map((photo) => ({
+          id: photo.id,
+          url: photo.url,
+          thumbnailUrl: cloudinaryThumbnailUrl(photo.url),
+          position: photo.position,
         })),
-        interests: other.interests.map((i) => ({
-          slug: i.interest.slug,
-          label: i.interest.label,
+        prompts: other.prompts.map((prompt) => ({
+          id: prompt.id,
+          question: prompt.question,
+          answer: prompt.answer,
+        })),
+        interests: other.interests.map((item) => ({
+          slug: item.interest.slug,
+          label: item.interest.label,
         })),
       },
-      myNote: myNote?.note ?? null,
-      theirNote: theirNote?.note ?? null,
+      myNote,
+      theirNote,
     });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });
 
-/**
- * POST /matches/:id/unmatch — deactivate a match
- */
 matchesRouter.post('/matches/:id/unmatch', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const userId = req.userId!;
-    const matchId = req.params.id;
-
-    const match = await prisma.match.findUnique({
-      where: { id: matchId },
+    const updated = await prisma.match.updateMany({
+      where: {
+        id: req.params.id,
+        isActive: true,
+        OR: [{ userAId: userId }, { userBId: userId }],
+      },
+      data: { isActive: false, deactivatedAt: new Date(), deactivatedById: userId },
     });
-
-    if (!match) {
-      return res.status(404).json({ error: 'match_not_found' });
-    }
-
-    if (match.userAId !== userId && match.userBId !== userId) {
-      return res.status(403).json({ error: 'not_your_match' });
-    }
-
-    await prisma.match.update({
-      where: { id: matchId },
-      data: { isActive: false },
-    });
-
+    if (!updated.count) throw new AppError('match_not_found', 404, 'Match not found.');
     res.json({ ok: true });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });

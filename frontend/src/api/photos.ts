@@ -1,33 +1,28 @@
-import { API_BASE_URL, getAccessToken } from './client';
+import { apiFetch } from './client';
 
 export interface UploadedPhoto {
+  id: string;
   photoId: string;
   url: string;
+  thumbnailUrl: string;
   position: number;
+  width: number | null;
+  height: number | null;
+  isPrimary: boolean;
 }
 
-export async function uploadPhoto(file: File): Promise<UploadedPhoto> {
+export function uploadPhoto(file: File) {
   const form = new FormData();
   form.append('photo', file);
-
-  const res = await fetch(`${API_BASE_URL}/photos/upload`, {
-    method: 'POST',
-    headers: {
-      Authorization: getAccessToken() ? `Bearer ${getAccessToken()}` : '',
-    },
-    body: form,
-  });
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const err = new Error(body.error || body.message || `Upload failed (${res.status})`) as Error & {
-      status?: number;
-      code?: string;
-    };
-    err.status = res.status;
-    err.code = body.error;
-    throw err;
-  }
-
-  return (await res.json()) as UploadedPhoto;
+  return apiFetch<UploadedPhoto>('/photos/upload', { method: 'POST', body: form });
 }
+
+export const deletePhoto = (id: string) =>
+  apiFetch<{ ok: boolean }>(`/photos/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export const reorderPhotos = (photoIds: string[]) =>
+  apiFetch<{ photos: UploadedPhoto[] }>('/photos/reorder', {
+    method: 'PUT',
+    body: JSON.stringify({ photoIds }),
+  });
+export const setPrimaryPhoto = (id: string) =>
+  apiFetch<{ ok: boolean }>(`/photos/${encodeURIComponent(id)}/primary`, { method: 'PATCH' });

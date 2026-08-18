@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { getMyProfile } from '../api/users';
 import { createPrompt, deletePrompt, listMyPrompts, patchMyProfile } from '../api/prompts';
 import type { Prompt } from '../api/prompts';
-import { uploadPhoto } from '../api/photos';
+import { deletePhoto, reorderPhotos, setPrimaryPhoto, uploadPhoto } from '../api/photos';
 import type { Profile } from '../types';
 import { useAuth } from '../store/auth';
 
@@ -53,8 +53,9 @@ export default function ProfileEdit() {
 
   // Photo upload
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [photos, setPhotos] = useState<{ id: string; url: string }[]>([]);
+  const [photos, setPhotos] = useState<{ id: string; url: string; position?: number }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [replacePhotoId, setReplacePhotoId] = useState<string | null>(null);
 
   // Prompt editing
   const [showPromptForm, setShowPromptForm] = useState(false);
@@ -110,13 +111,57 @@ export default function ProfileEdit() {
   async function handlePhotoUpload(file: File) {
     setUploading(true);
     setError(null);
+    const replacing = replacePhotoId;
     try {
-      const res = await uploadPhoto(file);
-      setPhotos((prev) => [...prev, { id: res.photoId, url: res.url }]);
+      const uploaded = await uploadPhoto(file);
+      if (replacing) {
+        await deletePhoto(replacing);
+        setPhotos((current) => current.map((photo) =>
+          photo.id === replacing ? { id: uploaded.photoId, url: uploaded.url, position: photo.position } : photo
+        ));
+      } else {
+        setPhotos((current) => [...current, { id: uploaded.photoId, url: uploaded.url, position: current.length }]);
+      }
     } catch (e) {
       setError((e as Error).message || 'Upload failed');
     } finally {
+      setReplacePhotoId(null);
       setUploading(false);
+    }
+  }
+
+  async function handleDeletePhoto(id: string) {
+    try {
+      await deletePhoto(id);
+      setPhotos((current) => current.filter((photo) => photo.id !== id));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function makePrimary(id: string) {
+    try {
+      await setPrimaryPhoto(id);
+      setPhotos((current) => {
+        const selected = current.find((photo) => photo.id === id);
+        return selected ? [selected, ...current.filter((photo) => photo.id !== id)] : current;
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function movePhoto(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= photos.length) return;
+    const next = [...photos];
+    [next[index], next[target]] = [next[target]!, next[index]!];
+    setPhotos(next);
+    try {
+      await reorderPhotos(next.map((photo) => photo.id));
+    } catch (e) {
+      setError((e as Error).message);
+      await load();
     }
   }
 
@@ -144,7 +189,7 @@ export default function ProfileEdit() {
   }
 
   function toggleInterest(label: string) {
-    const slug = label.toLowerCase();
+    const slug = label.toLowerCase().replace(/\s+/g, '-');
     setInterests((prev) =>
       prev.includes(slug) ? prev.filter((p) => p !== slug) : [...prev, slug].slice(0, 8)
     );
@@ -183,28 +228,36 @@ export default function ProfileEdit() {
                 Photos ({photos.length})
               </h2>
               <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
+                onClick={() => { setReplacePhotoId(null); fileInputRef.current?.click(); }}
+                disabled={uploading || photos.length >= 6}
                 className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-300 hover:text-gold-200 disabled:opacity-50"
               >
-                {uploading ? 'Uploading…' : '+ Add photo'}
+                {uploading ? 'Uploading…' : photos.length >= 6 ? '6 photo maximum' : '+ Add photo'}
               </button>
             </div>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) handlePhotoUpload(file);
+                if (file) void handlePhotoUpload(file);
                 e.target.value = '';
               }}
             />
             <div className="mt-3 grid grid-cols-3 gap-2">
-              {photos.map((p) => (
-                <div key={p.id} className="relative aspect-square overflow-hidden rounded-xl border border-white/10">
-                  <img src={p.url} alt="" className="h-full w-full object-cover" />
+              {photos.map((photo, index) => (
+                <div key={photo.id} className="relative aspect-[3/4] overflow-hidden rounded-xl border border-white/10">
+                  <img src={photo.url} alt={`Profile photo ${index + 1}`} className="h-full w-full object-cover" />
+                  <div className="absolute inset-x-1 bottom-1 grid grid-cols-4 gap-1 rounded-lg bg-black/75 p-1 backdrop-blur-sm">
+                    <button type="button" onClick={() => void makePrimary(photo.id)} disabled={index === 0} className="rounded py-1 text-[9px] text-gold-200 disabled:text-white/25" aria-label="Make primary">Primary</button>
+                    <button type="button" onClick={() => void movePhoto(index, -1)} disabled={index === 0} className="rounded py-1 text-xs text-white/70 disabled:text-white/20" aria-label="Move photo left">‹</button>
+                    <button type="button" onClick={() => void movePhoto(index, 1)} disabled={index === photos.length - 1} className="rounded py-1 text-xs text-white/70 disabled:text-white/20" aria-label="Move photo right">›</button>
+                    <button type="button" onClick={() => { setReplacePhotoId(photo.id); fileInputRef.current?.click(); }} className="rounded py-1 text-[9px] text-white/70" aria-label="Replace photo">Replace</button>
+                  </div>
+                  <button type="button" onClick={() => void handleDeletePhoto(photo.id)} className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/75 text-sm text-red-200" aria-label="Delete photo">×</button>
+                  {index === 0 && <span className="absolute left-1 top-1 rounded-full bg-gold-400 px-2 py-1 text-[8px] font-bold uppercase text-black">Primary</span>}
                 </div>
               ))}
               {photos.length === 0 && (
@@ -214,7 +267,7 @@ export default function ProfileEdit() {
               )}
             </div>
             <p className="mt-2 text-[10px] text-white/40">
-              First photo is your main profile photo. Max 10MB.
+              Drag order is saved with the arrow controls. Maximum 6 photos, 10 MB each.
             </p>
           </section>
 
@@ -255,8 +308,8 @@ export default function ProfileEdit() {
                   value={heightCm}
                   onChange={(e) => setHeightCm(e.target.value)}
                   type="number"
-                  min={80}
-                  max={260}
+                  min={120}
+                  max={230}
                   placeholder="e.g. 175"
                   className="input-luxe w-full rounded-xl border border-white/10 bg-ink-900 px-3 py-2 text-sm"
                 />

@@ -1,47 +1,93 @@
-const BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:4000';
+import {
+  getDeviceContext,
+  hydrateRefreshTokenNative,
+  isNative,
+  persistRefreshTokenNative,
+} from '../capacitor';
+
+const BASE_URL = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:4000').replace(/\/$/, '');
+const REQUEST_TIMEOUT_MS = 15_000;
 
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 let refreshInFlight: Promise<boolean> | null = null;
 
-export function setTokens(a: string | null, r: string | null) {
-  accessToken = a;
-  refreshToken = r;
-  if (a) localStorage.setItem('simp_access', a);
-  else localStorage.removeItem('simp_access');
-  if (r) localStorage.setItem('simp_refresh', r);
-  else localStorage.removeItem('simp_refresh');
+export class ApiError extends Error {
+  status?: number;
+  code?: string;
+  fieldErrors: Record<string, string[]> = {};
+  details?: Record<string, unknown>;
+  requestId?: string;
 }
 
-export function loadTokens() {
-  accessToken = localStorage.getItem('simp_access');
-  refreshToken = localStorage.getItem('simp_refresh');
+export async function setTokens(access: string | null, refresh?: string | null) {
+  accessToken = access;
+  if (refresh !== undefined) refreshToken = refresh;
+  // Remove legacy persistent web tokens. Web refresh is now an HttpOnly cookie.
+  localStorage.removeItem('simp_access');
+  localStorage.removeItem('simp_refresh');
+  sessionStorage.removeItem('simp_access');
+  if (isNative() && refresh !== undefined) await persistRefreshTokenNative(refresh ?? null);
+  window.dispatchEvent(new CustomEvent('simp:token', { detail: { accessToken: access } }));
 }
 
-export function getAccessToken() {
-  return accessToken;
+export async function loadTokens() {
+  // One-time migration for sessions created by versions that used localStorage.
+  accessToken = localStorage.getItem('simp_access') ?? sessionStorage.getItem('simp_access');
+  const legacyRefresh = localStorage.getItem('simp_refresh');
+  refreshToken = isNative() ? await hydrateRefreshTokenNative() : legacyRefresh;
+  localStorage.removeItem('simp_access');
+  localStorage.removeItem('simp_refresh');
+  sessionStorage.removeItem('simp_access');
 }
 
-export function getRefreshToken() {
-  return refreshToken;
+export const getAccessToken = () => accessToken;
+export const getRefreshToken = () => refreshToken;
+
+async function fetchWithTimeout(url: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      ...init,
+      credentials: 'include',
+      signal: init.signal ?? controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      const timeoutError = new ApiError('The request timed out. Try again.');
+      timeoutError.code = 'request_timeout';
+      throw timeoutError;
+    }
+    const networkError = new ApiError(
+      navigator.onLine ? 'Unable to reach SIMP. Try again.' : 'You are offline. Reconnect and try again.',
+    );
+    networkError.code = navigator.onLine ? 'network_error' : 'offline';
+    throw networkError;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
-async function tryRefresh(): Promise<boolean> {
-  if (!refreshToken) return false;
+export async function refreshAccessToken(): Promise<boolean> {
   if (refreshInFlight) return refreshInFlight;
   refreshInFlight = (async () => {
     try {
-      const res = await fetch(`${BASE_URL}/auth/refresh`, {
+      const device = await getDeviceContext();
+      const response = await fetchWithTimeout(`${BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify({
+          ...(refreshToken ? { refreshToken } : {}),
+          device,
+        }),
       });
-      if (!res.ok) {
-        setTokens(null, null);
+      if (!response.ok) {
+        await setTokens(null, null);
         return false;
       }
-      const data = (await res.json()) as { accessToken: string; refreshToken: string };
-      setTokens(data.accessToken, data.refreshToken);
+      const data = (await response.json()) as { accessToken: string; refreshToken?: string };
+      await setTokens(data.accessToken, data.refreshToken ?? refreshToken);
       return true;
     } catch {
       return false;
@@ -54,55 +100,46 @@ async function tryRefresh(): Promise<boolean> {
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit & { auth?: boolean } = {}
+  options: RequestInit & { auth?: boolean } = {},
 ): Promise<T> {
   const { auth = true, headers, ...rest } = options;
-  const finalHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(headers as Record<string, string> | undefined),
-  };
-  if (auth && accessToken) finalHeaders['Authorization'] = `Bearer ${accessToken}`;
+  const finalHeaders = new Headers(headers);
+  if (rest.body && !(rest.body instanceof FormData) && !finalHeaders.has('Content-Type')) {
+    finalHeaders.set('Content-Type', 'application/json');
+  }
+  if (auth && accessToken) finalHeaders.set('Authorization', `Bearer ${accessToken}`);
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...rest, headers: finalHeaders });
-
-  if (res.status === 401 && auth && refreshToken) {
-    const ok = await tryRefresh();
-    if (ok) {
-      finalHeaders['Authorization'] = `Bearer ${accessToken}`;
-      const retry = await fetch(`${BASE_URL}${path}`, { ...rest, headers: finalHeaders });
-      if (!retry.ok) throw await toError(retry);
-      return (await retry.json()) as T;
-    }
+  let response = await fetchWithTimeout(`${BASE_URL}${path}`, { ...rest, headers: finalHeaders });
+  if (response.status === 401 && auth && (await refreshAccessToken())) {
+    finalHeaders.set('Authorization', `Bearer ${accessToken}`);
+    response = await fetchWithTimeout(`${BASE_URL}${path}`, { ...rest, headers: finalHeaders });
   }
 
-  if (!res.ok) throw await toError(res);
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  if (!response.ok) throw await toError(response);
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }
 
-async function toError(res: Response) {
-  let body: { error?: string; message?: string; [k: string]: unknown } = {};
-  try {
-    body = await res.json();
-  } catch {
-    // ignore
-  }
-  const err = new Error(body.message || body.error || `Request failed (${res.status})`) as Error & {
-    status?: number;
-    code?: string;
-    /// Extra fields from the response body (e.g. `missing` from
-    /// 451 legal_compliance_required). Lets callers react to structured
-    /// error payloads without re-fetching.
+async function toError(response: Response) {
+  let body: {
+    error?: string;
+    message?: string;
+    fieldErrors?: Record<string, string[]>;
     details?: Record<string, unknown>;
-  };
-  err.status = res.status;
-  err.code = body.error;
-  // Strip the two well-known fields, keep the rest as `details`.
-  const { error: _e, message: _m, ...rest } = body;
-  void _e;
-  void _m;
-  if (Object.keys(rest).length > 0) err.details = rest;
-  return err;
+    requestId?: string;
+  } = {};
+  try {
+    body = await response.json();
+  } catch {
+    // Non-JSON provider/proxy errors are normalized below.
+  }
+  const error = new ApiError(body.message || body.error || `Request failed (${response.status})`);
+  error.status = response.status;
+  error.code = body.error;
+  error.fieldErrors = body.fieldErrors ?? {};
+  error.details = body.details;
+  error.requestId = body.requestId;
+  return error;
 }
 
 export const API_BASE_URL = BASE_URL;

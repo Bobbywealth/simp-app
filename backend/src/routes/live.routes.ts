@@ -1,239 +1,363 @@
+import type { ReportCategory } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/db.js';
-import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireAuth, requireVerifiedEmail, type AuthedRequest } from '../middleware/auth.js';
 import { requireLegalCompliance } from '../middleware/legal.js';
+import { getRealtimeServer } from '../sockets/realtime.js';
+import { AppError } from '../utils/errors.js';
+import { getProfileCompletion } from '../services/profile-completion.service.js';
+import { REPORT_CATEGORIES } from './moderation.routes.js';
 
 export const liveRouter = Router();
 
 const startStreamSchema = z.object({
-  title: z.string().min(2).max(120),
-  // When true, if the user already has a LIVE stream, end it first and start
-  // a fresh one. Used by the frontend recovery flow when the user previously
-  // crashed/closed the tab without ending their broadcast.
+  title: z.string().trim().min(2).max(120),
   forceReplace: z.boolean().optional(),
 });
+const reportCategoryValues = REPORT_CATEGORIES.map((item) => item.value) as [
+  ReportCategory,
+  ...ReportCategory[],
+];
 
-/**
- * GET /live/streams — list of currently LIVE streams
- *
- * Excludes any stream that has been reported >= 3 times by distinct
- * viewers. The 3-report threshold is a soft auto-hide so obvious
- * policy violations disappear from the feed immediately while
- * moderators review. Lower for stricter moderation, raise for
- * lighter touch.
- */
-liveRouter.get('/live/streams', requireAuth, async (_req, res, next) => {
+async function blockedUserIds(userId: string) {
+  const blocks = await prisma.block.findMany({
+    where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+    select: { blockerId: true, blockedId: true },
+  });
+  return blocks.map((item) => (item.blockerId === userId ? item.blockedId : item.blockerId));
+}
+
+liveRouter.get('/live/streams', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const streams = await prisma.liveStream.findMany({
-      where: { status: 'LIVE' },
-      orderBy: { startedAt: 'desc' },
-      take: 50,
+    const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit ?? '20'), 10) || 20));
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+    const blockedIds = await blockedUserIds(req.userId!);
+    const rows = await prisma.liveStream.findMany({
+      where: {
+        status: 'LIVE',
+        broadcasterId: { notIn: blockedIds },
+        broadcaster: { status: 'ACTIVE' },
+        reports: {
+          none: {
+            reporterId: req.userId!,
+            status: { in: ['OPEN', 'REVIEWING', 'ACTIONED'] },
+          },
+        },
+      },
+      include: {
+        broadcaster: {
+          select: {
+            id: true,
+            profile: true,
+            photos: { take: 1, orderBy: { position: 'asc' } },
+            entitlements: {
+              where: {
+                status: { in: ['ACTIVE', 'GRACE_PERIOD'] },
+                OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
-
-    // Filter out streams with 3+ distinct user reports
-    const broadcasterIds = Array.from(new Set(streams.map((s) => s.broadcasterId)));
-    const reportCounts = await prisma.report.groupBy({
-      by: ['reportedId'],
-      where: { reportedId: { in: broadcasterIds }, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
-      _count: { reporterId: true },
+    const hasMore = rows.length > limit;
+    const streams = (hasMore ? rows.slice(0, limit) : rows).flatMap((stream) => {
+      const profile = stream.broadcaster.profile;
+      if (!profile) return [];
+      return [
+        {
+          id: stream.id,
+          title: stream.title,
+          startedAt: stream.startedAt,
+          viewerCount: stream.viewerCount,
+          heartCount: stream.heartCount,
+          broadcaster: {
+            userId: stream.broadcaster.id,
+            displayName: profile.displayName,
+            age: Math.floor(
+              (Date.now() - profile.birthDate.getTime()) / (365.2425 * 24 * 60 * 60 * 1_000),
+            ),
+            photoUrl: stream.broadcaster.photos[0]?.url ?? null,
+            isVerified: profile.isVerified,
+            isPremium: stream.broadcaster.entitlements.length > 0,
+          },
+        },
+      ];
     });
-    const reportCountMap = new Map(reportCounts.map((r) => [r.reportedId, r._count.reporterId]));
-    const filtered = streams.filter((s) => (reportCountMap.get(s.broadcasterId) ?? 0) < 3);
-
-    const broadcasters = await prisma.user.findMany({
-      where: { id: { in: filtered.map((s) => s.broadcasterId) } },
-      include: { profile: true, photos: { take: 1, orderBy: { position: 'asc' } } },
-    });
-    const broadcasterMap = new Map(broadcasters.map((b) => [b.id, b]));
-
-    res.json({
-      streams: filtered.map((s) => {
-        const b = broadcasterMap.get(s.broadcasterId);
-        return {
-          id: s.id,
-          title: s.title,
-          startedAt: s.startedAt,
-          viewerCount: s.viewerCount,
-          broadcaster: b?.profile
-            ? {
-                userId: b.id,
-                displayName: b.profile.displayName,
-                age: b.profile.birthDate
-                  ? Math.floor((Date.now() - b.profile.birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-                  : null,
-                photoUrl: b.photos[0]?.url ?? null,
-                isVerified: b.profile.isVerified,
-                isPremium: b.profile.isPremium,
-              }
-            : null,
-        };
-      }),
-    });
-  } catch (e) {
-    next(e);
+    res.json({ streams, nextCursor: hasMore ? streams.at(-1)?.id ?? null : null, hasMore });
+  } catch (error) {
+    next(error);
   }
 });
 
-/**
- * POST /live/streams — start a new live stream
- *
- * Returns the new stream id. The actual WebRTC negotiation happens over
- * Socket.IO via the `live:join` event.
- *
- * Gated by `requireLegalCompliance` so users cannot broadcast until
- * they have confirmed 18+ and accepted the current ToS / Privacy
- * Policy. If they have not, returns 451 with a `missing` array so the
- * frontend can show the legal gate.
- */
+liveRouter.get('/live/streams/:id', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const blockedIds = await blockedUserIds(req.userId!);
+    const stream = await prisma.liveStream.findFirst({
+      where: {
+        id: req.params.id,
+        status: 'LIVE',
+        broadcasterId: { notIn: blockedIds },
+        broadcaster: { status: 'ACTIVE' },
+      },
+      include: {
+        broadcaster: { select: { id: true, profile: true, photos: { take: 1, orderBy: { position: 'asc' } } } },
+      },
+    });
+    if (!stream?.broadcaster.profile) throw new AppError('stream_not_found', 404, 'Stream not found.');
+    res.json({
+      id: stream.id,
+      title: stream.title,
+      startedAt: stream.startedAt,
+      viewerCount: stream.viewerCount,
+      heartCount: stream.heartCount,
+      broadcaster: {
+        userId: stream.broadcaster.id,
+        displayName: stream.broadcaster.profile.displayName,
+        photoUrl: stream.broadcaster.photos[0]?.url ?? null,
+        isVerified: stream.broadcaster.profile.isVerified,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 liveRouter.post(
   '/live/streams',
   requireAuth,
+  requireVerifiedEmail,
   requireLegalCompliance,
   async (req: AuthedRequest, res, next) => {
-  try {
-    const userId = req.userId!;
-    const { title, forceReplace } = startStreamSchema.parse(req.body);
-
-    // Block if user already has a LIVE stream — but allow an explicit forceReplace
-    // (used by the frontend recovery flow) to end the orphan first.
-    const existing = await prisma.liveStream.findFirst({
-      where: { broadcasterId: userId, status: 'LIVE' },
-    });
-    if (existing) {
-      if (!forceReplace) {
-        return res.status(409).json({ error: 'stream_already_live', streamId: existing.id });
+    try {
+      const userId = req.userId!;
+      const input = startStreamSchema.parse(req.body);
+      const completion = await getProfileCompletion(userId);
+      if (!completion.complete) {
+        throw new AppError('profile_incomplete', 409, 'Complete your profile before going live.', {
+          details: { missing: completion.missing },
+        });
       }
-      await prisma.liveStream.update({
-        where: { id: existing.id },
-        data: { status: 'ENDED', endedAt: new Date() },
+
+      const stream = await prisma.$transaction(async (tx) => {
+        const existing = await tx.liveStream.findFirst({
+          where: { broadcasterId: userId, status: 'LIVE' },
+        });
+        if (existing && !input.forceReplace) {
+          throw new AppError('stream_already_live', 409, 'You already have a live stream.', {
+            details: { streamId: existing.id },
+          });
+        }
+        if (existing) {
+          await tx.liveStream.update({
+            where: { id: existing.id },
+            data: { status: 'ENDED', endedAt: new Date(), viewerCount: 0 },
+          });
+        }
+        return tx.liveStream.create({ data: { broadcasterId: userId, title: input.title } });
       });
+      res.status(201).json({ streamId: stream.id, startedAt: stream.startedAt });
+    } catch (error) {
+      next(error);
     }
+  },
+);
 
-    const stream = await prisma.liveStream.create({
-      data: { broadcasterId: userId, title, status: 'LIVE' },
-    });
-
-    res.status(201).json({ streamId: stream.id, startedAt: stream.startedAt });
-  } catch (e) {
-    next(e);
-  }
-});
-
-/**
- * POST /live/streams/:id/end — end a stream (broadcaster only)
- */
 liveRouter.post('/live/streams/:id/end', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const userId = req.userId!;
-    const streamId = req.params.id!;
-
-    const stream = await prisma.liveStream.findUnique({ where: { id: streamId } });
-    if (!stream) return res.status(404).json({ error: 'stream_not_found' });
-    if (stream.broadcasterId !== userId) return res.status(403).json({ error: 'not_broadcaster' });
-
-    await prisma.liveStream.update({
-      where: { id: streamId },
-      data: { status: 'ENDED', endedAt: new Date() },
+    const result = await prisma.liveStream.updateMany({
+      where: { id: req.params.id, broadcasterId: req.userId!, status: 'LIVE' },
+      data: { status: 'ENDED', endedAt: new Date(), viewerCount: 0 },
     });
-
+    if (!result.count) throw new AppError('stream_not_found', 404, 'Live stream not found.');
+    getRealtimeServer()?.to(`stream:${req.params.id}`).emit('live:ended', { streamId: req.params.id });
     res.json({ ok: true });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });
 
-/**
- * GET /live/streams/:id/chat — recent chat messages for a stream
- */
 liveRouter.get('/live/streams/:id/chat', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const messages = await prisma.liveChatMessage.findMany({
-      where: { streamId: req.params.id! },
-      orderBy: { createdAt: 'asc' },
-      take: 100,
-      include: { sender: { include: { profile: { select: { displayName: true } } } } },
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit ?? '50'), 10) || 50));
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+    const blockedIds = await blockedUserIds(req.userId!);
+    const rows = await prisma.liveChatMessage.findMany({
+      where: { streamId: req.params.id!, deletedAt: null, senderId: { notIn: blockedIds } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: { sender: { select: { profile: { select: { displayName: true } } } } },
     });
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
     res.json({
-      messages: messages.map((m) => ({
-        id: m.id,
-        body: m.body,
-        senderId: m.senderId,
-        senderName: m.sender.profile?.displayName ?? 'Unknown',
-        createdAt: m.createdAt,
+      messages: [...page].reverse().map((message) => ({
+        id: message.id,
+        body: message.body,
+        senderId: message.senderId,
+        senderName: message.sender.profile?.displayName ?? 'SIMP member',
+        createdAt: message.createdAt,
       })),
+      nextCursor: hasMore ? page.at(-1)?.id ?? null : null,
+      hasMore,
     });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });
 
-/**
- * POST /live/streams/:id/heart — increment "heart" reaction on a stream
- * (broadcasters can see how many hearts they've received)
- */
 liveRouter.post('/live/streams/:id/heart', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const stream = await prisma.liveStream.findUnique({
-      where: { id: req.params.id! },
-      select: { id: true, viewerCount: true },
+    const streamId = req.params.id!;
+    const recent = await prisma.liveReaction.count({
+      where: { streamId, userId: req.userId!, createdAt: { gte: new Date(Date.now() - 10_000) } },
     });
-    if (!stream) return res.status(404).json({ error: 'stream_not_found' });
-    // Note: viewerCount is used as a proxy for heart count for simplicity.
-    res.json({ streamId: stream.id });
-  } catch (e) {
-    next(e);
+    if (recent >= 20) throw new AppError('reaction_rate_limited', 429, 'Slow down for a moment.');
+    const result = await prisma.$transaction(async (tx) => {
+      const stream = await tx.liveStream.findFirst({ where: { id: streamId, status: 'LIVE' } });
+      if (!stream) throw new AppError('stream_not_found', 404, 'Stream not found.');
+      await tx.liveReaction.create({ data: { streamId, userId: req.userId! } });
+      return tx.liveStream.update({
+        where: { id: streamId },
+        data: { heartCount: { increment: 1 } },
+        select: { heartCount: true },
+      });
+    });
+    getRealtimeServer()?.to(`stream:${streamId}`).emit('live:heart', {
+      from: req.userId,
+      heartCount: result.heartCount,
+    });
+    res.json({ streamId, heartCount: result.heartCount });
+  } catch (error) {
+    next(error);
   }
 });
 
-/**
- * POST /live/streams/:id/report — report a stream as policy-violating
- *
- * Creates a Report row tied to the broadcaster AND ends the stream
- * immediately for the reporter (server-side socket close happens via
- * the existing 'live:end' channel in socket.ts; this endpoint just
- * updates the DB so the stream is removed from /live/streams).
- *
- * Required by Apple App Store Review Guideline 1.4.1 (content
- * moderation) and Google Play UGC policy (in-app reporting).
- *
- * Idempotent: if the user has already reported this stream, returns
- * 200 with `alreadyReported: true` and doesn't create a duplicate row.
- */
 liveRouter.post('/live/streams/:id/report', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const userId = req.userId!;
-    const streamId = req.params.id!;
-    const { reason, details } = z
+    const input = z
       .object({
-        reason: z.string().min(1).max(80),
-        details: z.string().max(500).optional().nullable(),
+        category: z.enum(reportCategoryValues).optional(),
+        reason: z.string().trim().max(120).optional(),
+        details: z.string().trim().max(1_000).optional().nullable(),
       })
       .parse(req.body);
-
+    const streamId = req.params.id!;
     const stream = await prisma.liveStream.findUnique({ where: { id: streamId } });
-    if (!stream) return res.status(404).json({ error: 'stream_not_found' });
-    if (stream.broadcasterId === userId) return res.status(400).json({ error: 'cannot_report_self' });
-
-    const existing = await prisma.report.findFirst({
-      where: { reporterId: userId, reportedId: stream.broadcasterId },
+    if (!stream) throw new AppError('stream_not_found', 404, 'Stream not found.');
+    if (stream.broadcasterId === req.userId) {
+      throw new AppError('cannot_report_self', 400, 'You cannot report your own stream.');
+    }
+    const category = input.category ?? 'OTHER';
+    const contextKey = `stream:${streamId}`;
+    const existing = await prisma.report.findUnique({
+      where: { reporterId_contextKey: { reporterId: req.userId!, contextKey } },
     });
     if (existing) return res.json({ ok: true, alreadyReported: true });
 
     await prisma.report.create({
       data: {
-        reporterId: userId,
+        reporterId: req.userId!,
         reportedId: stream.broadcasterId,
-        reason,
-        details: details ?? null,
+        streamId,
+        category,
+        reason: input.reason ?? REPORT_CATEGORIES.find((item) => item.value === category)?.label ?? 'Other',
+        details: input.details || null,
+        contextKey,
       },
     });
+    const count = await prisma.report.count({
+      where: { streamId, status: { in: ['OPEN', 'REVIEWING'] }, createdAt: { gte: new Date(Date.now() - 86_400_000) } },
+    });
+    if (count >= 3) {
+      await prisma.liveStream.updateMany({
+        where: { id: streamId, status: 'LIVE' },
+        data: { status: 'ENDED', endedAt: new Date(), viewerCount: 0 },
+      });
+      getRealtimeServer()?.to(`stream:${streamId}`).emit('live:ended', {
+        streamId,
+        reason: 'pending_moderation',
+      });
+    }
+    res.status(201).json({ ok: true, alreadyReported: false });
+  } catch (error) {
+    next(error);
+  }
+});
 
-    // End the stream for the reporter. Other viewers see the stream
-    // drop from /live/streams once the report count hits 3 (see
-    // /live/streams GET handler above).
-    res.json({ ok: true });
-  } catch (e) {
-    next(e);
+liveRouter.post('/live/streams/:id/chat/:messageId/report', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const input = z
+      .object({ category: z.enum(reportCategoryValues), details: z.string().trim().max(1_000).optional() })
+      .parse(req.body);
+    const message = await prisma.liveChatMessage.findFirst({
+      where: { id: req.params.messageId, streamId: req.params.id },
+    });
+    if (!message) throw new AppError('message_not_found', 404, 'Comment not found.');
+    if (message.senderId === req.userId) throw new AppError('cannot_report_self', 400, 'You cannot report yourself.');
+    const contextKey = `live-comment:${message.id}`;
+    const report = await prisma.report.upsert({
+      where: { reporterId_contextKey: { reporterId: req.userId!, contextKey } },
+      create: {
+        reporterId: req.userId!,
+        reportedId: message.senderId,
+        streamId: message.streamId,
+        category: input.category,
+        reason: `Live comment: ${input.category}`,
+        details: input.details,
+        contextKey,
+      },
+      update: {},
+    });
+    res.status(201).json({ reportId: report.id });
+  } catch (error) {
+    next(error);
+  }
+});
+
+liveRouter.post('/live/streams/:id/moderation', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const input = z
+      .object({
+        userId: z.string().min(1),
+        action: z.enum(['MUTE', 'REMOVE']),
+        reason: z.string().trim().max(500).optional(),
+      })
+      .parse(req.body);
+    const stream = await prisma.liveStream.findUnique({ where: { id: req.params.id } });
+    if (!stream || stream.broadcasterId !== req.userId) {
+      throw new AppError('not_broadcaster', 403, 'Only the broadcaster can moderate this stream.');
+    }
+    const moderation = await prisma.liveModeration.upsert({
+      where: { streamId_userId: { streamId: stream.id, userId: input.userId } },
+      create: {
+        streamId: stream.id,
+        userId: input.userId,
+        moderatorId: req.userId!,
+        mutedUntil: input.action === 'MUTE' ? new Date(Date.now() + 15 * 60 * 1_000) : null,
+        removedAt: input.action === 'REMOVE' ? new Date() : null,
+        reason: input.reason,
+      },
+      update: {
+        moderatorId: req.userId!,
+        mutedUntil: input.action === 'MUTE' ? new Date(Date.now() + 15 * 60 * 1_000) : null,
+        removedAt: input.action === 'REMOVE' ? new Date() : null,
+        reason: input.reason,
+      },
+    });
+    getRealtimeServer()?.to(`user:${input.userId}`).emit('live:moderated', {
+      streamId: stream.id,
+      action: input.action,
+      mutedUntil: moderation.mutedUntil,
+    });
+    res.json({ ok: true, moderation });
+  } catch (error) {
+    next(error);
   }
 });

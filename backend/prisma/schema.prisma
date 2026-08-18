@@ -1,5 +1,6 @@
-// Prisma schema for SIMP dating app
-// Models: User, Profile, Photo, RefreshToken, Interest, Swipe, Match, Prompt
+// Canonical Prisma schema for the SIMP dating, messaging, live, safety,
+// notification, and entitlement platform. Historical migrations remain
+// immutable; release-candidate additions live in later migrations.
 
 generator client {
   provider = "prisma-client-js"
@@ -29,36 +30,186 @@ enum SwipeAction {
   SUPERLIKE
 }
 
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum VerificationStatus {
+  NOT_REQUESTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+}
+
+enum ReportCategory {
+  HARASSMENT
+  HATE_SPEECH
+  SCAM
+  IMPERSONATION
+  FAKE_PROFILE
+  INAPPROPRIATE_SEXUAL_CONTENT
+  UNDERAGE_USER
+  THREAT_VIOLENCE
+  SPAM
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  ACTIONED
+  DISMISSED
+}
+
+enum NotificationType {
+  MATCH
+  MESSAGE
+  LIKE
+  SYSTEM
+  LIVE
+  SECURITY
+}
+
+enum PushPlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum EntitlementTier {
+  FREE
+  SIMP_PLUS
+  SIMP_ELITE
+}
+
+enum EntitlementStatus {
+  ACTIVE
+  GRACE_PERIOD
+  EXPIRED
+  REVOKED
+}
+
+enum BillingPlatform {
+  APPLE
+  GOOGLE
+  WEB
+  PROMOTIONAL
+}
+
+enum ModerationActionType {
+  WARN
+  SUSPEND
+  BAN
+  RESTORE
+  REMOVE_PHOTO
+  END_STREAM
+  APPROVE_VERIFICATION
+  REJECT_VERIFICATION
+}
+
+enum LiveStreamStatus {
+  LIVE
+  ENDED
+}
+
+enum LiveReactionType {
+  HEART
+}
+
+enum ExperienceCategory {
+  DINNER
+  DRINKS
+  EVENT
+  CONCERT
+  TRAVEL
+  SHOPPING
+  ADVENTURE
+  VIP
+  OTHER
+}
+
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  passwordHash  String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  emailVerified Boolean  @default(false)
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  profile         Profile?
-  photos          Photo[]
-  refreshTokens   RefreshToken[]
-  interests       UserInterest[]
-  swipesMade      Swipe[]        @relation("SwipesMade")
-  swipesReceived  Swipe[]        @relation("SwipesReceived")
-  matchesAsA      Match[]        @relation("MatchesAsA")
-  matchesAsB      Match[]        @relation("MatchesAsB")
-  prompts         Prompt[]
-  blocksMade      Block[]        @relation("BlocksMade")
-  blocksReceived  Block[]        @relation("BlocksReceived")
-  reportsMade     Report[]       @relation("ReportsMade")
-  reportsReceived Report[]       @relation("ReportsReceived")
-  streamsBroadcast LiveStream[]  @relation("StreamsBroadcast")
-  liveChatMessages LiveChatMessage[]
-  tosAcceptances   TosAcceptance[]
+  emailVerified         Boolean       @default(false)
+  emailVerifiedAt       DateTime?
+  role                  UserRole      @default(USER)
+  status                AccountStatus @default(ACTIVE)
+  statusReason          String?
+  suspendedUntil        DateTime?
+  bannedAt              DateTime?
+  deletedAt             DateTime?
+  failedLoginAttempts   Int           @default(0)
+  lockedUntil           DateTime?
+  onboardingState       Json?
+  onboardingStep        Int           @default(0)
+  onboardingCompletedAt DateTime?
 
-  // Set once when the user explicitly confirms they are 18+ (or the
-  // applicable age of majority in their jurisdiction). Required before
-  // they can broadcast a live stream.
-  ageConfirmedAt   DateTime?
-  ageConfirmedIp   String?
+  profile                   Profile?
+  discoveryPreference       DiscoveryPreference?
+  photos                    Photo[]
+  refreshTokens             RefreshToken[]
+  authActionTokens          AuthActionToken[]
+  interests                 UserInterest[]
+  swipesMade                Swipe[]                      @relation("SwipesMade")
+  swipesReceived            Swipe[]                      @relation("SwipesReceived")
+  matchesAsA                Match[]                      @relation("MatchesAsA")
+  matchesAsB                Match[]                      @relation("MatchesAsB")
+  prompts                   Prompt[]
+  messagesSent              Message[]
+  blocksMade                Block[]                      @relation("BlocksMade")
+  blocksReceived            Block[]                      @relation("BlocksReceived")
+  reportsMade               Report[]                     @relation("ReportsMade")
+  reportsReceived           Report[]                     @relation("ReportsReceived")
+  reportsReviewed           Report[]                     @relation("ReportModerator")
+  streamsBroadcast          LiveStream[]                 @relation("StreamsBroadcast")
+  liveChatMessages          LiveChatMessage[]
+  liveReactions             LiveReaction[]
+  liveModerationsReceived   LiveModeration[]             @relation("LiveModeratedUser")
+  liveModerationsMade       LiveModeration[]             @relation("LiveModerator")
+  notifications             Notification[]               @relation("NotificationRecipient")
+  notificationActions       Notification[]               @relation("NotificationActor")
+  notificationPreference    NotificationPreference?
+  pushTokens                PushToken[]
+  entitlements              Entitlement[]
+  dailyUsages               DailyUsage[]
+  moderationActionsTaken    ModerationAction[]           @relation("ModeratorActions")
+  moderationActionsReceived ModerationAction[]           @relation("TargetActions")
+  verificationRequests      ProfileVerificationRequest[] @relation("VerificationSubject")
+  verificationReviews       ProfileVerificationRequest[] @relation("VerificationReviewer")
+  tosAcceptances            TosAcceptance[]
+
+  // Required before broadcasting. Birthdate eligibility is separately
+  // enforced when the profile is created or changed.
+  ageConfirmedAt DateTime?
+  ageConfirmedIp String?
+
+  @@index([status, createdAt])
+  @@index([role])
 }
 
 model Profile {
@@ -74,13 +225,39 @@ model Profile {
   city        String?
   occupation  String?
   heightCm    Int?
-  isVerified  Boolean    @default(false)
-  isPremium   Boolean    @default(false)
 
-  interests UserInterest[] @relation("ProfileInterests")
+  // isVerified is the delivery-compatible cache used by existing clients.
+  // It may only be changed by the verification moderation service.
+  isVerified         Boolean            @default(false)
+  verificationStatus VerificationStatus @default(NOT_REQUESTED)
+  profileCompletedAt DateTime?
+
+  // Legacy compatibility cache. Entitlement checks always use Entitlement;
+  // no authorization decision may rely on this field.
+  isPremium Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([gender, birthDate])
+  @@index([verificationStatus])
+}
+
+model DiscoveryPreference {
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  minAge              Int       @default(18)
+  maxAge              Int       @default(99)
+  maxDistanceKm       Int?
+  verifiedOnly        Boolean   @default(false)
+  interestSlugs       String[]  @default([])
+  locationLat         Float?
+  locationLng         Float?
+  locationPrecisionKm Int?
+  locationUpdatedAt   DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 model Photo {
@@ -88,36 +265,69 @@ model Photo {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   url       String
+  publicId  String?  @unique
   position  Int      @default(0)
+  width     Int?
+  height    Int?
+  bytes     Int?
+  mimeType  String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, position])
 }
 
 model Interest {
   id    String         @id @default(cuid())
   slug  String         @unique
   label String
-  users UserInterest[] @relation("InterestToUsers")
+  users UserInterest[]
 }
 
 model UserInterest {
   userId     String
   interestId String
-  profileId  String?
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  interest   Interest @relation("InterestToUsers", fields: [interestId], references: [id], onDelete: Cascade)
-  profile    Profile? @relation("ProfileInterests", fields: [profileId], references: [id], onDelete: Cascade)
+  interest   Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
 
   @@id([userId, interestId])
+  @@index([interestId])
 }
 
 model RefreshToken {
-  id        String    @id @default(cuid())
+  id              String       @id @default(cuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId        String
+  tokenHash       String       @unique
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  replacedById    String?
+  reuseDetectedAt DateTime?
+  deviceId        String?
+  deviceName      String?
+  platform        PushPlatform @default(WEB)
+  ipHash          String?
+  userAgent       String?
+  lastUsedAt      DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+model AuthActionToken {
+  id        String        @id @default(cuid())
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String    @unique
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AuthTokenType
+  tokenHash String        @unique
   expiresAt DateTime
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, type, expiresAt])
 }
 
 model Swipe {
@@ -125,31 +335,67 @@ model Swipe {
   swiperId  String
   swipedId  String
   action    SwipeAction
-  note      String? // "Convince Me" — max 280 chars
+  note      String?
   createdAt DateTime    @default(now())
 
   swiper User @relation("SwipesMade", fields: [swiperId], references: [id], onDelete: Cascade)
   swiped User @relation("SwipesReceived", fields: [swipedId], references: [id], onDelete: Cascade)
 
   @@unique([swiperId, swipedId])
-  @@index([swiperId])
-  @@index([swipedId])
+  @@index([swiperId, createdAt])
+  @@index([swipedId, action, createdAt])
 }
 
 model Match {
-  id            String    @id @default(cuid())
-  userAId       String // smaller user id (alphabetical) — ensures unique pair regardless of order
-  userBId       String // larger user id
-  createdAt     DateTime  @default(now())
-  lastMessageAt DateTime?
-  isActive      Boolean   @default(true)
+  id              String    @id @default(cuid())
+  userAId         String
+  userBId         String
+  createdAt       DateTime  @default(now())
+  lastMessageAt   DateTime?
+  isActive        Boolean   @default(true)
+  deactivatedAt   DateTime?
+  deactivatedById String?
 
-  userA User @relation("MatchesAsA", fields: [userAId], references: [id], onDelete: Cascade)
-  userB User @relation("MatchesAsB", fields: [userBId], references: [id], onDelete: Cascade)
+  userA        User          @relation("MatchesAsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB        User          @relation("MatchesAsB", fields: [userBId], references: [id], onDelete: Cascade)
+  conversation Conversation?
 
   @@unique([userAId, userBId])
-  @@index([userAId])
-  @@index([userBId])
+  @@index([userAId, isActive, lastMessageAt])
+  @@index([userBId, isActive, lastMessageAt])
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  matchId   String    @unique
+  match     Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([updatedAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  clientId       String?
+  body           String
+  messageType    MessageType  @default(TEXT)
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  deletedAt      DateTime?
+
+  @@unique([conversationId, clientId])
+  @@index([conversationId, createdAt, id])
+  @@index([senderId, createdAt])
+  @@index([conversationId, readAt])
 }
 
 model Prompt {
@@ -160,8 +406,9 @@ model Prompt {
   answer    String
   position  Int      @default(0)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([userId])
+  @@index([userId, position])
 }
 
 model Block {
@@ -170,8 +417,8 @@ model Block {
   blockedId String
   createdAt DateTime @default(now())
 
-  blocker   User     @relation("BlocksMade",    fields: [blockerId], references: [id], onDelete: Cascade)
-  blocked   User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+  blocker User @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
   @@index([blockerId])
@@ -179,67 +426,253 @@ model Block {
 }
 
 model Report {
-  id         String   @id @default(cuid())
-  reporterId String
-  reportedId String
-  reason     String
-  details    String?
-  createdAt  DateTime @default(now())
+  id                  String         @id @default(cuid())
+  reporterId          String?
+  reportedId          String?
+  streamId            String?
+  category            ReportCategory @default(OTHER)
+  reason              String
+  details             String?
+  status              ReportStatus   @default(OPEN)
+  moderatorId         String?
+  moderatorNotes      String?
+  contextKey          String?
+  reporterFingerprint String?
+  reportedFingerprint String?
+  createdAt           DateTime       @default(now())
+  reviewedAt          DateTime?
+  actionedAt          DateTime?
 
-  reporter   User     @relation("ReportsMade",    fields: [reporterId], references: [id], onDelete: Cascade)
-  reported   User     @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: Cascade)
+  reporter  User?       @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: SetNull)
+  reported  User?       @relation("ReportsReceived", fields: [reportedId], references: [id], onDelete: SetNull)
+  moderator User?       @relation("ReportModerator", fields: [moderatorId], references: [id], onDelete: SetNull)
+  stream    LiveStream? @relation(fields: [streamId], references: [id], onDelete: SetNull)
 
-  @@index([reporterId])
-  @@index([reportedId])
+  @@unique([reporterId, contextKey])
+  @@index([status, createdAt])
+  @@index([reporterId, createdAt])
+  @@index([reportedId, status])
+  @@index([streamId])
+}
+
+model ModerationAction {
+  id                String               @id @default(cuid())
+  moderatorId       String?
+  targetUserId      String?
+  targetFingerprint String?
+  action            ModerationActionType
+  reason            String
+  metadata          Json?
+  createdAt         DateTime             @default(now())
+
+  moderator User? @relation("ModeratorActions", fields: [moderatorId], references: [id], onDelete: SetNull)
+  target    User? @relation("TargetActions", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([targetUserId, createdAt])
+  @@index([moderatorId, createdAt])
+}
+
+model ProfileVerificationRequest {
+  id         String             @id @default(cuid())
+  userId     String
+  reviewerId String?
+  status     VerificationStatus @default(PENDING)
+  userNote   String?
+  reviewNote String?
+  createdAt  DateTime           @default(now())
+  reviewedAt DateTime?
+
+  user     User  @relation("VerificationSubject", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("VerificationReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }
 
 model LiveStream {
-  id              String           @id @default(cuid())
-  broadcasterId   String
-  title           String
-  status          LiveStreamStatus @default(LIVE)
-  viewerCount     Int              @default(0)
-  startedAt       DateTime         @default(now())
-  endedAt         DateTime?
+  id            String           @id @default(cuid())
+  broadcasterId String
+  title         String
+  status        LiveStreamStatus @default(LIVE)
+  viewerCount   Int              @default(0)
+  heartCount    Int              @default(0)
+  startedAt     DateTime         @default(now())
+  endedAt       DateTime?
 
-  broadcaster     User             @relation("StreamsBroadcast", fields: [broadcasterId], references: [id], onDelete: Cascade)
-  chatMessages    LiveChatMessage[]
+  broadcaster  User              @relation("StreamsBroadcast", fields: [broadcasterId], references: [id], onDelete: Cascade)
+  chatMessages LiveChatMessage[]
+  reactions    LiveReaction[]
+  moderations  LiveModeration[]
+  reports      Report[]
 
-  @@index([status])
-  @@index([broadcasterId])
-}
-
-enum LiveStreamStatus {
-  LIVE
-  ENDED
+  @@index([status, startedAt])
+  @@index([broadcasterId, status])
 }
 
 model LiveChatMessage {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   streamId    String
   senderId    String
   body        String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+  moderatedAt DateTime?
 
-  stream      LiveStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  sender      User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  stream LiveStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  sender User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
-  @@index([streamId, createdAt])
+  @@index([streamId, createdAt, id])
+  @@index([senderId, createdAt])
 }
 
-/// Versioned Terms of Service / Privacy Policy documents. Each row is a
-/// published snapshot; users accept a specific version (see
-/// `TosAcceptance`) and a bump in `version` triggers a re-prompt.
+model LiveReaction {
+  id        String           @id @default(cuid())
+  streamId  String
+  userId    String
+  type      LiveReactionType @default(HEART)
+  createdAt DateTime         @default(now())
+
+  stream LiveStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([streamId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model LiveModeration {
+  id          String    @id @default(cuid())
+  streamId    String
+  userId      String
+  moderatorId String
+  mutedUntil  DateTime?
+  removedAt   DateTime?
+  reason      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  stream    LiveStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  user      User       @relation("LiveModeratedUser", fields: [userId], references: [id], onDelete: Cascade)
+  moderator User       @relation("LiveModerator", fields: [moderatorId], references: [id], onDelete: Cascade)
+
+  @@unique([streamId, userId])
+  @@index([userId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  actorId   String?
+  type      NotificationType
+  entityId  String?
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user  User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+  @@index([userId, createdAt])
+}
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matches   Boolean  @default(true)
+  messages  Boolean  @default(true)
+  likes     Boolean  @default(true)
+  live      Boolean  @default(true)
+  security  Boolean  @default(true)
+  marketing Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PushToken {
+  id         String       @id @default(cuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String       @unique
+  deviceId   String?
+  deviceName String?
+  platform   PushPlatform
+  active     Boolean      @default(true)
+  lastSeenAt DateTime     @default(now())
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([userId, active])
+  @@index([platform, active])
+}
+
+model Entitlement {
+  id                    String            @id @default(cuid())
+  userId                String
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier                  EntitlementTier
+  status                EntitlementStatus @default(ACTIVE)
+  platform              BillingPlatform
+  productId             String
+  transactionId         String?           @unique
+  originalTransactionId String?
+  expiresAt             DateTime?
+  autoRenewing          Boolean           @default(false)
+  environment           String?
+  receiptHash           String?
+  lastVerifiedAt        DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@index([userId, status, expiresAt])
+  @@index([originalTransactionId])
+}
+
+model DailyUsage {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day        DateTime @db.Date
+  likes      Int      @default(0)
+  superLikes Int      @default(0)
+  rewinds    Int      @default(0)
+  boosts     Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, day])
+  @@index([day])
+}
+
+model Experience {
+  id          String             @id @default(cuid())
+  title       String
+  description String?
+  category    ExperienceCategory
+  city        String
+  startsAt    DateTime?
+  priceCents  Int?
+  currency    String             @default("USD")
+  provider    String?
+  capacity    Int?
+  bookingUrl  String?
+  imageUrl    String?
+  isActive    Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([isActive, city, startsAt])
+  @@index([category, startsAt])
+}
+
+/// Versioned Terms of Service / Privacy Policy documents.
 model TosVersion {
   id          String   @id @default(cuid())
-  /// Document type: "tos" (Terms of Service) or "privacy" (Privacy Policy).
   type        String
-  /// Semantic version string, e.g. "1.0", "1.1".
   version     String
-  /// Short, plain-language summary shown in the gate modal (1-3 sentences).
   summary     String
-  /// Full markdown content of the document. Stored inline so the gate UI
-  /// can render without a separate CMS round-trip.
   content     String
   effectiveAt DateTime @default(now())
 
@@ -249,22 +682,41 @@ model TosVersion {
   @@index([type, effectiveAt])
 }
 
-/// One row per user-per-document-version acceptance event. Persisted for
-/// legal record-keeping; supports GDPR/CCPA "when did I agree to what"
-/// inquiries.
 model TosAcceptance {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   tosVersionId String
   tosVersion   TosVersion @relation(fields: [tosVersionId], references: [id], onDelete: Cascade)
-  /// Document type, copied from the parent version for fast filtering.
-  type        String
-  /// Version string, copied for the same reason.
-  version     String
-  acceptedAt  DateTime @default(now())
-  ipAddress   String?
-  userAgent   String?
+  type         String
+  version      String
+  acceptedAt   DateTime   @default(now())
+  ipAddress    String?
+  userAgent    String?
 
   @@index([userId, type, version])
+}
+
+model AssetDeletionJob {
+  id            String    @id @default(cuid())
+  publicId      String    @unique
+  url           String?
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([completedAt, nextAttemptAt])
+}
+
+model AccountDeletionReceipt {
+  id              String   @id @default(cuid())
+  userFingerprint String
+  requestedAt     DateTime @default(now())
+  completedAt     DateTime @default(now())
+  photoCount      Int      @default(0)
+  metadata        Json?
+
+  @@index([completedAt])
 }

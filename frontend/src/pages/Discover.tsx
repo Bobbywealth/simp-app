@@ -4,7 +4,9 @@ import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-mo
 import { getDiscovery } from '../api/discovery';
 import { createSwipe, undoSwipe } from '../api/swipes';
 import { blockUser, reportUser, REPORT_REASONS, type ReportReason } from '../api/moderation';
-import type { DiscoveryProfile, SwipeAction } from '../types';
+import type { DiscoveryPreferences, DiscoveryProfile, SwipeAction } from '../types';
+import { getDiscoveryPreferences, updateDiscoveryPreferences } from '../api/users';
+import { track } from '../api/analytics';
 import { SimpLogo } from '../components/SimpLogo';
 import { DiscoverFilters } from '../components/DiscoverFilters';
 
@@ -24,8 +26,9 @@ export default function Discover() {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [minAge, setMinAge] = useState(18);
-  const [maxAge, setMaxAge] = useState(99);
+  const [filters, setFilters] = useState<DiscoveryPreferences>({
+    minAge: 18, maxAge: 99, maxDistanceKm: null, verifiedOnly: false, interestSlugs: [],
+  });
   const [showFilters, setShowFilters] = useState(false);
 
   const [matchedProfile, setMatchedProfile] = useState<DiscoveryProfile | null>(null);
@@ -45,18 +48,25 @@ export default function Discover() {
   const loadingRef = useRef(false);
 
   useEffect(() => {
-    void loadDeck(true);
-  }, [minAge, maxAge]);
+    void getDiscoveryPreferences()
+      .then((saved) => {
+        setFilters(saved);
+        return loadDeck(true, saved);
+      })
+      .catch(() => loadDeck(true));
+    // Initial load only; applying filters explicitly reloads the deck.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  async function loadDeck(reset: boolean) {
+  async function loadDeck(reset: boolean, activeFilters: DiscoveryPreferences = filters) {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setDeck((prev) => (profiles.length === 0 ? 'loading' : prev));
     setError(null);
     try {
       const res = await getDiscovery({
-        minAge,
-        maxAge,
+        minAge: activeFilters.minAge,
+        maxAge: activeFilters.maxAge,
         cursor: reset ? undefined : nextCursor ?? undefined,
         limit: 20,
       });
@@ -101,11 +111,12 @@ export default function Discover() {
       if (res.matched) {
         setMatchedProfile(profile);
         setMatchedNote(note ?? null);
+        void track('match_created');
       }
-    } catch (e) {
-      console.error('swipe failed', e);
-    } finally {
+      if (action === 'LIKE' || action === 'SUPERLIKE') void track('swipe_like', { action });
       advanceDeck();
+    } catch (e) {
+      setError((e as Error).message);
     }
   }
 
@@ -257,7 +268,7 @@ export default function Discover() {
     <Scaffold
       onBack={() => navigate('/home')}
       showFilters={() => setShowFilters(true)}
-      hasFilters={minAge !== 18 || maxAge !== 99}
+      hasFilters={filters.minAge !== 18 || filters.maxAge !== 99 || filters.maxDistanceKm !== null || filters.verifiedOnly || filters.interestSlugs.length > 0}
     >
       <div className="flex flex-col flex-1 pb-20">
         <div className="relative mx-auto w-full flex-1 max-w-md px-4">
@@ -279,7 +290,6 @@ export default function Discover() {
                   onSwipeRight={() => onSwipeRight(p)}
                   onSwipeLeft={() => onSwipeLeft(p)}
                   onSwipeUp={() => onSwipeUp(p)}
-                  onReport={() => setReportTarget(p)}
                 />
               );
             })}
@@ -330,12 +340,12 @@ export default function Discover() {
       <DiscoverFilters
         open={showFilters}
         onClose={() => setShowFilters(false)}
-        minAge={minAge}
-        maxAge={maxAge}
-        onApply={(min, max) => {
-          setMinAge(min);
-          setMaxAge(max);
+        value={filters}
+        onApply={async (nextFilters) => {
+          const saved = await updateDiscoveryPreferences(nextFilters);
+          setFilters(saved);
           setShowFilters(false);
+          await loadDeck(true, saved);
         }}
       />
 
@@ -362,6 +372,12 @@ export default function Discover() {
           navigate('/matches');
         }}
       />
+
+      {error && deck === 'ready' && (
+        <button type="button" onClick={() => setError(null)} className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-red-400/25 bg-red-950/95 px-4 py-3 text-left text-xs text-red-100 shadow-xl" role="alert">
+          {error}
+        </button>
+      )}
 
       <ReportModal
         profile={reportTarget}
@@ -417,7 +433,6 @@ interface SwipeCardProps {
   onSwipeRight: () => void;
   onSwipeLeft: () => void;
   onSwipeUp: () => void;
-  onReport: () => void;
 }
 
 function SwipeCard({
@@ -431,7 +446,6 @@ function SwipeCard({
   onSwipeRight,
   onSwipeLeft,
   onSwipeUp,
-  onReport,
 }: SwipeCardProps) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -569,7 +583,7 @@ function SwipeCard({
             <span className="text-xl text-white/70">{profile.age}</span>
             {profile.isVerified && (
               <span className="ml-1 rounded-full border border-gold-400/40 bg-gold-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold-200">
-                Early Access
+                Verified
               </span>
             )}
           </h2>
@@ -577,6 +591,7 @@ function SwipeCard({
             {profile.occupation}
             {profile.occupation && profile.city ? ' · ' : ''}
             {profile.city}
+            {profile.distanceKm ? ` · ${profile.distanceKm} km away` : ''}
           </p>
 
           {profile.bio && <p className="mt-3 line-clamp-3 text-sm text-white/80">{profile.bio}</p>}

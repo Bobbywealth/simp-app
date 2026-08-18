@@ -14,6 +14,7 @@ export interface LiveStream {
   title: string;
   startedAt: string;
   viewerCount: number;
+  heartCount: number;
   broadcaster: LiveStreamBroadcaster | null;
 }
 
@@ -26,7 +27,11 @@ export interface LiveChatMessage {
 }
 
 export function listLiveStreams() {
-  return apiFetch<{ streams: LiveStream[] }>('/live/streams');
+  return apiFetch<{ streams: LiveStream[]; nextCursor?: string | null; hasMore?: boolean }>('/live/streams');
+}
+
+export function getLiveStream(streamId: string) {
+  return apiFetch<LiveStream>(`/live/streams/${encodeURIComponent(streamId)}`);
 }
 
 export function startStream(title: string, forceReplace = false) {
@@ -50,5 +55,11 @@ export function reportStream(streamId: string, reason: string, details?: string)
   return apiFetch<{ ok: true; alreadyReported?: boolean }>(`/live/streams/${streamId}/report`, {
     method: 'POST',
     body: JSON.stringify({ reason, details }),
+  });
+}
+
+export function moderateLiveUser(streamId: string, userId: string, action: 'MUTE' | 'REMOVE', reason?: string) {
+  return apiFetch<{ ok: true }>(`/live/streams/${encodeURIComponent(streamId)}/moderation`, {
+    method: 'POST', body: JSON.stringify({ userId, action, reason }),
   });
 }

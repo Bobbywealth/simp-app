@@ -89,3 +89,35 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
+
+@layer components {
+  .settings-row {
+    @apply flex min-h-14 w-full items-center justify-between gap-3 p-4 text-left text-sm text-white/75 transition hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold-400;
+  }
+}
+
+@layer base {
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  summary {
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-400;
+  }
+
+  img {
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

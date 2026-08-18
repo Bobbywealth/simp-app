@@ -44,7 +44,8 @@ export default function Login() {
       await login(data);
       const meData = await me();
       setUser(meData);
-      if (!meData.profile) navigate('/profile-setup', { replace: true });
+      if (!meData.emailVerified) navigate('/verify-email-pending', { replace: true });
+      else if (!meData.profile || !meData.onboardingCompletedAt) navigate('/profile-setup', { replace: true });
       else navigate('/home', { replace: true });
     } catch (e) {
       setError((e as Error).message || 'Log in failed');
@@ -99,7 +100,10 @@ export default function Login() {
               </p>
             )}
 
-            <Button type="submit" loading={submitting} className="mt-6">
+            <div className="text-right">
+              <Link to="/forgot-password" className="text-xs text-gold-300 hover:text-gold-200">Forgot password?</Link>
+            </div>
+            <Button type="submit" loading={submitting} className="mt-3">
               Log in
             </Button>
           </form>
@@ -112,6 +116,7 @@ export default function Login() {
           </Link>
         </div>
 
+        {import.meta.env.DEV && (
         <div className="pb-safe mt-6 rounded-2xl border border-dashed border-white/10 bg-ink-900/40 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
             Test login
@@ -130,6 +135,7 @@ export default function Login() {
             Use Kenji (test user)
           </button>
         </div>
+        )}
       </main>
     </div>
   );

@@ -14,8 +14,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      registerType: 'prompt',
+      injectRegister: null,
       strategies: 'generateSW',
       includeAssets: ['icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'],
       manifest: {
@@ -52,15 +52,10 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
         navigateFallback: '/index.html',
+        cleanupOutdatedCaches: true,
+        clientsClaim: false,
+        skipWaiting: false,
         runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 5,
-            },
-          },
           {
             urlPattern: ({ request }) => request.destination === 'image',
             handler: 'CacheFirst',
@@ -72,7 +67,7 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        enabled: true,
+        enabled: false,
         type: 'module',
       },
     }),

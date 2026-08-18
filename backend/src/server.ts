@@ -1,51 +1,72 @@
 import { createServer } from 'node:http';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { createApp } from './app.js';
+import { prisma } from './config/db.js';
 import { env } from './config/env.js';
-import { attachLiveSocket } from './sockets/live.js';
 import { seedLegalDocuments } from './legal/seedLegal.js';
+import { startAssetCleanupWorker } from './services/asset-cleanup.service.js';
+import { attachLiveSocket } from './sockets/live.js';
+import { logger } from './utils/logger.js';
 
-const execFileAsync = promisify(execFile);
+const REQUIRED_MIGRATION = '20260818000000_release_candidate_core';
 
-/**
- * Apply pending Prisma migrations on boot. Idempotent — `migrate deploy`
- * is a no-op when there are no pending migrations. Done in-process so
- * the deploy doesn't depend on the build/start command including the
- * `prisma migrate deploy` step.
- */
-async function applyMigrations(): Promise<void> {
-  try {
-    const { stdout, stderr } = await execFileAsync('npx', ['prisma', 'migrate', 'deploy'], {
-      cwd: process.cwd(),
-      env: process.env,
-      maxBuffer: 4 * 1024 * 1024,
-    });
-    if (stdout.trim()) console.log(`[migrate] ${stdout.trim()}`);
-    if (stderr.trim()) console.warn(`[migrate] ${stderr.trim()}`);
-  } catch (e) {
-    // Don't crash the whole server on migration failure — log loudly and
-    // continue. The seed step below will then log a clear warning so the
-    // operator knows what to fix.
-    console.error('[migrate] failed:', (e as Error).message);
+async function assertDatabaseReady() {
+  await prisma.$queryRaw`SELECT 1`;
+  const rows = await prisma.$queryRaw<Array<{ migration_name: string }>>`
+    SELECT migration_name
+    FROM "_prisma_migrations"
+    WHERE migration_name = ${REQUIRED_MIGRATION}
+      AND finished_at IS NOT NULL
+      AND rolled_back_at IS NULL
+    LIMIT 1
+  `;
+  if (!rows.length) {
+    throw new Error(
+      `Database schema is incompatible. Run prisma migrate deploy before starting (${REQUIRED_MIGRATION}).`,
+    );
   }
 }
 
 async function main() {
-  await applyMigrations();
-
-  // Idempotent on every boot: inserts new legal-document versions, leaves
-  // existing rows alone so the historical record of what each user agreed
-  // to stays intact.
+  await assertDatabaseReady();
   await seedLegalDocuments();
 
   const app = createApp();
   const httpServer = createServer(app);
-  attachLiveSocket(httpServer);
+  const socketServer = attachLiveSocket(httpServer);
+  startAssetCleanupWorker();
 
-  httpServer.listen(env.PORT, () => {
-    console.log(`[simp-backend] listening on :${env.PORT} (${env.NODE_ENV})`);
+  await new Promise<void>((resolve) => {
+    httpServer.listen(env.PORT, () => {
+      logger.info({
+        event: 'server_started',
+        port: env.PORT,
+        environment: env.NODE_ENV,
+        version: env.APP_VERSION,
+      });
+      resolve();
+    });
   });
+
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ event: 'server_shutdown', signal });
+    socketServer.close();
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    await prisma.$disconnect();
+    process.exit(0);
+  };
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
 }
 
-void main();
+void main().catch(async (error: unknown) => {
+  logger.fatal({
+    event: 'startup_failed',
+    error: error instanceof Error ? error.message : String(error),
+    stack: env.NODE_ENV === 'production' ? undefined : error instanceof Error ? error.stack : undefined,
+  });
+  await prisma.$disconnect().catch(() => undefined);
+  process.exit(1);
+});

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getMatch, unmatch } from '../api/matches';
 import { blockUser, reportUser } from '../api/moderation';
+import { openMatchConversation } from '../api/messages';
 import type { MatchDetail as MatchDetailType } from '../types';
 
 const REPORT_OPTIONS = [
@@ -40,6 +41,16 @@ export default function MatchDetail() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleMessage() {
+    if (!match) return;
+    try {
+      const conversationId = match.conversationId ?? (await openMatchConversation(match.matchId)).conversationId;
+      navigate(`/messages/${conversationId}`);
+    } catch (e) {
+      setError((e as Error).message);
     }
   }
 
@@ -118,7 +129,7 @@ export default function MatchDetail() {
                 <span className="text-2xl text-white/70">{u.age}</span>
                 {u.isVerified && (
                   <span className="ml-1 rounded-full border border-gold-400/40 bg-gold-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold-200">
-                    Early Access
+                    Verified
                   </span>
                 )}
               </h1>
@@ -224,7 +235,7 @@ export default function MatchDetail() {
         <section className="mt-8 px-6 space-y-3">
           <button
             className="btn-gold w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]"
-            onClick={() => alert('Messaging is coming in the next roadmap item.')}
+            onClick={() => void handleMessage()}
           >
             Send a message
           </button>

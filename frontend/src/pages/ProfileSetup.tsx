@@ -1,120 +1,203 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Button } from '../components/Button';
+import { Button, } from '../components/Button';
 import { Input, Textarea } from '../components/Input';
-import { upsertMyProfile } from '../api/users';
-import { createPrompt } from '../api/prompts';
-import type { Prompt } from '../api/prompts';
+import { LegalGateModal } from '../components/LegalGateModal';
+import {
+  completeOnboarding,
+  getMyProfile,
+  getOnboardingState,
+  saveOnboardingState,
+  upsertMyProfile,
+} from '../api/users';
+import { createPrompt, deletePrompt, type Prompt } from '../api/prompts';
 import { uploadPhoto } from '../api/photos';
+import { getLegalStatus } from '../api/legal';
+import { registerPushToken } from '../api/notifications';
+import { track } from '../api/analytics';
+import { getDeviceContext, requestNativePushPermission } from '../capacitor';
 import { useAuth } from '../store/auth';
 
 const GENDERS = [
   { value: 'WOMAN', label: 'Woman' },
   { value: 'MAN', label: 'Man' },
   { value: 'NONBINARY', label: 'Non-binary' },
+  { value: 'PREFER_NOT_TO_SAY', label: 'Prefer not to say' },
 ] as const;
-
 const LOOKING_FOR = [
   { value: 'WOMEN', label: 'Women' },
   { value: 'MEN', label: 'Men' },
   { value: 'EVERYONE', label: 'Everyone' },
 ] as const;
-
 const INTEREST_OPTIONS = [
-  'Dinner', 'Travel', 'Live Music', 'Art', 'Wine', 'Wellness',
-  'Fashion', 'Fitness', 'Cooking', 'Photography', 'Books', 'Outdoors',
-  'Dancing', 'Volunteering', 'Tech', 'Sports',
+  'Dinner', 'Travel', 'Live Music', 'Art', 'Wine', 'Wellness', 'Fashion', 'Fitness',
+  'Cooking', 'Photography', 'Books', 'Outdoors', 'Dancing', 'Volunteering', 'Tech', 'Sports',
 ];
-
 const PROMPT_QUESTIONS = [
-  'The way to win me over is',
-  'I geek out over',
-  'A perfect Sunday looks like',
-  'My most controversial take',
-  'My love language',
-  'I will fall for you if',
-  'The key to my heart is',
-  'My most prized possession is',
+  'The way to win me over is', 'I geek out over', 'A perfect Sunday looks like',
+  'My most controversial take', 'My love language', 'I will fall for you if',
+  'The key to my heart is', 'My most prized possession is',
 ];
+const TOTAL_STEPS = 7;
 
-const TOTAL_STEPS = 5;
+type GenderValue = (typeof GENDERS)[number]['value'];
+type LookingForValue = (typeof LOOKING_FOR)[number]['value'];
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
-  const { refresh } = useAuth();
+  const { user, refresh } = useAuth();
   const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [displayName, setDisplayName] = useState('');
   const [birthDate, setBirthDate] = useState('');
-  const [gender, setGender] = useState<typeof GENDERS[number]['value'] | ''>('');
-  const [lookingFor, setLookingFor] = useState<typeof LOOKING_FOR[number]['value'] | ''>('');
-
+  const [gender, setGender] = useState<GenderValue | ''>('');
+  const [lookingFor, setLookingFor] = useState<LookingForValue | ''>('');
   const [city, setCity] = useState('');
   const [occupation, setOccupation] = useState('');
+  const [heightCm, setHeightCm] = useState('');
   const [bio, setBio] = useState('');
-
   const [interests, setInterests] = useState<string[]>([]);
-
   const [prompts, setPrompts] = useState<Prompt[]>([]);
-  const [newPromptQuestion, setNewPromptQuestion] = useState(PROMPT_QUESTIONS[0]);
+  const [newPromptQuestion, setNewPromptQuestion] = useState(PROMPT_QUESTIONS[0]!);
   const [newPromptAnswer, setNewPromptAnswer] = useState('');
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [photos, setPhotos] = useState<{ id: string; url: string }[]>([]);
+  const [photos, setPhotos] = useState<Array<{ id: string; url: string }>>([]);
   const [uploading, setUploading] = useState(false);
+  const [notificationChoice, setNotificationChoice] = useState<'enabled' | 'later' | null>(null);
+  const [legalMissing, setLegalMissing] = useState<Array<'age' | 'tos' | 'privacy'> | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const next = async () => {
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([getOnboardingState(), getMyProfile()])
+      .then(([saved, profile]) => {
+        if (cancelled) return;
+        const state = saved.onboardingState ?? {};
+        setDisplayName(profile?.displayName ?? String(state.displayName ?? user?.onboardingState?.displayName ?? ''));
+        setBirthDate(profile?.birthDate?.slice(0, 10) ?? String(state.birthDate ?? ''));
+        setGender((profile?.gender ?? state.gender ?? '') as GenderValue | '');
+        setLookingFor((profile?.lookingFor ?? state.lookingFor ?? '') as LookingForValue | '');
+        setCity(profile?.city ?? String(state.city ?? ''));
+        setOccupation(profile?.occupation ?? String(state.occupation ?? ''));
+        setHeightCm(profile?.heightCm ? String(profile.heightCm) : String(state.heightCm ?? ''));
+        setBio(profile?.bio ?? String(state.bio ?? ''));
+        setInterests(profile?.interests.map((item) => item.interest.slug) ?? (state.interestSlugs as string[] | undefined) ?? []);
+        setPrompts(profile?.user?.prompts as Prompt[] ?? []);
+        setPhotos(profile?.user?.photos.map((photo) => ({ id: photo.id, url: photo.url })) ?? []);
+        setNotificationChoice(state.notificationPromptSeen ? 'later' : null);
+        setStep(Math.max(0, Math.min(TOTAL_STEPS - 1, (saved.onboardingStep ?? 1) - 1)));
+      })
+      .catch((value) => setError((value as Error).message))
+      .finally(() => setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.onboardingState]);
+
+  const draft = () => ({
+    displayName: displayName.trim(), birthDate, gender: gender || undefined,
+    lookingFor: lookingFor || undefined, city: city.trim(), occupation: occupation.trim(),
+    heightCm: heightCm ? Number(heightCm) : undefined, bio: bio.trim(), interestSlugs: interests,
+    notificationPromptSeen: notificationChoice !== null,
+  });
+
+  async function next() {
     setError(null);
-    if (step === 0) {
-      if (displayName.trim().length < 2) return setError('Display name is required');
-      if (!birthDate) return setError('Birth date is required');
-      if (!gender) return setError('Please select your gender');
-      if (!lookingFor) return setError('Please select who you are interested in');
-    }
+    const validation = validateStep();
+    if (validation) return setError(validation);
     if (step < TOTAL_STEPS - 1) {
-      setStep(step + 1);
+      try {
+        await saveOnboardingState(step + 2, draft());
+        setStep((current) => current + 1);
+      } catch (value) {
+        setError((value as Error).message);
+      }
     } else {
       await finish();
     }
-  };
+  }
 
-  const back = () => {
-    if (step > 0) setStep(step - 1);
-    else navigate(-1);
-  };
+  function validateStep() {
+    if (step === 0) {
+      if (displayName.trim().length < 2) return 'Enter the name you want people to see.';
+      if (!birthDate) return 'Enter your birth date.';
+      const birth = new Date(`${birthDate}T00:00:00Z`);
+      const cutoff = new Date();
+      cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 18);
+      if (Number.isNaN(birth.getTime()) || birth > cutoff) return 'You must be at least 18 to join SIMP.';
+      if (!gender || !lookingFor) return 'Complete both dating preference fields.';
+    }
+    if (step === 1) {
+      if (!city.trim()) return 'Add your city so matches know your general area.';
+      if (bio.trim().length < 20) return 'Write at least 20 characters about yourself.';
+    }
+    if (step === 2 && interests.length < 3) return 'Choose at least 3 interests.';
+    if (step === 3 && prompts.length < 1) return 'Add at least one profile prompt.';
+    if (step === 4 && photos.length < 1) return 'Add at least one profile photo.';
+    if (step === 5 && !notificationChoice) return 'Choose whether to enable notifications now or later.';
+    return null;
+  }
 
-  const toggleInterest = (label: string) => {
-    const slug = label.toLowerCase();
-    setInterests((prev) =>
-      prev.includes(slug) ? prev.filter((p) => p !== slug) : [...prev, slug].slice(0, 8)
+  function back() {
+    if (step > 0) setStep((current) => current - 1);
+    else navigate('/verify-email-pending');
+  }
+
+  function toggleInterest(label: string) {
+    const slug = label.toLowerCase().replace(/\s+/g, '-');
+    setInterests((current) =>
+      current.includes(slug)
+        ? current.filter((item) => item !== slug)
+        : current.length < 8
+          ? [...current, slug]
+          : current,
     );
-  };
+  }
 
-  async function handleAddPrompt() {
+  async function addPrompt() {
     const answer = newPromptAnswer.trim();
     if (!answer || prompts.length >= 3) return;
     try {
-      const created = await createPrompt({ question: newPromptQuestion ?? PROMPT_QUESTIONS[0] ?? '', answer });
-      setPrompts((prev) => [...prev, created]);
+      const prompt = await createPrompt({ question: newPromptQuestion, answer, position: prompts.length });
+      setPrompts((current) => [...current, prompt]);
       setNewPromptAnswer('');
-    } catch (e) {
-      setError((e as Error).message || 'Could not add prompt');
+    } catch (value) {
+      setError((value as Error).message);
     }
   }
 
-  async function handlePhotoUpload(file: File) {
+  async function removePrompt(id: string) {
+    await deletePrompt(id);
+    setPrompts((current) => current.filter((prompt) => prompt.id !== id));
+  }
+
+  async function addPhoto(file: File) {
+    if (photos.length >= 6) return setError('You can add up to 6 photos.');
     setUploading(true);
+    setError(null);
     try {
-      const res = await uploadPhoto(file);
-      setPhotos((prev) => [...prev, { id: res.photoId, url: res.url }]);
-    } catch (e) {
-      setError((e as Error).message || 'Upload failed');
+      const photo = await uploadPhoto(file);
+      setPhotos((current) => [...current, { id: photo.photoId, url: photo.url }]);
+    } catch (value) {
+      setError((value as Error).message);
     } finally {
       setUploading(false);
     }
+  }
+
+  async function enableNotifications() {
+    setError(null);
+    const device = await getDeviceContext();
+    const result = await requestNativePushPermission({
+      onToken: async (token) => {
+        await registerPushToken({ token, ...device });
+      },
+      onRoute: (route) => navigate(route),
+    });
+    setNotificationChoice(result === 'granted' ? 'enabled' : 'later');
+    if (result === 'denied') setError('Notifications are off. You can enable them later in system settings.');
   }
 
   async function finish() {
@@ -122,273 +205,84 @@ export default function ProfileSetup() {
     setError(null);
     try {
       await upsertMyProfile({
-        displayName: displayName.trim(),
-        birthDate,
-        gender: gender as 'WOMAN' | 'MAN' | 'NONBINARY',
-        lookingFor: lookingFor as 'WOMEN' | 'MEN' | 'EVERYONE',
-        city: city.trim() || null,
-        occupation: occupation.trim() || null,
-        bio: bio.trim() || null,
-        interestSlugs: interests,
+        displayName: displayName.trim(), birthDate, gender: gender as GenderValue,
+        lookingFor: lookingFor as LookingForValue, city: city.trim(), occupation: occupation.trim() || null,
+        heightCm: heightCm ? Number(heightCm) : null, bio: bio.trim(), interestSlugs: interests,
       });
+      const legal = await getLegalStatus();
+      const missing: Array<'age' | 'tos' | 'privacy'> = [];
+      if (!legal.ageConfirmed) missing.push('age');
+      if (!legal.tosAccepted || legal.tosVersion !== legal.tosCurrentVersion) missing.push('tos');
+      if (!legal.privacyAccepted || legal.privacyVersion !== legal.privacyCurrentVersion) missing.push('privacy');
+      if (missing.length) {
+        setLegalMissing(missing);
+        return;
+      }
+      await completeOnboarding();
       await refresh();
-      navigate('/home', { replace: true });
-    } catch (e) {
-      setError((e as Error).message || 'Could not save profile');
+      void track('onboarding_completed');
+      void track('profile_completed');
+      navigate('/discover', { replace: true });
+    } catch (value) {
+      setError((value as Error).message);
     } finally {
       setSubmitting(false);
     }
   }
 
+  if (loading) {
+    return <div className="flex min-h-screen items-center justify-center bg-ink-950"><div className="h-10 w-10 animate-spin rounded-full border-2 border-gold-400 border-t-transparent" /></div>;
+  }
+
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
-      <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
+      <div className="pointer-events-none absolute inset-0 bg-ink-radial" />
       <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-safe">
-        <header className="flex items-center justify-between pt-6">
-          <button
-            type="button"
-            onClick={back}
-            className="text-xs font-medium uppercase tracking-[0.2em] text-white/60 hover:text-white"
-          >
-            ← Back
-          </button>
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
-            Step {step + 1} / {TOTAL_STEPS}
-          </span>
+        <header className="flex items-center justify-between pt-5">
+          <button type="button" onClick={back} className="min-h-11 text-xs font-medium uppercase tracking-[0.18em] text-white/55 hover:text-white">Back</button>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-300">{step + 1} of {TOTAL_STEPS}</span>
         </header>
+        <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/10"><motion.div animate={{ width: `${((step + 1) / TOTAL_STEPS) * 100}%` }} className="h-full bg-gradient-to-r from-gold-600 to-gold-200" /></div>
 
-        <motion.div
-          key={step}
-          initial={{ opacity: 0, x: 24 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.35 }}
-          className="mt-10 flex-1"
-        >
-          {step === 0 && (
-            <>
-              <h1 className="display-heading text-3xl font-light">The basics</h1>
-              <div className="gold-divider mt-4 !mx-0" />
-              <p className="mt-4 text-sm text-white/70">Tell us who you are.</p>
-              <div className="mt-8 space-y-5">
-                <Input
-                  label="Display name"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Your name"
-                  maxLength={40}
-                />
-                <Input
-                  label="Birth date"
-                  type="date"
-                  value={birthDate}
-                  onChange={(e) => setBirthDate(e.target.value)}
-                  helperText="YYYY-MM-DD"
-                />
-                <div>
-                  <span className="label-luxe">I am *</span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {GENDERS.map((g) => (
-                      <button
-                        key={g.value}
-                        type="button"
-                        onClick={() => setGender(g.value)}
-                        className={`rounded-xl border px-3 py-3 text-sm transition ${
-                          gender === g.value
-                            ? 'border-gold-400 bg-gold-400/15 text-gold-200'
-                            : 'border-white/10 bg-ink-800/60 text-white/80 hover:border-white/30'
-                        }`}
-                      >
-                        {g.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <span className="label-luxe">I am interested in *</span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {LOOKING_FOR.map((l) => (
-                      <button
-                        key={l.value}
-                        type="button"
-                        onClick={() => setLookingFor(l.value)}
-                        className={`rounded-xl border px-3 py-3 text-sm transition ${
-                          lookingFor === l.value
-                            ? 'border-gold-400 bg-gold-400/15 text-gold-200'
-                            : 'border-white/10 bg-ink-800/60 text-white/80 hover:border-white/30'
-                        }`}
-                      >
-                        {l.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
+        <motion.section key={step} initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.22 }} className="mt-8 flex-1 pb-5">
+          {step === 0 && <Basics displayName={displayName} setDisplayName={setDisplayName} birthDate={birthDate} setBirthDate={setBirthDate} gender={gender} setGender={setGender} lookingFor={lookingFor} setLookingFor={setLookingFor} />}
           {step === 1 && (
-            <>
-              <h1 className="display-heading text-3xl font-light">Your story</h1>
-              <div className="gold-divider mt-4 !mx-0" />
-              <p className="mt-4 text-sm text-white/70">A little about you makes connections easier.</p>
-              <div className="mt-8 space-y-5">
-                <Input
-                  label="City"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. New York"
-                />
-                <Input
-                  label="Occupation"
-                  value={occupation}
-                  onChange={(e) => setOccupation(e.target.value)}
-                  placeholder="What you do"
-                />
-                <Textarea
-                  label="Bio"
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  placeholder="What makes you memorable?"
-                  maxLength={500}
-                />
-              </div>
-            </>
+            <Step title="Your story" subtitle="Enough detail to start a real conversation.">
+              <div className="space-y-5"><Input label="City" value={city} onChange={(event) => setCity(event.target.value)} placeholder="New York" /><Input label="Occupation" value={occupation} onChange={(event) => setOccupation(event.target.value)} placeholder="What you do" /><Input label="Height in cm" type="number" inputMode="numeric" value={heightCm} onChange={(event) => setHeightCm(event.target.value)} placeholder="175" /><Textarea label="Bio" value={bio} onChange={(event) => setBio(event.target.value)} placeholder="What makes you memorable?" maxLength={500} helperText={`${bio.trim().length}/500, minimum 20`} /></div>
+            </Step>
           )}
-
           {step === 2 && (
-            <>
-              <h1 className="display-heading text-3xl font-light">Your interests</h1>
-              <div className="gold-divider mt-4 !mx-0" />
-              <p className="mt-4 text-sm text-white/70">Pick up to 8. This helps us curate matches.</p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                {INTEREST_OPTIONS.map((label) => {
-                  const slug = label.toLowerCase();
-                  const active = interests.includes(slug);
-                  return (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => toggleInterest(label)}
-                      className={`rounded-full border px-4 py-2 text-sm transition ${
-                        active
-                          ? 'border-gold-400 bg-gold-400/15 text-gold-200'
-                          : 'border-white/10 bg-ink-800/60 text-white/80 hover:border-white/30'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
+            <Step title="Your interests" subtitle="Choose at least 3 and up to 8."><div className="flex flex-wrap gap-2">{INTEREST_OPTIONS.map((label) => { const slug = label.toLowerCase().replace(/\s+/g, '-'); const active = interests.includes(slug); return <button key={label} type="button" onClick={() => toggleInterest(label)} className={`min-h-11 rounded-full border px-4 py-2 text-sm ${active ? 'border-gold-400 bg-gold-400/15 text-gold-100' : 'border-white/10 bg-white/[0.03] text-white/70'}`}>{label}</button>; })}</div></Step>
           )}
-
           {step === 3 && (
-            <>
-              <h1 className="display-heading text-3xl font-light">Your prompts</h1>
-              <div className="gold-divider mt-4 !mx-0" />
-              <p className="mt-4 text-sm text-white/70">
-                Add up to 3 prompts. These help others see your personality.
-              </p>
-
-              <div className="mt-6 space-y-3">
-                {prompts.map((p) => (
-                  <div key={p.id} className="rounded-xl border border-gold-400/20 bg-ink-900/60 p-3">
-                    <p className="text-xs font-medium text-gold-300">{p.question}</p>
-                    <p className="mt-1 text-sm text-white/90">{p.answer}</p>
-                  </div>
-                ))}
-              </div>
-
-              {prompts.length < 3 && (
-                <div className="mt-4 space-y-2 rounded-xl border border-white/10 bg-ink-900/60 p-3">
-                  <select
-                    value={newPromptQuestion}
-                    onChange={(e) => setNewPromptQuestion(e.target.value)}
-                    className="input-luxe w-full rounded-xl border border-white/10 bg-ink-900 px-3 py-2 text-sm"
-                  >
-                    {PROMPT_QUESTIONS.map((q) => (
-                      <option key={q} value={q}>
-                        {q}
-                      </option>
-                    ))}
-                  </select>
-                  <textarea
-                    value={newPromptAnswer}
-                    onChange={(e) => setNewPromptAnswer(e.target.value)}
-                    maxLength={280}
-                    rows={2}
-                    placeholder="Your answer (max 280 chars)"
-                    className="input-luxe w-full resize-none rounded-xl border border-white/10 bg-ink-900 px-3 py-2 text-sm"
-                  />
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleAddPrompt}
-                      disabled={!newPromptAnswer.trim()}
-                      className="btn-gold-outline px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] disabled:opacity-50"
-                    >
-                      Add prompt
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
+            <Step title="Profile prompts" subtitle="Add 1 to 3 conversation starters."><div className="space-y-3">{prompts.map((prompt) => <div key={prompt.id} className="relative rounded-2xl border border-gold-400/15 bg-white/[0.035] p-4 pr-11"><p className="text-xs font-semibold text-gold-300">{prompt.question}</p><p className="mt-1 text-sm text-white/85">{prompt.answer}</p><button type="button" onClick={() => void removePrompt(prompt.id)} className="absolute right-3 top-3 h-8 w-8 rounded-full text-white/35 hover:bg-white/5" aria-label="Remove prompt">×</button></div>)}{prompts.length < 3 && <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4"><select value={newPromptQuestion} onChange={(event) => setNewPromptQuestion(event.target.value)} className="input-luxe w-full rounded-xl px-3 py-3 text-sm">{PROMPT_QUESTIONS.map((question) => <option key={question}>{question}</option>)}</select><textarea value={newPromptAnswer} onChange={(event) => setNewPromptAnswer(event.target.value)} maxLength={280} rows={3} className="input-luxe w-full resize-none rounded-xl px-3 py-3 text-sm" placeholder="Your answer" /><button type="button" onClick={() => void addPrompt()} disabled={!newPromptAnswer.trim()} className="btn-gold-outline w-full py-2.5 text-xs uppercase tracking-[0.16em] disabled:opacity-30">Add prompt</button></div>}</div></Step>
           )}
-
           {step === 4 && (
-            <>
-              <h1 className="display-heading text-3xl font-light">Your photos</h1>
-              <div className="gold-divider mt-4 !mx-0" />
-              <p className="mt-4 text-sm text-white/70">
-                Add at least one photo to appear in others&apos; Discover deck.
-              </p>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handlePhotoUpload(file);
-                  e.target.value = '';
-                }}
-              />
-
-              <div className="mt-6 grid grid-cols-3 gap-2">
-                {photos.map((p) => (
-                  <div key={p.id} className="relative aspect-square overflow-hidden rounded-xl border border-white/10">
-                    <img src={p.url} alt="" className="h-full w-full object-cover" />
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="flex aspect-square items-center justify-center rounded-xl border-2 border-dashed border-white/20 text-2xl text-white/40 hover:border-gold-400/40 hover:text-gold-300 disabled:opacity-50"
-                >
-                  {uploading ? '…' : '+'}
-                </button>
-              </div>
-              <p className="mt-3 text-[10px] text-white/40">
-                {photos.length === 0 ? 'Required to be seen in Discover.' : 'Add up to 6 photos.'}
-              </p>
-            </>
+            <Step title="Your photos" subtitle="Your first photo is your discovery photo. Add up to 6."><input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void addPhoto(file); event.target.value = ''; }} /><div className="grid grid-cols-3 gap-2">{photos.map((photo, index) => <div key={photo.id} className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/10"><img src={photo.url} alt={`Profile ${index + 1}`} className="h-full w-full object-cover" />{index === 0 && <span className="absolute inset-x-2 bottom-2 rounded-full bg-black/70 py-1 text-center text-[9px] uppercase tracking-[0.12em] text-gold-200">Primary</span>}</div>)}{photos.length < 6 && <button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()} className="flex aspect-[3/4] items-center justify-center rounded-2xl border-2 border-dashed border-white/15 text-3xl font-light text-white/35 hover:border-gold-400/40 hover:text-gold-300">{uploading ? '…' : '+'}</button>}</div></Step>
           )}
-        </motion.div>
+          {step === 5 && (
+            <Step title="Stay in the moment" subtitle="Know when a match or message arrives. SIMP only asks after explaining why."><div className="mt-10 rounded-3xl border border-gold-400/15 bg-gradient-to-br from-gold-400/10 to-transparent p-6 text-center"><svg viewBox="0 0 24 24" className="mx-auto h-12 w-12 text-gold-300" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><p className="mt-4 text-sm text-white/65">We send only the categories you choose. Marketing is off by default.</p><button type="button" onClick={() => void enableNotifications()} className="btn-gold mt-6 w-full py-3 text-xs font-semibold uppercase tracking-[0.16em]">Enable notifications</button><button type="button" onClick={() => setNotificationChoice('later')} className="mt-2 min-h-11 w-full text-xs uppercase tracking-[0.16em] text-white/45">Maybe later</button>{notificationChoice && <p className="mt-3 text-xs text-green-200">Choice saved. You can change this in Settings.</p>}</div></Step>
+          )}
+          {step === 6 && (
+            <Step title="Ready to be discovered" subtitle="Review your profile, then accept the current safety and privacy terms."><div className="overflow-hidden rounded-3xl border border-gold-400/20 bg-black/30">{photos[0] && <img src={photos[0].url} alt="Profile preview" className="aspect-[4/5] w-full object-cover" />}<div className="p-5"><h2 className="display-heading text-3xl font-light">{displayName || 'Your name'}</h2><p className="mt-1 text-sm text-white/55">{occupation}{occupation && city ? ' · ' : ''}{city}</p><p className="mt-4 text-sm leading-relaxed text-white/75">{bio}</p><div className="mt-4 flex flex-wrap gap-1.5">{interests.slice(0, 5).map((interest) => <span key={interest} className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-white/55">{interest.replace(/-/g, ' ')}</span>)}</div></div></div><p className="mt-4 text-[11px] leading-relaxed text-white/40">Finish opens the current Terms and Privacy Policy if you have not accepted them yet.</p></Step>
+          )}
+        </motion.section>
 
-        {error && (
-          <p className="text-xs text-red-400" role="alert">
-            {error}
-          </p>
-        )}
-
-        <div className="pb-safe pt-6">
-          <Button onClick={next} loading={submitting}>
-            {step < TOTAL_STEPS - 1 ? 'Continue' : 'Finish'}
-          </Button>
-        </div>
+        {error && <p className="mb-3 text-xs text-red-300" role="alert">{error}</p>}
+        <div className="pb-safe pb-4"><Button onClick={() => void next()} loading={submitting}>{step < TOTAL_STEPS - 1 ? 'Continue' : 'Finish and discover'}</Button></div>
       </main>
+      {legalMissing && <LegalGateModal missing={legalMissing} onClose={() => setLegalMissing(null)} onComplete={() => { setLegalMissing(null); void finish(); }} />}
     </div>
   );
+}
+
+function Step({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+  return <><h1 className="display-heading text-3xl font-light">{title}</h1><div className="gold-divider mt-4 !mx-0" /><p className="mb-7 mt-4 text-sm leading-relaxed text-white/60">{subtitle}</p>{children}</>;
+}
+
+function Basics(props: {
+  displayName: string; setDisplayName: (value: string) => void; birthDate: string; setBirthDate: (value: string) => void;
+  gender: GenderValue | ''; setGender: (value: GenderValue) => void; lookingFor: LookingForValue | ''; setLookingFor: (value: LookingForValue) => void;
+}) {
+  return <Step title="The basics" subtitle="Your exact birth date is private. Other people only see your age."><div className="space-y-5"><Input label="Display name" value={props.displayName} onChange={(event) => props.setDisplayName(event.target.value)} maxLength={40} /><Input label="Birth date" type="date" value={props.birthDate} onChange={(event) => props.setBirthDate(event.target.value)} /><div><span className="label-luxe">I am</span><div className="grid grid-cols-2 gap-2">{GENDERS.map((item) => <button key={item.value} type="button" onClick={() => props.setGender(item.value)} className={`min-h-11 rounded-xl border px-3 text-sm ${props.gender === item.value ? 'border-gold-400 bg-gold-400/15 text-gold-100' : 'border-white/10 bg-white/[0.03] text-white/70'}`}>{item.label}</button>)}</div></div><div><span className="label-luxe">I want to meet</span><div className="grid grid-cols-3 gap-2">{LOOKING_FOR.map((item) => <button key={item.value} type="button" onClick={() => props.setLookingFor(item.value)} className={`min-h-11 rounded-xl border px-2 text-sm ${props.lookingFor === item.value ? 'border-gold-400 bg-gold-400/15 text-gold-100' : 'border-white/10 bg-white/[0.03] text-white/70'}`}>{item.label}</button>)}</div></div></div></Step>;
 }

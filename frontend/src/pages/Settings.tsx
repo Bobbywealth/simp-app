@@ -1,289 +1,281 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useAuth } from '../store/auth';
-import { listBlocks } from '../api/moderation';
+import { changePassword, listSessions, logoutAll, revokeSession, type Session } from '../api/auth';
 import { deleteMyAccount, exportMyData } from '../api/account';
+import { listBlocks, unblockUser } from '../api/moderation';
+import {
+  getNotificationPreferences,
+  registerPushToken,
+  updateNotificationPreferences,
+  type NotificationPreferences,
+} from '../api/notifications';
+import {
+  getDiscoveryPreferences,
+  getMyProfile,
+  requestProfileVerification,
+  updateDiscoveryPreferences,
+} from '../api/users';
+import type { DiscoveryPreferences, Profile } from '../types';
 import { API_BASE_URL } from '../api/client';
+import { getDeviceContext, requestApproximateLocation, requestNativePushPermission } from '../capacitor';
+import { useAuth } from '../store/auth';
+
+const DEFAULT_DISCOVERY: DiscoveryPreferences = {
+  minAge: 18,
+  maxAge: 99,
+  maxDistanceKm: null,
+  verifiedOnly: false,
+  interestSlugs: [],
+};
+const DEFAULT_NOTIFICATIONS: NotificationPreferences = {
+  matches: true,
+  messages: true,
+  likes: true,
+  live: true,
+  security: true,
+  marketing: false,
+};
+
+type BlockedUser = { blockedId: string; displayName: string; photoUrl?: string | null; createdAt: string };
 
 export default function Settings() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [blocks, setBlocks] = useState<Array<{ blockedId: string; displayName: string; createdAt: string }>>([]);
-  const [showBlocked, setShowBlocked] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  // Account deletion + data export state (both required by Apple /
-  // Google Play Store; surfaced in the Privacy section below).
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [discovery, setDiscovery] = useState(DEFAULT_DISCOVERY);
+  const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS);
+  const [blocks, setBlocks] = useState<BlockedUser[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showDelete, setShowDelete] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState('');
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
-    if (showBlocked) {
-      void loadBlocks();
-    }
-  }, [showBlocked]);
+    Promise.all([
+      getMyProfile(),
+      getDiscoveryPreferences(),
+      getNotificationPreferences(),
+      listBlocks(),
+      listSessions(),
+    ])
+      .then(([profileValue, discoveryValue, notificationValue, blockValue, sessionValue]) => {
+        setProfile(profileValue);
+        setDiscovery(discoveryValue);
+        setNotifications(notificationValue);
+        setBlocks(blockValue.blocks);
+        setSessions(sessionValue.sessions);
+      })
+      .catch((value) => setError((value as Error).message))
+      .finally(() => setLoading(false));
+  }, []);
 
-  async function loadBlocks() {
-    setLoading(true);
+  const run = async (key: string, action: () => Promise<unknown>, message: string) => {
+    setBusy(key);
+    setError(null);
+    setStatus(null);
     try {
-      const res = await listBlocks();
-      setBlocks(res.blocks);
+      await action();
+      setStatus(message);
+    } catch (value) {
+      setError((value as Error).message);
+      throw value;
     } finally {
-      setLoading(false);
+      setBusy(null);
     }
+  };
+
+  async function savePassword() {
+    await run(
+      'password',
+      async () => {
+        await changePassword({ currentPassword, newPassword, confirmPassword, revokeOtherSessions: true });
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setSessions((await listSessions()).sessions);
+      },
+      'Password changed. Other sessions were signed out.',
+    ).catch(() => undefined);
   }
 
-  async function handleLogout() {
-    await logout();
-    navigate('/welcome', { replace: true });
+  async function enablePush() {
+    await run(
+      'push',
+      async () => {
+        const device = await getDeviceContext();
+        const result = await requestNativePushPermission({
+          onToken: async (token) => { await registerPushToken({ token, ...device }); },
+          onRoute: (route) => navigate(route),
+        });
+        if (result === 'unsupported') throw new Error('Push notifications are available in the installed iOS and Android app.');
+        if (result === 'denied') throw new Error('Permission was denied. Enable notifications in system settings.');
+      },
+      'Push notifications enabled.',
+    ).catch(() => undefined);
   }
 
-  async function handleExport() {
-    setExporting(true);
+  async function saveNotifications(next: NotificationPreferences) {
+    setNotifications(next);
     try {
-      const blob = await exportMyData();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `simp-data-export-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setDeleteError((e as Error).message);
-    } finally {
-      setExporting(false);
+      setNotifications(await updateNotificationPreferences(next));
+    } catch (value) {
+      setError((value as Error).message);
     }
   }
 
-  async function handleDelete() {
-    setDeleteError(null);
-    if (deleteConfirm !== 'DELETE') {
-      setDeleteError('Type DELETE exactly to confirm.');
-      return;
-    }
-    if (deletePassword.length < 1) {
-      setDeleteError('Enter your password.');
-      return;
-    }
-    setDeleting(true);
-    try {
-      await deleteMyAccount(deletePassword, 'DELETE');
-      await logout();
-      navigate('/welcome', { replace: true });
-    } catch (e) {
-      setDeleteError((e as Error).message);
-      setDeleting(false);
-    }
+  async function saveDiscovery() {
+    await run(
+      'discovery',
+      async () => setDiscovery(await updateDiscoveryPreferences(discovery)),
+      'Discovery preferences saved.',
+    ).catch(() => undefined);
+  }
+
+  async function requestVerification() {
+    await run(
+      'verification',
+      async () => {
+        await requestProfileVerification();
+        setProfile(await getMyProfile());
+      },
+      'Verification request submitted for moderator review.',
+    ).catch(() => undefined);
+  }
+
+  async function exportData() {
+    await run(
+      'export',
+      async () => {
+        const blob = await exportMyData();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `simp-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      },
+      'Your export was downloaded.',
+    ).catch(() => undefined);
+  }
+
+  async function deleteAccount() {
+    if (deleteConfirm !== 'DELETE') return setError('Type DELETE exactly to confirm.');
+    await run(
+      'delete',
+      async () => {
+        await deleteMyAccount(deletePassword, 'DELETE');
+        await logout().catch(() => undefined);
+        navigate('/welcome', { replace: true });
+      },
+      '',
+    ).catch(() => undefined);
+  }
+
+  if (loading) {
+    return <div className="flex min-h-screen items-center justify-center bg-ink-950"><div className="h-10 w-10 animate-spin rounded-full border-2 border-gold-400 border-t-transparent" /></div>;
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
-      <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
-      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col px-6 pt-6 pb-24">
-        <header className="flex items-center justify-between">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-xs font-medium uppercase tracking-[0.2em] text-white/60 hover:text-white"
-          >
-            ‹ Back
-          </button>
-          <h1 className="text-xs font-medium uppercase tracking-[0.3em] text-gold-300">
-            Settings
-          </h1>
-          <span className="w-12" />
-        </header>
+    <div className="relative min-h-screen bg-ink-950 pb-28 text-white">
+      <div className="pointer-events-none absolute inset-0 bg-ink-radial" />
+      <header className="relative z-10 mx-auto flex w-full max-w-md items-center justify-between px-5 pb-5 pt-safe">
+        <button type="button" onClick={() => navigate(-1)} className="mt-4 min-h-11 text-xs uppercase tracking-[0.18em] text-white/50">Back</button>
+        <h1 className="mt-4 text-xs font-semibold uppercase tracking-[0.24em] text-gold-300">Settings</h1>
+        <span className="w-11" />
+      </header>
 
-        <div className="mt-8 space-y-3">
-          <Row icon="✉" label="Email" value={user?.email ?? '—'} />
-          <Row
-            icon="◉"
-            label="Profile"
-            value="Edit your photos, prompts, bio"
-            onClick={() => navigate('/profile/edit')}
-          />
-          <Row
-            icon="🚫"
-            label="Blocked users"
-            value={showBlocked ? `${blocks.length} blocked` : 'Manage'}
-            onClick={() => setShowBlocked((s) => !s)}
-          />
-          {showBlocked && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="overflow-hidden rounded-xl border border-white/10 bg-ink-900/60"
-            >
-              {loading ? (
-                <p className="p-4 text-xs text-white/50">Loading…</p>
-              ) : blocks.length === 0 ? (
-                <p className="p-4 text-xs text-white/50">No blocked users.</p>
-              ) : (
-                <ul className="divide-y divide-white/10">
-                  {blocks.map((b) => (
-                    <li key={b.blockedId} className="flex items-center justify-between p-3">
-                      <span className="text-sm text-white/90">{b.displayName}</span>
-                      <span className="text-xs text-white/40">
-                        {new Date(b.createdAt).toLocaleDateString()}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </motion.div>
-          )}
+      <main className="relative z-10 mx-auto w-full max-w-md space-y-6 px-4">
+        {status && <button type="button" onClick={() => setStatus(null)} className="w-full rounded-xl border border-green-400/20 bg-green-500/10 px-4 py-3 text-left text-xs text-green-100" role="status">{status}</button>}
+        {error && <button type="button" onClick={() => setError(null)} className="w-full rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-left text-xs text-red-100" role="alert">{error}</button>}
 
-          {/* Privacy / Data section — required by App Store + Play Store
-              for GDPR / CCPA compliance. Includes data export and
-              account deletion. */}
-          <div className="my-4 border-t border-white/10" />
-          <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">
-            Privacy &amp; Data
-          </p>
-
-          <Row
-            icon="⬇"
-            label="Download my data"
-            value={exporting ? 'Preparing…' : 'JSON export of everything we have'}
-            onClick={exporting ? undefined : handleExport}
-          />
-
-          <Row
-            icon="📄"
-            label="Privacy Policy"
-            value="View in browser"
-            onClick={() => window.open(`${API_BASE_URL}/privacy`, '_blank', 'noopener')}
-          />
-
-          <Row
-            icon="📑"
-            label="Terms of Service"
-            value="View in browser"
-            onClick={() => window.open(`${API_BASE_URL}/terms`, '_blank', 'noopener')}
-          />
-
-          {/* Danger zone — hard account deletion. App Store 5.1.1(v)
-              and Play Store Account Deletion policy both require this
-              to be reachable from the in-app settings screen. */}
-          <div className="my-4 border-t border-red-400/20" />
-          <p className="px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-red-300/70">
-            Danger zone
-          </p>
-
-          {!showDelete ? (
-            <button
-              onClick={() => setShowDelete(true)}
-              className="w-full rounded-xl border border-red-400/30 bg-red-500/10 py-3 text-left text-sm font-semibold uppercase tracking-[0.18em] text-red-300 hover:bg-red-500/20"
-            >
-              <span className="block px-4">Delete account</span>
-              <span className="mt-1 block px-4 text-[10px] font-normal normal-case tracking-normal text-red-300/60">
-                Permanently delete your SIMP account and all data
-              </span>
-            </button>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="overflow-hidden rounded-xl border border-red-400/40 bg-red-500/10 p-4"
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-300">
-                Confirm account deletion
-              </p>
-              <p className="mt-2 text-[11px] leading-relaxed text-red-200/80">
-                This permanently deletes your profile, photos, swipes, matches, messages, and
-                live stream history. This cannot be undone.
-              </p>
-              <input
-                type="password"
-                value={deletePassword}
-                onChange={(e) => setDeletePassword(e.target.value)}
-                placeholder="Your password"
-                autoComplete="current-password"
-                className="mt-3 w-full rounded-lg border border-white/10 bg-ink-950 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-red-400/60 focus:outline-none"
-              />
-              <input
-                type="text"
-                value={deleteConfirm}
-                onChange={(e) => setDeleteConfirm(e.target.value)}
-                placeholder='Type "DELETE" to confirm'
-                autoComplete="off"
-                className="mt-2 w-full rounded-lg border border-white/10 bg-ink-950 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-red-400/60 focus:outline-none"
-              />
-              {deleteError && (
-                <p className="mt-2 text-xs text-red-300" role="alert">
-                  {deleteError}
-                </p>
-              )}
-              <div className="mt-4 flex flex-col gap-2">
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting || deleteConfirm !== 'DELETE'}
-                  className="w-full rounded-full bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.18em] text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  {deleting ? 'Deleting…' : 'Delete my account forever'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowDelete(false);
-                    setDeletePassword('');
-                    setDeleteConfirm('');
-                    setDeleteError(null);
-                  }}
-                  className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/60"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          <button
-            onClick={handleLogout}
-            className="mt-4 w-full rounded-xl border border-white/15 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white/70 hover:border-white/30 hover:text-white"
-          >
-            Log out
-          </button>
-
-          <div className="mt-8 text-center text-[10px] uppercase tracking-[0.2em] text-white/30">
-            SIMP v0.2.0
+        <SettingsSection title="Account">
+          <StaticRow label="Email" value={user?.email ?? 'Unavailable'} />
+          <button type="button" onClick={() => navigate('/profile/edit')} className="settings-row">Edit profile <span>›</span></button>
+          <div className="border-t border-white/[0.06] p-4">
+            <p className="text-sm font-medium">Profile verification</p>
+            <p className="mt-1 text-xs text-white/40">Status: {profile?.verificationStatus?.replace(/_/g, ' ').toLowerCase() ?? 'not requested'}</p>
+            {profile?.verificationStatus !== 'APPROVED' && profile?.verificationStatus !== 'PENDING' && (
+              <button type="button" disabled={busy === 'verification'} onClick={() => void requestVerification()} className="btn-gold-outline mt-3 px-4 py-2 text-[10px] uppercase tracking-[0.15em]">Request review</button>
+            )}
           </div>
+          <details className="border-t border-white/[0.06] p-4">
+            <summary className="cursor-pointer text-sm font-medium">Change password</summary>
+            <div className="mt-4 space-y-3">
+              <input className="input-luxe w-full" type="password" autoComplete="current-password" placeholder="Current password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+              <input className="input-luxe w-full" type="password" autoComplete="new-password" placeholder="New password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+              <input className="input-luxe w-full" type="password" autoComplete="new-password" placeholder="Confirm new password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+              <p className="text-[10px] text-white/35">10+ characters with uppercase, lowercase, and a number. Other devices will be signed out.</p>
+              <button type="button" onClick={() => void savePassword()} disabled={busy === 'password' || !currentPassword || !newPassword || !confirmPassword} className="btn-gold w-full py-3 text-xs uppercase tracking-[0.16em] disabled:opacity-30">Update password</button>
+            </div>
+          </details>
+          <details className="border-t border-white/[0.06] p-4">
+            <summary className="cursor-pointer text-sm font-medium">Active sessions <span className="text-white/35">({sessions.length})</span></summary>
+            <div className="mt-3 space-y-2">{sessions.map((session) => <div key={session.id} className="flex items-center gap-3 rounded-xl bg-white/[0.035] p-3"><div className="min-w-0 flex-1"><p className="truncate text-sm">{session.deviceName ?? session.platform}</p><p className="text-[10px] text-white/35">{session.current ? 'This device' : `Last active ${new Date(session.lastUsedAt).toLocaleDateString()}`}</p></div>{!session.current && <button type="button" onClick={() => void run(`session:${session.id}`, async () => { await revokeSession(session.id); setSessions((items) => items.filter((item) => item.id !== session.id)); }, 'Session revoked.').catch(() => undefined)} className="text-[10px] uppercase text-red-300">Revoke</button>}</div>)}</div>
+            <button type="button" onClick={() => void run('logoutAll', async () => { await logoutAll(); await logout(); navigate('/login', { replace: true }); }, '').catch(() => undefined)} className="mt-3 min-h-11 w-full text-xs uppercase tracking-[0.15em] text-red-300">Sign out everywhere</button>
+          </details>
+        </SettingsSection>
+
+        <SettingsSection title="Discovery">
+          <div className="space-y-5 p-4">
+            <div><div className="flex justify-between text-xs"><span>Age range</span><span className="text-gold-200">{discovery.minAge}–{discovery.maxAge === 99 ? '99+' : discovery.maxAge}</span></div><input type="range" min="18" max="98" value={discovery.minAge} onChange={(event) => setDiscovery((value) => ({ ...value, minAge: Math.min(Number(event.target.value), value.maxAge) }))} className="mt-2 w-full accent-gold-400" /><input type="range" min="19" max="99" value={discovery.maxAge} onChange={(event) => setDiscovery((value) => ({ ...value, maxAge: Math.max(Number(event.target.value), value.minAge) }))} className="mt-2 w-full accent-gold-400" /></div>
+            <label className="block text-xs">Maximum distance<select value={discovery.maxDistanceKm ?? ''} onChange={(event) => setDiscovery((value) => ({ ...value, maxDistanceKm: event.target.value ? Number(event.target.value) : null }))} className="input-luxe mt-2 w-full"><option value="">Any distance</option><option value="25">25 km</option><option value="50">50 km</option><option value="100">100 km</option><option value="250">250 km</option></select></label>
+            <Toggle label="Verified profiles only" checked={discovery.verifiedOnly} onChange={(checked) => setDiscovery((value) => ({ ...value, verifiedOnly: checked }))} />
+            <button type="button" onClick={() => void run('location', async () => { const location = await requestApproximateLocation(); setDiscovery(await updateDiscoveryPreferences({ ...discovery, locationLat: location.latitude, locationLng: location.longitude } as DiscoveryPreferences & { locationLat: number; locationLng: number })); }, 'Approximate location updated. Exact coordinates are never shown.').catch(() => undefined)} className="btn-gold-outline w-full py-3 text-xs uppercase tracking-[0.16em]">Update approximate location</button>
+            <button type="button" disabled={busy === 'discovery'} onClick={() => void saveDiscovery()} className="btn-gold w-full py-3 text-xs uppercase tracking-[0.16em]">Save discovery settings</button>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection title="Notifications">
+          <div className="divide-y divide-white/[0.06]">{(['matches', 'messages', 'likes', 'live', 'marketing'] as const).map((key) => <div key={key} className="p-4"><Toggle label={key.charAt(0).toUpperCase() + key.slice(1)} checked={notifications[key]} onChange={(checked) => void saveNotifications({ ...notifications, [key]: checked })} /></div>)}</div>
+          <div className="border-t border-white/[0.06] p-4"><button type="button" disabled={busy === 'push'} onClick={() => void enablePush()} className="btn-gold-outline w-full py-3 text-xs uppercase tracking-[0.16em]">Enable device push</button></div>
+        </SettingsSection>
+
+        <SettingsSection title="Safety">
+          <details className="p-4"><summary className="cursor-pointer text-sm font-medium">Blocked people <span className="text-white/35">({blocks.length})</span></summary><div className="mt-3 space-y-2">{blocks.length === 0 ? <p className="text-xs text-white/35">You have not blocked anyone.</p> : blocks.map((blocked) => <div key={blocked.blockedId} className="flex items-center gap-3 rounded-xl bg-white/[0.035] p-3">{blocked.photoUrl && <img src={blocked.photoUrl} alt="" className="h-9 w-9 rounded-full object-cover" />}<span className="min-w-0 flex-1 truncate text-sm">{blocked.displayName}</span><button type="button" onClick={() => void run(`unblock:${blocked.blockedId}`, async () => { await unblockUser(blocked.blockedId); setBlocks((items) => items.filter((item) => item.blockedId !== blocked.blockedId)); }, `${blocked.displayName} was unblocked.`).catch(() => undefined)} className="text-[10px] uppercase text-gold-300">Unblock</button></div>)}</div></details>
+          <button type="button" onClick={() => window.open(`${API_BASE_URL}/support`, '_blank', 'noopener')} className="settings-row border-t border-white/[0.06]">Safety help and support <span>›</span></button>
+        </SettingsSection>
+
+        <SettingsSection title="Privacy and data">
+          <button type="button" disabled={busy === 'export'} onClick={() => void exportData()} className="settings-row">{busy === 'export' ? 'Preparing export…' : 'Download my data'} <span>›</span></button>
+          <button type="button" onClick={() => window.open(`${API_BASE_URL}/privacy`, '_blank', 'noopener')} className="settings-row border-t border-white/[0.06]">Privacy Policy <span>›</span></button>
+          <button type="button" onClick={() => window.open(`${API_BASE_URL}/terms`, '_blank', 'noopener')} className="settings-row border-t border-white/[0.06]">Terms of Service <span>›</span></button>
+        </SettingsSection>
+
+        <SettingsSection title="Subscription">
+          <StaticRow label="Current plan" value={user?.entitlement.tier.replace(/_/g, ' ') ?? 'FREE'} />
+          {import.meta.env.VITE_BILLING_ENABLED === 'true' && <button type="button" onClick={() => navigate('/premium')} className="settings-row border-t border-white/[0.06]">Manage or restore purchases <span>›</span></button>}
+        </SettingsSection>
+
+        <SettingsSection title="App">
+          <StaticRow label="Version" value={import.meta.env.VITE_APP_VERSION ?? '0.3.0-rc.1'} />
+          <button type="button" onClick={() => navigate('/licenses')} className="settings-row border-t border-white/[0.06]">Open-source licenses <span>›</span></button>
+        </SettingsSection>
+
+        <button type="button" onClick={() => void logout().then(() => navigate('/login', { replace: true }))} className="w-full rounded-2xl border border-white/10 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Log out</button>
+        <div className="border-t border-red-400/20 pt-5">
+          {!showDelete ? <button type="button" onClick={() => setShowDelete(true)} className="w-full rounded-2xl border border-red-400/25 bg-red-500/[0.06] py-4 text-xs font-semibold uppercase tracking-[0.16em] text-red-300">Delete account</button> : <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-2xl border border-red-400/30 bg-red-500/[0.07] p-4"><h2 className="text-sm font-semibold text-red-200">Permanently delete your account</h2><p className="mt-2 text-xs leading-relaxed text-red-100/60">This removes your profile, photos, matches, messages, and account data. Safety reports are retained only in anonymized form.</p><input type="password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} className="input-luxe mt-4 w-full" placeholder="Current password" /><input value={deleteConfirm} onChange={(event) => setDeleteConfirm(event.target.value)} className="input-luxe mt-2 w-full" placeholder="Type DELETE" /><button type="button" disabled={busy === 'delete' || deleteConfirm !== 'DELETE'} onClick={() => void deleteAccount()} className="mt-4 w-full rounded-full bg-red-500 py-3 text-xs font-bold uppercase tracking-[0.16em] disabled:opacity-30">Delete forever</button><button type="button" onClick={() => setShowDelete(false)} className="mt-2 min-h-11 w-full text-xs uppercase text-white/40">Cancel</button></motion.div>}
         </div>
       </main>
     </div>
   );
 }
 
-function Row({
-  icon,
-  label,
-  value,
-  onClick,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-  onClick?: () => void;
-}) {
-  const Tag = onClick ? 'button' : 'div';
-  return (
-    <Tag
-      onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-xl border border-white/10 bg-ink-900/60 p-4 text-left ${
-        onClick ? 'hover:border-white/30' : ''
-      }`}
-    >
-      <span className="text-xl">{icon}</span>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/40">{label}</p>
-        <p className="mt-0.5 truncate text-sm text-white/90">{value}</p>
-      </div>
-      {onClick && <span className="text-xs text-white/30">›</span>}
-    </Tag>
-  );
+function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section><h2 className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300/75">{title}</h2><div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/25 backdrop-blur-sm">{children}</div></section>;
+}
+function StaticRow({ label, value }: { label: string; value: string }) {
+  return <div className="flex items-center justify-between gap-3 p-4"><span className="text-sm text-white/75">{label}</span><span className="max-w-[60%] truncate text-sm text-white/40">{value}</span></div>;
+}
+function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return <label className="flex min-h-11 items-center justify-between gap-4"><span className="text-sm text-white/75">{label}</span><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-gold-400" /></label>;
 }
