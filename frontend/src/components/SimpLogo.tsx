@@ -66,12 +66,6 @@ export function SimpLogo({ size = 220, className = '', variant = 'full' }: Props
         animate={animate ? { filter: ['saturate(0.95) brightness(0.95)', 'saturate(1.1) brightness(1.04)', 'saturate(0.95) brightness(0.95)'] } : undefined}
         transition={animate ? { duration: 3.8, ease: 'easeInOut', repeat: Infinity } : undefined}
       />
-      <motion.span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-[-6%] left-[-45%] z-20 w-[38%] skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/55 to-transparent mix-blend-screen"
-        animate={animate ? { x: ['-80%', '320%'] } : undefined}
-        transition={animate ? { duration: 4.9, ease: 'easeInOut', repeat: Infinity, repeatDelay: 1.8 } : undefined}
-      />
     </motion.div>
   );
 }
