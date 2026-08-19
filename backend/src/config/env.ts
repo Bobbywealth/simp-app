@@ -41,7 +41,9 @@ const schema = z
     TURN_URLS: z.string().optional(),
     TURN_USERNAME: z.string().optional(),
     TURN_CREDENTIAL: z.string().optional(),
-    TURN_PROVIDER: z.string().optional(),
+    TURN_PROVIDER: z.enum(['twilio', 'coturn', 'manual']).optional(),
+    TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
+    TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
 
     FREE_DAILY_LIKES: z.coerce.number().int().min(1).max(500).default(25),
     FREE_DAILY_SUPER_LIKES: z.coerce.number().int().min(0).max(50).default(1),
@@ -100,7 +102,11 @@ const schema = z
     } else if (!value.EMAIL_FROM) {
       warnings.push('email: EMAIL_FROM is required for production email delivery');
     }
-    if (!value.TURN_URLS || !value.TURN_USERNAME || !value.TURN_CREDENTIAL) {
+    if (value.TURN_PROVIDER === 'twilio') {
+      if (!value.TWILIO_ACCOUNT_SID || !value.TWILIO_AUTH_TOKEN) {
+        warnings.push('live_streaming: Twilio TURN is selected but TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN is missing');
+      }
+    } else if (!value.TURN_URLS || !value.TURN_USERNAME || !value.TURN_CREDENTIAL) {
       warnings.push('live_streaming: TURN credentials are missing — cross-network live stream viewers may see black screens');
     }
     if (value.PUSH_PROVIDER !== 'firebase' || !value.FIREBASE_SERVICE_ACCOUNT_JSON) {

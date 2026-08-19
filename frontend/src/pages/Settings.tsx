@@ -42,6 +42,7 @@ type BlockedUser = { blockedId: string; displayName: string; photoUrl?: string |
 export default function Settings() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const isStaff = user?.role === 'MODERATOR' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const [profile, setProfile] = useState<Profile | null>(null);
   const [discovery, setDiscovery] = useState(DEFAULT_DISCOVERY);
   const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS);
@@ -255,6 +256,14 @@ export default function Settings() {
           <StaticRow label="Current plan" value={user?.entitlement.tier.replace(/_/g, ' ') ?? 'FREE'} />
           {import.meta.env.VITE_BILLING_ENABLED === 'true' && <button type="button" onClick={() => navigate('/premium')} className="settings-row border-t border-white/[0.06]">Manage or restore purchases <span>›</span></button>}
         </SettingsSection>
+
+        {isStaff && (
+          <SettingsSection title="Admin">
+            <button type="button" onClick={() => navigate('/admin')} className="settings-row">
+              Open admin console <span>›</span>
+            </button>
+          </SettingsSection>
+        )}
 
         <SettingsSection title="App">
           <StaticRow label="Version" value={import.meta.env.VITE_APP_VERSION ?? '0.3.0-rc.1'} />

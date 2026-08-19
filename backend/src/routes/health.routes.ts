@@ -19,7 +19,9 @@ healthRouter.get('/ready', async (_req, res) => {
         (env.EMAIL_PROVIDER === 'resend' && Boolean(env.RESEND_API_KEY && env.EMAIL_FROM)) ||
         (env.EMAIL_PROVIDER === 'webhook' && Boolean(env.EMAIL_WEBHOOK_URL && env.EMAIL_FROM)),
       push: env.PUSH_PROVIDER === 'firebase' && Boolean(env.FIREBASE_SERVICE_ACCOUNT_JSON),
-      turn: Boolean(env.TURN_URLS && env.TURN_USERNAME && env.TURN_CREDENTIAL),
+      turn:
+        (env.TURN_PROVIDER === 'twilio' && Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN)) ||
+        Boolean(env.TURN_URLS && env.TURN_USERNAME && env.TURN_CREDENTIAL),
       billingApple: Boolean(env.APPLE_IAP_ISSUER_ID && env.APPLE_IAP_KEY_ID && env.APPLE_IAP_PRIVATE_KEY),
       billingGoogle: Boolean(env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON),
     };

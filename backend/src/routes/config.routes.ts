@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { env } from '../config/env.js';
+import { resolveIceServers } from '../services/twilio-turn.service.js';
 
 /**
  * GET /config/ice-servers
@@ -20,39 +20,7 @@ import { env } from '../config/env.js';
  */
 export const configRouter = Router();
 
-configRouter.get('/config/ice-servers', (_req, res) => {
-  const stunUrls = env.STUN_URLS.split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((url) => ({ urls: url }));
-
-  const iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }> = [
-    ...stunUrls,
-  ];
-
-  let turnConfigured = false;
-  if (env.TURN_URLS) {
-    const turnUrls = env.TURN_URLS.split(',').map((s) => s.trim()).filter(Boolean);
-    if (turnUrls.length > 0) {
-      const urls: string | string[] = turnUrls.length === 1 ? turnUrls[0]! : turnUrls;
-      iceServers.push({
-        urls,
-        ...(env.TURN_USERNAME ? { username: env.TURN_USERNAME } : {}),
-        ...(env.TURN_CREDENTIAL ? { credential: env.TURN_CREDENTIAL } : {}),
-      });
-      turnConfigured = true;
-    }
-  }
-
-  res.json({
-    iceServers,
-    turnConfigured,
-    turnProvider: env.TURN_PROVIDER ?? null,
-    /// Hint surfaced in /config/ice-servers so the frontend can show a
-    /// "TURN not configured — some viewers may not connect" banner when
-    /// appropriate (e.g. on the broadcaster's preview screen).
-    recommendation: turnConfigured
-      ? null
-      : 'TURN server not configured. Most cross-network viewers will see a black screen. See README for setup.',
-  });
+configRouter.get('/config/ice-servers', async (_req, res) => {
+  const config = await resolveIceServers();
+  res.json(config);
 });

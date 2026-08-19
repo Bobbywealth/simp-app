@@ -31,6 +31,7 @@ const Messages = lazy(() => import('./pages/Messages'));
 const Conversation = lazy(() => import('./pages/Conversation'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const Licenses = lazy(() => import('./pages/Licenses'));
+const Admin = lazy(() => import('./pages/Admin'));
 
 export default function App() {
   const { initialize, ready, user } = useAuth();
@@ -116,6 +117,7 @@ export default function App() {
               <Route path="/messages/:id" element={<ProtectedRoute requireOnboarding><Conversation /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute requireOnboarding><Notifications /></ProtectedRoute>} />
               <Route path="/licenses" element={<ProtectedRoute requireOnboarding><Licenses /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute allowedRoles={['MODERATOR', 'ADMIN', 'SUPER_ADMIN']}><Admin /></ProtectedRoute>} />
               <Route path="*" element={<Navigate to={user ? '/home' : '/login'} replace />} />
             </Routes>
             <BottomTabBar />
