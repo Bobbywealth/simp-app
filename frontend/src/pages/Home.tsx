@@ -43,6 +43,26 @@ export default function Home() {
       </header>
 
       <main className="relative z-10 mx-auto w-full max-w-md px-5">
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.65, ease: 'easeOut' }}
+          className="mb-4 overflow-hidden rounded-[2rem] border border-gold-400/20 bg-gradient-to-br from-gold-400/12 via-white/[0.04] to-transparent p-5 shadow-[0_24px_70px_rgba(0,0,0,0.35)]"
+        >
+          <div className="flex items-center gap-4">
+            <SimpLogo size={72} variant="emblem" />
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-gold-300">SIMP elite experience</p>
+              <h2 className="display-heading mt-1 text-2xl">A luxury space built around real chemistry</h2>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <StatPill label="Matches" value={counts.matches ? String(counts.matches) : '0'} />
+            <StatPill label="Messages" value={counts.messages ? String(counts.messages) : '0'} />
+            <StatPill label="Alerts" value={counts.notifications ? String(counts.notifications) : '0'} />
+          </div>
+        </motion.section>
+
         {completion < 100 && (
           <button type="button" onClick={() => navigate('/profile/edit')} className="mb-4 w-full rounded-2xl border border-gold-400/20 bg-gold-400/[0.06] p-4 text-left">
             <div className="flex justify-between text-xs"><span className="font-semibold text-gold-200">Profile strength</span><span className="text-white/50">{completion}%</span></div>
@@ -82,5 +102,14 @@ function DashboardCard({ label, value, onClick, iconPath }: { label: string; val
       <p className="mt-6 text-sm font-semibold text-white/90">{label}</p>
       <p className="mt-1 text-[11px] text-white/40">{value}</p>
     </motion.button>
+  );
+}
+
+function StatPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-black/25 px-3 py-3 text-left">
+      <p className="text-[9px] uppercase tracking-[0.28em] text-white/35">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+    </div>
   );
 }
