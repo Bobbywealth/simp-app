@@ -1,14 +1,14 @@
 import { create } from 'zustand';
 import type { UserResponse } from '../types';
-import { loadTokens, getAccessToken } from '../api/client';
-import { me, logout as apiLogout } from '../api/auth';
+import { getAccessToken, loadTokens, refreshAccessToken, setTokens } from '../api/client';
+import { logout as apiLogout, me } from '../api/auth';
 
 interface AuthState {
   user: UserResponse | null;
   loading: boolean;
   ready: boolean;
   initialized: boolean;
-  setUser: (u: UserResponse | null) => void;
+  setUser: (user: UserResponse | null) => void;
   initialize: () => Promise<void>;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
@@ -20,22 +20,22 @@ export const useAuth = create<AuthState>((set, get) => ({
   ready: false,
   initialized: false,
 
-  setUser: (u) => set({ user: u, ready: true }),
+  setUser: (user) => set({ user, ready: true }),
 
   initialize: async () => {
     if (get().initialized) return;
-    loadTokens();
-    const token = getAccessToken();
-    if (!token) {
-      set({ ready: true, initialized: true });
-      return;
-    }
-    set({ loading: true });
+    set({ initialized: true, loading: true });
     try {
+      await loadTokens();
+      if (!getAccessToken() && !(await refreshAccessToken())) {
+        set({ user: null, ready: true });
+        return;
+      }
       const user = await me();
-      set({ user, ready: true, initialized: true });
+      set({ user, ready: true });
     } catch {
-      set({ user: null, ready: true, initialized: true });
+      await setTokens(null, null);
+      set({ user: null, ready: true });
     } finally {
       set({ loading: false });
     }
@@ -43,15 +43,14 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   refresh: async () => {
     try {
-      const user = await me();
-      set({ user });
+      set({ user: await me() });
     } catch {
       set({ user: null });
     }
   },
 
   logout: async () => {
-    await apiLogout();
+    await apiLogout().catch(() => setTokens(null, null));
     set({ user: null, ready: true });
   },
 }));

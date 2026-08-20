@@ -58,10 +58,12 @@ export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [showChrome, setShowChrome] = useState(false);
   const [showIosHelp, setShowIosHelp] = useState(false);
+  const [dwellComplete, setDwellComplete] = useState(false);
 
   useEffect(() => {
     if (isStandalone()) return;
-    if (getDismissedAt() && Date.now() - (getDismissedAt() ?? 0) < COOLDOWN_MS) return;
+    const dismissedAt = getDismissedAt();
+    if (dismissedAt && Date.now() - dismissedAt < COOLDOWN_MS) return;
 
     const onPrompt = (e: Event) => {
       e.preventDefault();
@@ -71,10 +73,9 @@ export function InstallPrompt() {
     window.addEventListener('beforeinstallprompt', onPrompt);
 
     const dwell = window.setTimeout(() => {
+      setDwellComplete(true);
       if (isIosSafari()) {
         setShowIosHelp(true);
-      } else if (deferred) {
-        setShowChrome(true);
       }
     }, DWELL_MS);
 
@@ -82,8 +83,14 @@ export function InstallPrompt() {
       window.removeEventListener('beforeinstallprompt', onPrompt);
       window.clearTimeout(dwell);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!dwellComplete || !deferred || isIosSafari() || isStandalone()) return;
+    const dismissedAt = getDismissedAt();
+    if (dismissedAt && Date.now() - dismissedAt < COOLDOWN_MS) return;
+    setShowChrome(true);
+  }, [deferred, dwellComplete]);
 
   const dismiss = () => {
     haptics.light();

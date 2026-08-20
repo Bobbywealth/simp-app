@@ -1,133 +1,210 @@
+import type { Gender, LookingFor, Prisma } from '@prisma/client';
 import { Router } from 'express';
-import { type Gender } from '@prisma/client';
 import { prisma } from '../config/db.js';
-import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireAuth, requireVerifiedEmail, type AuthedRequest } from '../middleware/auth.js';
+import { AppError } from '../utils/errors.js';
+import { cloudinaryThumbnailUrl } from '../services/cloudinary.service.js';
+import { getProfileCompletion } from '../services/profile-completion.service.js';
 
 export const discoveryRouter = Router();
 
-/**
- * GET /discovery — swipe deck for the current user
- *
- * Query params:
- *  - minAge:    minimum age (default 18)
- *  - maxAge:    maximum age (default 99)
- *  - cursor:    pagination token (last userId from previous page)
- *  - limit:     page size (default 20, max 50)
- *
- * Filters:
- *  - Excludes self, already-swiped, blocked-by-me, blocked-of-me
- *  - Matches user's lookingFor against candidate gender
- *  - Excludes users with no profile or no photos
- *  - Age range (computed from birthDate)
- */
-discoveryRouter.get('/discovery', requireAuth, async (req: AuthedRequest, res, next) => {
-  try {
-    const userId = req.userId!;
+const gendersFor = (lookingFor: LookingFor): Gender[] =>
+  lookingFor === 'WOMEN'
+    ? ['WOMAN']
+    : lookingFor === 'MEN'
+      ? ['MAN']
+      : ['WOMAN', 'MAN', 'NONBINARY'];
 
-    const minAge = Math.max(18, Math.min(99, parseInt(String(req.query.minAge ?? '18'), 10) || 18));
-    const maxAge = Math.max(minAge, Math.min(99, parseInt(String(req.query.maxAge ?? '99'), 10) || 99));
-    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? '20'), 10) || 20));
-    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+const lookingForMyGender = (gender: Gender): LookingFor[] =>
+  gender === 'MAN' ? ['MEN', 'EVERYONE'] : gender === 'WOMAN' ? ['WOMEN', 'EVERYONE'] : ['EVERYONE'];
 
-    const me = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { profile: true },
-    });
+function ageFromBirthDate(birthDate: Date) {
+  const now = new Date();
+  let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
+  const beforeBirthday =
+    now.getUTCMonth() < birthDate.getUTCMonth() ||
+    (now.getUTCMonth() === birthDate.getUTCMonth() && now.getUTCDate() < birthDate.getUTCDate());
+  if (beforeBirthday) age -= 1;
+  return age;
+}
 
-    if (!me?.profile) {
-      return res.status(400).json({ error: 'profile_required' });
-    }
+function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6_371;
+  const dLat = toRadians(bLat - aLat);
+  const dLng = toRadians(bLng - aLng);
+  const value =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(aLat)) * Math.cos(toRadians(bLat)) * Math.sin(dLng / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+}
 
-    const genderFilter: Gender[] =
-      me.profile.lookingFor === 'WOMEN'
-        ? ['WOMAN']
-        : me.profile.lookingFor === 'MEN'
-        ? ['MAN']
-        : ['WOMAN', 'MAN', 'NONBINARY'];
+discoveryRouter.get(
+  '/discovery',
+  requireAuth,
+  requireVerifiedEmail,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const userId = req.userId!;
+      const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit ?? '20'), 10) || 20));
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+      const completion = await getProfileCompletion(userId);
+      if (!completion.complete) {
+        throw new AppError('profile_incomplete', 409, 'Complete your profile to start discovering.', {
+          details: { missing: completion.missing, percent: completion.percent },
+        });
+      }
 
-    const swiped = await prisma.swipe.findMany({
-      where: { swiperId: userId },
-      select: { swipedId: true },
-    });
-    const swipedIds = swiped.map((s) => s.swipedId);
+      const me = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { profile: true, discoveryPreference: true },
+      });
+      if (!me?.profile) throw new AppError('profile_required', 409, 'Create your profile first.');
+      const preferences = me.discoveryPreference ??
+        (await prisma.discoveryPreference.create({ data: { userId } }));
+      const minAge = Math.max(
+        18,
+        Math.min(99, Number.parseInt(String(req.query.minAge ?? preferences.minAge), 10) || preferences.minAge),
+      );
+      const maxAge = Math.max(
+        minAge,
+        Math.min(99, Number.parseInt(String(req.query.maxAge ?? preferences.maxAge), 10) || preferences.maxAge),
+      );
 
-    const blocked = await prisma.block.findMany({
-      where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
-      select: { blockerId: true, blockedId: true },
-    });
-    const blockedIds = new Set<string>();
-    blocked.forEach((b) => {
-      if (b.blockerId === userId) blockedIds.add(b.blockedId);
-      else blockedIds.add(b.blockerId);
-    });
+      const now = new Date();
+      const latestBirthDate = new Date(Date.UTC(now.getUTCFullYear() - minAge, now.getUTCMonth(), now.getUTCDate()));
+      const earliestBirthDate = new Date(
+        Date.UTC(now.getUTCFullYear() - maxAge - 1, now.getUTCMonth(), now.getUTCDate() + 1),
+      );
 
-    const excludeIds = new Set<string>([userId, ...swipedIds, ...blockedIds]);
+      const [swipes, blocks] = await Promise.all([
+        prisma.swipe.findMany({ where: { swiperId: userId }, select: { swipedId: true } }),
+        prisma.block.findMany({
+          where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+          select: { blockerId: true, blockedId: true },
+        }),
+      ]);
+      const excluded = new Set([userId, ...swipes.map((item) => item.swipedId)]);
+      for (const block of blocks) {
+        excluded.add(block.blockerId === userId ? block.blockedId : block.blockerId);
+      }
 
-    const now = new Date();
-    const maxBirth = new Date(now.getFullYear() - minAge, now.getMonth(), now.getDate());
-    const minBirth = new Date(now.getFullYear() - maxAge - 1, now.getMonth(), now.getDate() + 1);
-
-    const candidates = await prisma.user.findMany({
-      where: {
-        id: { notIn: Array.from(excludeIds) },
+      const where: Prisma.UserWhereInput = {
+        id: { notIn: [...excluded] },
+        status: 'ACTIVE',
+        emailVerified: true,
         profile: {
-          gender: { in: genderFilter },
-          birthDate: { gte: minBirth, lte: maxBirth },
+          profileCompletedAt: { not: null },
+          gender: { in: gendersFor(me.profile.lookingFor) },
+          lookingFor: { in: lookingForMyGender(me.profile.gender) },
+          birthDate: { gte: earliestBirthDate, lte: latestBirthDate },
+          ...(preferences.verifiedOnly ? { isVerified: true } : {}),
         },
         photos: { some: {} },
-      },
-      include: {
-        profile: true,
-        photos: { orderBy: { position: 'asc' } },
-        prompts: { orderBy: { position: 'asc' } },
-        interests: { include: { interest: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit + 1,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
+        ...(preferences.interestSlugs.length
+          ? { interests: { some: { interest: { slug: { in: preferences.interestSlugs } } } } }
+          : {}),
+      };
 
-    const hasMore = candidates.length > limit;
-    const page = hasMore ? candidates.slice(0, limit) : candidates;
-    const nextCursor = hasMore ? page[page.length - 1]?.id : null;
-
-    const payload = page.flatMap((u) => {
-      if (!u.profile) return [];
-      const ageMs = Date.now() - u.profile.birthDate.getTime();
-      const age = Math.floor(ageMs / (365.25 * 24 * 60 * 60 * 1000));
-      return [
-        {
-          profileId: u.profile.id,
-          userId: u.id,
-          displayName: u.profile.displayName,
-          bio: u.profile.bio,
-          age,
-          gender: u.profile.gender,
-          city: u.profile.city,
-          occupation: u.profile.occupation,
-          heightCm: u.profile.heightCm,
-          isVerified: u.profile.isVerified,
-          isPremium: u.profile.isPremium,
-          photos: u.photos.map((ph) => ({ id: ph.id, url: ph.url, position: ph.position })),
-          prompts: u.prompts.map((pr) => ({
-            id: pr.id,
-            question: pr.question,
-            answer: pr.answer,
-          })),
-          interests: u.interests.map((i) => ({
-            slug: i.interest.slug,
-            label: i.interest.label,
-          })),
+      const raw = await prisma.user.findMany({
+        where,
+        include: {
+          profile: true,
+          discoveryPreference: true,
+          photos: { orderBy: { position: 'asc' } },
+          prompts: { orderBy: { position: 'asc' }, take: 3 },
+          interests: { include: { interest: true } },
         },
-      ];
-    });
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: Math.min(151, limit * 3 + 1),
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
 
-    res.json({
-      profiles: payload,
-      nextCursor,
-      hasMore,
-    });
-  } catch (e) {
-    next(e);
-  }
-});
+      const withDistance = raw
+        .map((candidate) => {
+          const mine = preferences;
+          const theirs = candidate.discoveryPreference;
+          const distance =
+            mine.locationLat !== null &&
+            mine.locationLng !== null &&
+            theirs?.locationLat !== null &&
+            theirs?.locationLat !== undefined &&
+            theirs.locationLng !== null
+              ? distanceKm(mine.locationLat, mine.locationLng, theirs.locationLat, theirs.locationLng)
+              : null;
+          return { candidate, distance };
+        })
+        .filter(({ distance }) =>
+          preferences.maxDistanceKm === null
+            ? true
+            : distance !== null && distance <= preferences.maxDistanceKm,
+        );
+
+      const selected = withDistance.slice(0, limit);
+      const ids = selected.map(({ candidate }) => candidate.id);
+      const entitlements = ids.length
+        ? await prisma.entitlement.findMany({
+            where: {
+              userId: { in: ids },
+              status: { in: ['ACTIVE', 'GRACE_PERIOD'] },
+              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : [];
+      const premiumUsers = new Set(entitlements.map((item) => item.userId));
+
+      const profiles = selected.flatMap(({ candidate, distance }) => {
+        if (!candidate.profile) return [];
+        return [
+          {
+            profileId: candidate.profile.id,
+            userId: candidate.id,
+            displayName: candidate.profile.displayName,
+            bio: candidate.profile.bio,
+            age: ageFromBirthDate(candidate.profile.birthDate),
+            gender: candidate.profile.gender,
+            city: candidate.profile.city,
+            occupation: candidate.profile.occupation,
+            heightCm: candidate.profile.heightCm,
+            isVerified: candidate.profile.isVerified,
+            verificationStatus: candidate.profile.verificationStatus,
+            isPremium: premiumUsers.has(candidate.id),
+            distanceKm: distance === null ? null : Math.max(1, Math.round(distance)),
+            photos: candidate.photos.map((photo) => ({
+              id: photo.id,
+              url: photo.url,
+              thumbnailUrl: cloudinaryThumbnailUrl(photo.url),
+              position: photo.position,
+            })),
+            prompts: candidate.prompts.map((prompt) => ({
+              id: prompt.id,
+              question: prompt.question,
+              answer: prompt.answer,
+            })),
+            interests: candidate.interests.map((item) => ({
+              slug: item.interest.slug,
+              label: item.interest.label,
+            })),
+          },
+        ];
+      });
+
+      const lastRaw = raw[Math.min(raw.length, limit * 3) - 1];
+      res.json({
+        profiles,
+        nextCursor: raw.length > limit * 3 ? lastRaw?.id ?? null : null,
+        hasMore: raw.length > limit * 3,
+        filters: {
+          minAge,
+          maxAge,
+          maxDistanceKm: preferences.maxDistanceKm,
+          verifiedOnly: preferences.verifiedOnly,
+          interestSlugs: preferences.interestSlugs,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);

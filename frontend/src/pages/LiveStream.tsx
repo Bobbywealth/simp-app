@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
-import { endStream, getStreamChat, listLiveStreams, reportStream } from '../api/live';
+import { endStream, getLiveStream, getStreamChat, reportStream } from '../api/live';
 import type { LiveChatMessage, LiveStream } from '../api/live';
 import { useAuth } from '../store/auth';
-import { API_BASE_URL } from '../api/client';
+import { API_BASE_URL, getAccessToken } from '../api/client';
 import { getIceConfig, type IceServer } from '../api/config';
 
 type ConnectionState = 'loading' | 'preview' | 'connecting' | 'live' | 'ended' | 'error';
@@ -19,6 +19,7 @@ export default function LiveStreamPage() {
   const [isBroadcaster, setIsBroadcaster] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewerCount, setViewerCount] = useState(0);
+  const [heartCount, setHeartCount] = useState(0);
   const [messages, setMessages] = useState<LiveChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [hearts, setHearts] = useState<{ id: number; x: number }[]>([]);
@@ -113,18 +114,13 @@ export default function LiveStreamPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await listLiveStreams();
-        const found = res.streams.find((s) => s.id === streamId);
+        const found = await getLiveStream(streamId);
         if (cancelled) return;
-        if (!found) {
-          setError('Stream not found or has ended');
-          setConnectionState('error');
-          return;
-        }
         setStream(found);
         const isBroadcasterNow = found.broadcaster?.userId === user?.id;
         setIsBroadcaster(isBroadcasterNow);
         setViewerCount(found.viewerCount);
+        setHeartCount(found.heartCount ?? 0);
         if (isBroadcasterNow) {
           // Broadcaster: show preview first, then "going live" once socket connects
           setConnectionState('preview');
@@ -163,7 +159,7 @@ export default function LiveStreamPage() {
     if (!streamId || !user) return;
     if (!connectInitiated) return;
     if (isBroadcaster && connectionState === 'preview') return;
-    const token = localStorage.getItem('simp_access');
+    const token = getAccessToken();
     if (!token) return;
 
     intentionalDisconnectRef.current = false;
@@ -196,11 +192,15 @@ export default function LiveStreamPage() {
       setConnectionState('error');
     });
 
-    socket.on('live:viewer-joined', (payload: { userId: string; viewerCount: number }) => {
+    socket.on('live:viewer-joined', (payload: { userId: string; peerId: string; viewerCount: number }) => {
       setViewerCount(payload.viewerCount);
       if (isBroadcaster && payload.userId !== user.id) {
-        createPeerConnectionForViewer(payload.userId, streamId);
+        createPeerConnectionForViewer(payload.peerId, streamId);
       }
+    });
+
+    socket.on('live:viewer-count', (payload: { viewerCount: number }) => {
+      setViewerCount(payload.viewerCount);
     });
 
     socket.on('live:viewer-left', (payload: { viewerCount: number }) => {
@@ -208,7 +208,7 @@ export default function LiveStreamPage() {
     });
 
     socket.on('live:offer', async (payload: { from: string; sdp: RTCSessionDescriptionInit }) => {
-      if (!isBroadcaster) return;
+      if (isBroadcaster) return;
       const pc = getOrCreatePeerConnection(payload.from, streamId);
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
@@ -249,7 +249,8 @@ export default function LiveStreamPage() {
       }, 50);
     });
 
-    socket.on('live:heart', () => {
+    socket.on('live:heart', (payload: { heartCount?: number }) => {
+      if (typeof payload.heartCount === 'number') setHeartCount(payload.heartCount);
       spawnHeart();
     });
 
@@ -263,12 +264,13 @@ export default function LiveStreamPage() {
       .then((res) => setMessages(res.messages))
       .catch(() => null);
 
+    const activePeerConnections = peerConnectionsRef.current;
     return () => {
       intentionalDisconnectRef.current = true;
       socket.disconnect();
       socketRef.current = null;
-      peerConnectionsRef.current.forEach((pc) => pc.close());
-      peerConnectionsRef.current.clear();
+      activePeerConnections.forEach((pc) => pc.close());
+      activePeerConnections.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streamId, user?.id, isBroadcaster, connectInitiated]);
@@ -293,7 +295,7 @@ export default function LiveStreamPage() {
       }
       setCameraReady(true);
       setFacingMode(facing);
-    } catch (e) {
+    } catch {
       setError('Camera/mic permission denied. Please allow access and try again.');
       setConnectionState('error');
     }
@@ -407,20 +409,11 @@ export default function LiveStreamPage() {
   function sendChatMessage() {
     const body = chatInput.trim();
     if (!body || !streamId) return;
-    if (socketRef.current?.connected) {
-      socketRef.current.emit('live:chat', { streamId, body });
-    } else {
-      // Local fallback: echo the message into the chat overlay so the input
-      // feels alive while the socket/session is reconnecting.
-      const localMsg: LiveChatMessage = {
-        id: `local-${Date.now()}`,
-        senderId: user?.id ?? 'local',
-        senderName: user?.profile?.displayName ?? 'You',
-        body,
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, localMsg].slice(-100));
+    if (!socketRef.current?.connected) {
+      setError('Reconnecting. Your comment was not sent.');
+      return;
     }
+    socketRef.current.emit('live:chat', { streamId, body });
     setChatInput('');
   }
 
@@ -483,7 +476,7 @@ export default function LiveStreamPage() {
               ref={isBroadcaster ? localVideoRef : remoteVideoRef}
               autoPlay
               playsInline
-              muted
+              muted={isBroadcaster}
               className="absolute inset-0 h-full w-full object-cover"
             />
 
@@ -543,6 +536,7 @@ export default function LiveStreamPage() {
                 <div className="flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[10px] text-white">
                   <span>👁</span>
                   <span className="font-semibold">{viewerCount}</span>
+                  <span className="ml-2 text-red-300">♥ {heartCount}</span>
                 </div>
               </div>
             )}

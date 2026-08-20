@@ -147,9 +147,9 @@ function EmptyMatches() {
   return (
     <div className="flex flex-col items-center gap-4 py-20 text-center">
       <SimpLogo size={64} variant="emblem" />
-      <h2 className="display-heading text-2xl font-light">No matches yet</h2>
+      <h2 className="display-heading text-2xl font-light">Your next match hasn't happened yet</h2>
       <p className="max-w-xs text-sm text-white/60">
-        When you and someone else like each other, you&apos;ll see them here.
+        Keep discovering. Mutual likes appear here instantly.
       </p>
       <button
         onClick={() => navigate('/discover')}

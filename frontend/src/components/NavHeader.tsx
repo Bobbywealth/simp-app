@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { haptics } from '../lib/haptics';
@@ -37,14 +37,6 @@ export function NavHeader({
 }: Props) {
   const navigate = useNavigate();
   const { scrollY } = useScroll();
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    return scrollY.on('change', (v) => {
-      setScrolled(v > 24);
-    });
-  }, [scrollY]);
-
   // Sticky small title fades in once we've scrolled past the large title
   const stickyOpacity = useTransform(scrollY, [0, 32, 56], [0, 0, 1]);
 

@@ -429,7 +429,7 @@ function SlideVisual({ type }: { type: Slide['visualType'] }) {
           { label: 'LEVEL UP', icon: '🚀' },
           { label: 'UNLOCK PERKS', icon: '🎁' },
           { label: 'VIP STATUS', icon: '👑' },
-        ].map((item, i) => (
+        ].map((item) => (
           <div key={item.label} className="text-center flex flex-col items-center">
             <div className="flex size-10 items-center justify-center rounded-full border border-gold-400/20 bg-black/40 text-lg mb-1">
               {item.icon}

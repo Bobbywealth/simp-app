@@ -1,47 +1,113 @@
+import type { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/db.js';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { AppError } from '../utils/errors.js';
+import { cloudinaryThumbnailUrl } from '../services/cloudinary.service.js';
+import { getProfileCompletion } from '../services/profile-completion.service.js';
 
 export const usersRouter = Router();
 
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD');
+const interestSlugsSchema = z
+  .array(z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-_]{0,49}$/))
+  .max(10)
+  .refine((items) => new Set(items).size === items.length, 'Interests must be unique');
+
 const profileSchema = z.object({
-  displayName: z.string().min(2).max(40),
-  bio: z.string().max(500).optional().nullable(),
-  birthDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
+  displayName: z.string().trim().min(2).max(40),
+  bio: z.string().trim().max(500).optional().nullable(),
+  birthDate: dateSchema,
   gender: z.enum(['WOMAN', 'MAN', 'NONBINARY', 'PREFER_NOT_TO_SAY']),
   lookingFor: z.enum(['WOMEN', 'MEN', 'EVERYONE']),
-  city: z.string().max(80).optional().nullable(),
-  occupation: z.string().max(80).optional().nullable(),
-  heightCm: z.number().int().min(80).max(260).optional().nullable(),
-  interestSlugs: z.array(z.string().min(1)).max(20).optional(),
+  city: z.string().trim().max(80).optional().nullable(),
+  occupation: z.string().trim().max(80).optional().nullable(),
+  heightCm: z.number().int().min(120).max(230).optional().nullable(),
+  interestSlugs: interestSlugsSchema.optional(),
+});
+const profilePatchSchema = profileSchema.partial();
+
+const promptSchema = z.object({
+  question: z.string().trim().min(2).max(120),
+  answer: z.string().trim().min(1).max(280),
+  position: z.number().int().min(0).max(2).optional(),
 });
 
-const profilePatchSchema = z.object({
-  displayName: z.string().min(2).max(40).optional(),
-  bio: z.string().max(500).optional().nullable(),
-  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+const preferenceSchema = z
+  .object({
+    minAge: z.number().int().min(18).max(99).optional(),
+    maxAge: z.number().int().min(18).max(99).optional(),
+    maxDistanceKm: z.number().int().min(1).max(500).optional().nullable(),
+    verifiedOnly: z.boolean().optional(),
+    interestSlugs: interestSlugsSchema.optional(),
+    locationLat: z.number().min(-90).max(90).optional().nullable(),
+    locationLng: z.number().min(-180).max(180).optional().nullable(),
+  })
+  .refine((value) => value.minAge === undefined || value.maxAge === undefined || value.minAge <= value.maxAge, {
+    message: 'Minimum age cannot exceed maximum age',
+    path: ['minAge'],
+  });
+
+const onboardingStateSchema = z.object({
+  displayName: z.string().trim().min(2).max(40).optional(),
+  birthDate: dateSchema.optional(),
   gender: z.enum(['WOMAN', 'MAN', 'NONBINARY', 'PREFER_NOT_TO_SAY']).optional(),
   lookingFor: z.enum(['WOMEN', 'MEN', 'EVERYONE']).optional(),
-  city: z.string().max(80).optional().nullable(),
-  occupation: z.string().max(80).optional().nullable(),
-  heightCm: z.number().int().min(80).max(260).optional().nullable(),
-  interestSlugs: z.array(z.string().min(1)).max(20).optional(),
+  city: z.string().trim().max(80).optional(),
+  occupation: z.string().trim().max(80).optional(),
+  heightCm: z.number().int().min(120).max(230).optional(),
+  bio: z.string().trim().max(500).optional(),
+  interestSlugs: interestSlugsSchema.optional(),
+  notificationPromptSeen: z.boolean().optional(),
 });
 
-const promptCreateSchema = z.object({
-  question: z.string().min(2).max(120),
-  answer: z.string().min(1).max(280),
-  position: z.number().int().min(0).max(20).optional(),
-});
+function adultBirthDate(value: string): Date {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    throw new AppError('invalid_birth_date', 400, 'Enter a valid birth date.');
+  }
+  const today = new Date();
+  const cutoff = new Date(Date.UTC(today.getUTCFullYear() - 18, today.getUTCMonth(), today.getUTCDate()));
+  const oldest = new Date(Date.UTC(today.getUTCFullYear() - 100, today.getUTCMonth(), today.getUTCDate()));
+  if (parsed > cutoff) {
+    throw new AppError('age_requirement_not_met', 403, 'You must be at least 18 to use SIMP.');
+  }
+  if (parsed < oldest) throw new AppError('invalid_birth_date', 400, 'Enter a valid birth date.');
+  return parsed;
+}
 
-usersRouter.get('/me/profile', requireAuth, async (req: AuthedRequest, res, next) => {
-  try {
-    const userId = req.userId!;
-    const profile = await prisma.profile.findUnique({
+async function replaceInterests(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  slugs: string[],
+) {
+  const interests = await Promise.all(
+    slugs.map((slug) =>
+      tx.interest.upsert({
+        where: { slug },
+        create: {
+          slug,
+          label: slug.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        },
+        update: {},
+      }),
+    ),
+  );
+  await tx.userInterest.deleteMany({ where: { userId } });
+  if (interests.length) {
+    await tx.userInterest.createMany({
+      data: interests.map((interest) => ({ userId, interestId: interest.id })),
+      skipDuplicates: true,
+    });
+  }
+}
+
+async function myProfilePayload(userId: string) {
+  const [profile, interests, entitlement] = await Promise.all([
+    prisma.profile.findUnique({
       where: { userId },
       include: {
-        interests: { include: { interest: true } },
         user: {
           select: {
             id: true,
@@ -51,10 +117,40 @@ usersRouter.get('/me/profile', requireAuth, async (req: AuthedRequest, res, next
           },
         },
       },
-    });
-    res.json(profile);
-  } catch (e) {
-    next(e);
+    }),
+    prisma.userInterest.findMany({ where: { userId }, include: { interest: true } }),
+    prisma.entitlement.findFirst({
+      where: {
+        userId,
+        status: { in: ['ACTIVE', 'GRACE_PERIOD'] },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+  if (!profile) return null;
+  const completion = await getProfileCompletion(userId);
+  return {
+    ...profile,
+    isPremium: Boolean(entitlement),
+    interests,
+    completion,
+    user: {
+      ...profile.user,
+      photos: profile.user.photos.map((photo) => ({
+        ...photo,
+        thumbnailUrl: cloudinaryThumbnailUrl(photo.url),
+        isPrimary: photo.position === 0,
+      })),
+    },
+  };
+}
+
+usersRouter.get('/me/profile', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    res.json(await myProfilePayload(req.userId!));
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -62,56 +158,43 @@ usersRouter.put('/me/profile', requireAuth, async (req: AuthedRequest, res, next
   try {
     const data = profileSchema.parse(req.body);
     const userId = req.userId!;
+    const birthDate = adultBirthDate(data.birthDate);
 
-    const profile = await prisma.profile.upsert({
-      where: { userId },
-      create: {
-        userId,
-        displayName: data.displayName,
-        bio: data.bio ?? null,
-        birthDate: new Date(data.birthDate),
-        gender: data.gender,
-        lookingFor: data.lookingFor,
-        city: data.city ?? null,
-        occupation: data.occupation ?? null,
-        heightCm: data.heightCm ?? null,
-      },
-      update: {
-        displayName: data.displayName,
-        bio: data.bio ?? null,
-        birthDate: new Date(data.birthDate),
-        gender: data.gender,
-        lookingFor: data.lookingFor,
-        city: data.city ?? null,
-        occupation: data.occupation ?? null,
-        heightCm: data.heightCm ?? null,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.profile.upsert({
+        where: { userId },
+        create: {
+          userId,
+          displayName: data.displayName,
+          bio: data.bio || null,
+          birthDate,
+          gender: data.gender,
+          lookingFor: data.lookingFor,
+          city: data.city || null,
+          occupation: data.occupation || null,
+          heightCm: data.heightCm ?? null,
+        },
+        update: {
+          displayName: data.displayName,
+          bio: data.bio || null,
+          birthDate,
+          gender: data.gender,
+          lookingFor: data.lookingFor,
+          city: data.city || null,
+          occupation: data.occupation || null,
+          heightCm: data.heightCm ?? null,
+        },
+      });
+      if (data.interestSlugs) await replaceInterests(tx, userId, data.interestSlugs);
+      await tx.user.update({
+        where: { id: userId },
+        data: { onboardingStep: { increment: 1 } },
+      });
     });
 
-    if (data.interestSlugs) {
-      const interests = await Promise.all(
-        data.interestSlugs.map(async (slug) => {
-          const label = slug
-            .replace(/[-_]/g, ' ')
-            .replace(/\b\w/g, (c) => c.toUpperCase());
-          return prisma.interest.upsert({
-            where: { slug },
-            create: { slug, label },
-            update: {},
-          });
-        })
-      );
-
-      await prisma.userInterest.deleteMany({ where: { userId } });
-      await prisma.userInterest.createMany({
-        data: interests.map((i) => ({ userId, interestId: i.id })),
-        skipDuplicates: true,
-      });
-    }
-
-    res.json(profile);
-  } catch (e) {
-    next(e);
+    res.json(await myProfilePayload(userId));
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -119,129 +202,295 @@ usersRouter.patch('/me/profile', requireAuth, async (req: AuthedRequest, res, ne
   try {
     const data = profilePatchSchema.parse(req.body);
     const userId = req.userId!;
+    const update: Prisma.ProfileUpdateInput = {};
+    if (data.displayName !== undefined) update.displayName = data.displayName;
+    if (data.bio !== undefined) update.bio = data.bio || null;
+    if (data.birthDate !== undefined) update.birthDate = adultBirthDate(data.birthDate);
+    if (data.gender !== undefined) update.gender = data.gender;
+    if (data.lookingFor !== undefined) update.lookingFor = data.lookingFor;
+    if (data.city !== undefined) update.city = data.city || null;
+    if (data.occupation !== undefined) update.occupation = data.occupation || null;
+    if (data.heightCm !== undefined) update.heightCm = data.heightCm;
 
-    const updateData: Record<string, unknown> = {};
-    if (data.displayName !== undefined) updateData.displayName = data.displayName;
-    if (data.bio !== undefined) updateData.bio = data.bio ?? null;
-    if (data.birthDate !== undefined) updateData.birthDate = new Date(data.birthDate);
-    if (data.gender !== undefined) updateData.gender = data.gender;
-    if (data.lookingFor !== undefined) updateData.lookingFor = data.lookingFor;
-    if (data.city !== undefined) updateData.city = data.city ?? null;
-    if (data.occupation !== undefined) updateData.occupation = data.occupation ?? null;
-    if (data.heightCm !== undefined) updateData.heightCm = data.heightCm ?? null;
+    await prisma.$transaction(async (tx) => {
+      const exists = await tx.profile.findUnique({ where: { userId }, select: { id: true } });
+      if (!exists) throw new AppError('profile_not_found', 404, 'Create your profile first.');
+      if (Object.keys(update).length) await tx.profile.update({ where: { userId }, data: update });
+      if (data.interestSlugs) await replaceInterests(tx, userId, data.interestSlugs);
+    });
+    res.json(await myProfilePayload(userId));
+  } catch (error) {
+    next(error);
+  }
+});
 
-    if (Object.keys(updateData).length > 0) {
-      await prisma.profile.update({ where: { userId }, data: updateData });
-    }
+usersRouter.get('/me/profile/completion', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    res.json(await getProfileCompletion(req.userId!));
+  } catch (error) {
+    next(error);
+  }
+});
 
-    if (data.interestSlugs) {
-      const interests = await Promise.all(
-        data.interestSlugs.map(async (slug) => {
-          const label = slug
-            .replace(/[-_]/g, ' ')
-            .replace(/\b\w/g, (c) => c.toUpperCase());
-          return prisma.interest.upsert({
-            where: { slug },
-            create: { slug, label },
-            update: {},
-          });
-        })
-      );
-      await prisma.userInterest.deleteMany({ where: { userId } });
-      await prisma.userInterest.createMany({
-        data: interests.map((i) => ({ userId, interestId: i.id })),
-        skipDuplicates: true,
+usersRouter.get('/me/onboarding', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId! },
+      select: { onboardingState: true, onboardingStep: true, onboardingCompletedAt: true },
+    });
+    res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.patch('/me/onboarding', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const input = z
+      .object({ step: z.number().int().min(1).max(17), state: onboardingStateSchema.partial() })
+      .parse(req.body);
+    if (input.state.birthDate) adultBirthDate(input.state.birthDate);
+    const current = await prisma.user.findUnique({
+      where: { id: req.userId! },
+      select: { onboardingState: true, onboardingStep: true },
+    });
+    const prior =
+      current?.onboardingState && typeof current.onboardingState === 'object' && !Array.isArray(current.onboardingState)
+        ? (current.onboardingState as Record<string, unknown>)
+        : {};
+    const user = await prisma.user.update({
+      where: { id: req.userId! },
+      data: {
+        onboardingState: { ...prior, ...input.state },
+        onboardingStep: Math.max(current?.onboardingStep ?? 0, input.step),
+      },
+      select: { onboardingState: true, onboardingStep: true, onboardingCompletedAt: true },
+    });
+    res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.post('/me/onboarding/complete', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const userId = req.userId!;
+    const [user, completion, currentDocs, acceptances] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { emailVerified: true } }),
+      getProfileCompletion(userId),
+      prisma.tosVersion.findMany({
+        where: { type: { in: ['tos', 'privacy'] } },
+        orderBy: { effectiveAt: 'desc' },
+        distinct: ['type'],
+      }),
+      prisma.tosAcceptance.findMany({ where: { userId }, select: { tosVersionId: true } }),
+    ]);
+    const accepted = new Set(acceptances.map((item) => item.tosVersionId));
+    const missing = [
+      ...(!user?.emailVerified ? ['emailVerification'] : []),
+      ...completion.missing,
+      ...currentDocs.filter((doc) => !accepted.has(doc.id)).map((doc) => doc.type),
+    ];
+    if (missing.length) {
+      throw new AppError('onboarding_incomplete', 409, 'Finish each onboarding step first.', {
+        details: { missing },
       });
     }
-
+    await prisma.user.update({
+      where: { id: userId },
+      data: { onboardingCompletedAt: new Date(), onboardingStep: 17, onboardingState: {} },
+    });
     res.json({ ok: true });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.get('/me/discovery-preferences', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const preferences = await prisma.discoveryPreference.upsert({
+      where: { userId: req.userId! },
+      create: { userId: req.userId! },
+      update: {},
+    });
+    res.json(preferences);
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.patch('/me/discovery-preferences', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const input = preferenceSchema.parse(req.body);
+    const existing = await prisma.discoveryPreference.findUnique({ where: { userId: req.userId! } });
+    const minAge = input.minAge ?? existing?.minAge ?? 18;
+    const maxAge = input.maxAge ?? existing?.maxAge ?? 99;
+    if (minAge > maxAge) throw new AppError('invalid_age_range', 400, 'Choose a valid age range.');
+    const data = {
+      ...input,
+      ...(input.locationLat !== undefined
+        ? { locationLat: input.locationLat === null ? null : Math.round(input.locationLat * 100) / 100 }
+        : {}),
+      ...(input.locationLng !== undefined
+        ? { locationLng: input.locationLng === null ? null : Math.round(input.locationLng * 100) / 100 }
+        : {}),
+      ...(input.locationLat !== undefined || input.locationLng !== undefined
+        ? { locationPrecisionKm: 2, locationUpdatedAt: new Date() }
+        : {}),
+    };
+    const preferences = await prisma.discoveryPreference.upsert({
+      where: { userId: req.userId! },
+      create: { userId: req.userId!, minAge, maxAge, ...data },
+      update: data,
+    });
+    res.json(preferences);
+  } catch (error) {
+    next(error);
   }
 });
 
 usersRouter.get('/me/prompts', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const prompts = await prisma.prompt.findMany({
-      where: { userId: req.userId! },
-      orderBy: { position: 'asc' },
+    res.json({
+      prompts: await prisma.prompt.findMany({
+        where: { userId: req.userId! },
+        orderBy: { position: 'asc' },
+      }),
     });
-    res.json({ prompts });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });
 
 usersRouter.post('/me/prompts', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const userId = req.userId!;
-    const data = promptCreateSchema.parse(req.body);
-
-    const existing = await prisma.prompt.count({ where: { userId } });
-    if (existing >= 3) {
-      return res.status(400).json({ error: 'max_prompts_reached' });
-    }
-
-    const last = await prisma.prompt.findFirst({
-      where: { userId },
-      orderBy: { position: 'desc' },
-    });
-    const position = data.position ?? (last?.position ?? -1) + 1;
-
+    const input = promptSchema.parse(req.body);
+    const count = await prisma.prompt.count({ where: { userId } });
+    if (count >= 3) throw new AppError('max_prompts_reached', 409, 'You can add up to 3 prompts.');
     const prompt = await prisma.prompt.create({
-      data: {
-        userId,
-        question: data.question,
-        answer: data.answer,
-        position,
-      },
+      data: { userId, ...input, position: input.position ?? count },
     });
-
+    await getProfileCompletion(userId);
     res.status(201).json(prompt);
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.patch('/me/prompts/:id', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const input = promptSchema.partial().parse(req.body);
+    const prompt = await prisma.prompt.findUnique({ where: { id: req.params.id } });
+    if (!prompt || prompt.userId !== req.userId) {
+      throw new AppError('prompt_not_found', 404, 'Prompt not found.');
+    }
+    res.json(await prisma.prompt.update({ where: { id: prompt.id }, data: input }));
+  } catch (error) {
+    next(error);
   }
 });
 
 usersRouter.delete('/me/prompts/:id', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const userId = req.userId!;
-    const promptId = req.params.id;
-
-    const prompt = await prisma.prompt.findUnique({ where: { id: promptId } });
-    if (!prompt) return res.status(404).json({ error: 'prompt_not_found' });
-    if (prompt.userId !== userId) return res.status(403).json({ error: 'not_your_prompt' });
-
-    await prisma.prompt.delete({ where: { id: promptId } });
+    const prompt = await prisma.prompt.findUnique({ where: { id: req.params.id } });
+    if (!prompt || prompt.userId !== req.userId) {
+      throw new AppError('prompt_not_found', 404, 'Prompt not found.');
+    }
+    await prisma.prompt.delete({ where: { id: prompt.id } });
+    await getProfileCompletion(req.userId!);
     res.json({ ok: true });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
+  }
+});
+
+usersRouter.post('/me/verification/request', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const { note } = z.object({ note: z.string().trim().max(500).optional() }).parse(req.body);
+    const pending = await prisma.profileVerificationRequest.findFirst({
+      where: { userId: req.userId!, status: 'PENDING' },
+    });
+    if (pending) return res.json(pending);
+    const request = await prisma.$transaction(async (tx) => {
+      const created = await tx.profileVerificationRequest.create({
+        data: { userId: req.userId!, userNote: note },
+      });
+      await tx.profile.update({
+        where: { userId: req.userId! },
+        data: { verificationStatus: 'PENDING', isVerified: false },
+      });
+      return created;
+    });
+    res.status(201).json(request);
+  } catch (error) {
+    next(error);
   }
 });
 
 usersRouter.get('/interests', async (_req, res, next) => {
   try {
-    const interests = await prisma.interest.findMany({ orderBy: { label: 'asc' } });
-    res.json(interests);
-  } catch (e) {
-    next(e);
+    res.json(await prisma.interest.findMany({ orderBy: { label: 'asc' } }));
+  } catch (error) {
+    next(error);
   }
 });
 
 usersRouter.get('/:id', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.params.id },
-      include: {
+    const targetId = req.params.id!;
+    if (targetId !== req.userId) {
+      const [match, block] = await Promise.all([
+        prisma.match.findFirst({
+          where: {
+            isActive: true,
+            OR: [
+              { userAId: req.userId!, userBId: targetId },
+              { userAId: targetId, userBId: req.userId! },
+            ],
+          },
+        }),
+        prisma.block.findFirst({
+          where: {
+            OR: [
+              { blockerId: req.userId!, blockedId: targetId },
+              { blockerId: targetId, blockedId: req.userId! },
+            ],
+          },
+        }),
+      ]);
+      if (!match || block) throw new AppError('profile_not_available', 403, 'Profile unavailable.');
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { id: targetId, status: 'ACTIVE' },
+      select: {
+        id: true,
         profile: true,
         photos: { orderBy: { position: 'asc' } },
         prompts: { orderBy: { position: 'asc' } },
         interests: { include: { interest: true } },
       },
     });
-    if (!user) return res.status(404).json({ error: 'user_not_found' });
-    res.json(user);
-  } catch (e) {
-    next(e);
+    if (!user?.profile) throw new AppError('user_not_found', 404, 'Profile not found.');
+    const age = Math.floor(
+      (Date.now() - user.profile.birthDate.getTime()) / (365.2425 * 24 * 60 * 60 * 1_000),
+    );
+    res.json({
+      userId: user.id,
+      displayName: user.profile.displayName,
+      bio: user.profile.bio,
+      age,
+      gender: user.profile.gender,
+      city: user.profile.city,
+      occupation: user.profile.occupation,
+      heightCm: user.profile.heightCm,
+      isVerified: user.profile.isVerified,
+      photos: user.photos,
+      prompts: user.prompts,
+      interests: user.interests.map((item) => item.interest),
+    });
+  } catch (error) {
+    next(error);
   }
 });

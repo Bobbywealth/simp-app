@@ -1,118 +1,246 @@
+import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
 import { prisma } from '../config/db.js';
-import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireAuth, requireVerifiedEmail, type AuthedRequest } from '../middleware/auth.js';
+import { AppError } from '../utils/errors.js';
+import { consumeSwipeAllowance, getEffectiveEntitlement, utcUsageDay } from '../services/entitlement.service.js';
+import { createNotification, dispatchNotification } from '../services/notification.service.js';
 
 export const swipesRouter = Router();
 
 const swipeSchema = z.object({
   swipedId: z.string().min(1),
   action: z.enum(['PASS', 'LIKE', 'SUPERLIKE']),
-  note: z.string().max(280).optional().nullable(),
+  note: z.string().trim().max(280).optional().nullable(),
 });
 
-/**
- * POST /swipes — record a swipe action
- *
- * Body: { swipedId, action: 'PASS' | 'LIKE' | 'SUPERLIKE', note?: string (max 280 chars) }
- *
- * If action is LIKE/SUPERLIKE and the swiped user has already liked/superliked the
- * swiper, a Match is created automatically (with userAId = alphabetically smaller).
- *
- * Returns: { swipeId, matched: bool, matchId?: string }
- */
-swipesRouter.post('/swipes', requireAuth, async (req: AuthedRequest, res, next) => {
-  try {
-    const swiperId = req.userId!;
-    const data = swipeSchema.parse(req.body);
-
-    if (data.swipedId === swiperId) {
-      return res.status(400).json({ error: 'cannot_swipe_self' });
-    }
-
-    const swiped = await prisma.user.findUnique({
-      where: { id: data.swipedId },
-      select: { id: true, profile: { select: { id: true } } },
-    });
-
-    if (!swiped?.profile) {
-      return res.status(404).json({ error: 'swiped_user_not_found' });
-    }
-
-    // Record the swipe (handle duplicate gracefully)
-    let swipe: { id: string; action: 'PASS' | 'LIKE' | 'SUPERLIKE' };
+async function serializable<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      swipe = await prisma.swipe.create({
-        data: {
-          swiperId,
-          swipedId: data.swipedId,
-          action: data.action,
-          note: data.note ?? null,
-        },
-        select: { id: true, action: true },
-      });
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        const existing = await prisma.swipe.findUnique({
-          where: { swiperId_swipedId: { swiperId, swipedId: data.swipedId } },
-          select: { id: true, action: true },
-        });
-        if (!existing) throw e;
-        swipe = existing;
-      } else {
-        throw e;
+      return await prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2034' &&
+        attempt < 2
+      ) {
+        continue;
       }
+      throw error;
     }
+  }
+  throw new AppError('transaction_conflict', 409, 'Please try that action again.');
+}
 
-    // If it's a like/superlike, check for mutual like → create Match
-    if (data.action === 'LIKE' || data.action === 'SUPERLIKE') {
-      const reciprocal = await prisma.swipe.findFirst({
-        where: {
-          swiperId: data.swipedId,
-          swipedId: swiperId,
-          action: { in: ['LIKE', 'SUPERLIKE'] },
-        },
-      });
+swipesRouter.post(
+  '/swipes',
+  requireAuth,
+  requireVerifiedEmail,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const swiperId = req.userId!;
+      const input = swipeSchema.parse(req.body);
+      if (input.swipedId === swiperId) {
+        throw new AppError('cannot_swipe_self', 400, 'You cannot swipe on yourself.');
+      }
+      if (input.action === 'PASS' && input.note) {
+        throw new AppError('note_requires_like', 400, 'A Convince Me note must accompany a Like.');
+      }
 
-      if (reciprocal) {
-        const userAId = swiperId < data.swipedId ? swiperId : data.swipedId;
-        const userBId = swiperId < data.swipedId ? data.swipedId : swiperId;
+      const result = await serializable(async (tx) => {
+        const [target, blocked, existing] = await Promise.all([
+          tx.user.findFirst({
+            where: {
+              id: input.swipedId,
+              status: 'ACTIVE',
+              emailVerified: true,
+              profile: { profileCompletedAt: { not: null } },
+            },
+            select: {
+              id: true,
+              profile: { select: { displayName: true } },
+              photos: { orderBy: { position: 'asc' }, take: 1 },
+            },
+          }),
+          tx.block.findFirst({
+            where: {
+              OR: [
+                { blockerId: swiperId, blockedId: input.swipedId },
+                { blockerId: input.swipedId, blockedId: swiperId },
+              ],
+            },
+          }),
+          tx.swipe.findUnique({
+            where: { swiperId_swipedId: { swiperId, swipedId: input.swipedId } },
+          }),
+        ]);
+        if (!target || blocked) {
+          throw new AppError('profile_not_available', 404, 'That profile is no longer available.');
+        }
+        if (existing) {
+          const userAId = swiperId < input.swipedId ? swiperId : input.swipedId;
+          const userBId = swiperId < input.swipedId ? input.swipedId : swiperId;
+          const match = await tx.match.findUnique({ where: { userAId_userBId: { userAId, userBId } } });
+          return {
+            swipeId: existing.id,
+            matched: Boolean(match?.isActive),
+            matchId: match?.isActive ? match.id : undefined,
+            alreadySwiped: true,
+            notificationIds: [] as string[],
+            matchedUser: null,
+          };
+        }
 
-        const match = await prisma.match.upsert({
-          where: { userAId_userBId: { userAId, userBId } },
-          update: {},
-          create: { userAId, userBId },
+        await consumeSwipeAllowance(tx, swiperId, input.action);
+        const swipe = await tx.swipe.create({
+          data: {
+            swiperId,
+            swipedId: input.swipedId,
+            action: input.action,
+            note: input.action === 'PASS' ? null : input.note || null,
+          },
         });
 
-        return res.json({
+        const notificationIds: string[] = [];
+        if (input.action === 'LIKE' || input.action === 'SUPERLIKE') {
+          const reciprocal = await tx.swipe.findFirst({
+            where: {
+              swiperId: input.swipedId,
+              swipedId: swiperId,
+              action: { in: ['LIKE', 'SUPERLIKE'] },
+            },
+          });
+          if (reciprocal) {
+            const userAId = swiperId < input.swipedId ? swiperId : input.swipedId;
+            const userBId = swiperId < input.swipedId ? input.swipedId : swiperId;
+            const existingMatch = await tx.match.findUnique({
+              where: { userAId_userBId: { userAId, userBId } },
+            });
+            if (existingMatch && !existingMatch.isActive) {
+              return {
+                swipeId: swipe.id,
+                matched: false,
+                alreadySwiped: false,
+                notificationIds,
+                matchedUser: null,
+              };
+            }
+            const match = existingMatch ??
+              (await tx.match.create({
+                data: { userAId, userBId, conversation: { create: {} } },
+              }));
+            if (!existingMatch) {
+              const [mine, theirs] = await Promise.all([
+                tx.user.findUnique({
+                  where: { id: swiperId },
+                  select: { profile: { select: { displayName: true } }, photos: { take: 1, orderBy: { position: 'asc' } } },
+                }),
+                tx.user.findUnique({
+                  where: { id: input.swipedId },
+                  select: { profile: { select: { displayName: true } }, photos: { take: 1, orderBy: { position: 'asc' } } },
+                }),
+              ]);
+              const forMe = await createNotification(tx, {
+                userId: swiperId,
+                actorId: input.swipedId,
+                type: 'MATCH',
+                entityId: match.id,
+                title: "It's a Match",
+                body: `You and ${theirs?.profile?.displayName ?? 'someone new'} liked each other.`,
+                data: { route: `/matches/${match.id}` },
+              });
+              const forThem = await createNotification(tx, {
+                userId: input.swipedId,
+                actorId: swiperId,
+                type: 'MATCH',
+                entityId: match.id,
+                title: "It's a Match",
+                body: `You and ${mine?.profile?.displayName ?? 'someone new'} liked each other.`,
+                data: { route: `/matches/${match.id}` },
+              });
+              notificationIds.push(forMe.id, forThem.id);
+              return {
+                swipeId: swipe.id,
+                matched: true,
+                matchId: match.id,
+                alreadySwiped: false,
+                notificationIds,
+                matchedUser: {
+                  displayName: theirs?.profile?.displayName ?? target.profile?.displayName ?? 'Your match',
+                  photoUrl: theirs?.photos[0]?.url ?? target.photos[0]?.url ?? null,
+                  myPhotoUrl: mine?.photos[0]?.url ?? null,
+                },
+              };
+            }
+            return {
+              swipeId: swipe.id,
+              matched: true,
+              matchId: match.id,
+              alreadySwiped: false,
+              notificationIds,
+              matchedUser: null,
+            };
+          }
+
+          const like = await createNotification(tx, {
+            userId: input.swipedId,
+            actorId: swiperId,
+            type: 'LIKE',
+            entityId: swipe.id,
+            title: input.action === 'SUPERLIKE' ? 'Someone sent a Super Like' : 'Someone likes you',
+            body: 'Open SIMP to see who is interested.',
+            data: { route: '/matches?tab=likes' },
+          });
+          notificationIds.push(like.id);
+        }
+
+        return {
           swipeId: swipe.id,
-          matched: true,
-          matchId: match.id,
-        });
-      }
-    }
+          matched: false,
+          alreadySwiped: false,
+          notificationIds,
+          matchedUser: null,
+        };
+      });
 
+      await Promise.all(result.notificationIds.map((id) => dispatchNotification(id)));
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+swipesRouter.get('/swipes/usage', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const day = utcUsageDay();
+    const [usage, entitlement] = await prisma.$transaction(async (tx) =>
+      Promise.all([
+        tx.dailyUsage.findUnique({ where: { userId_day: { userId: req.userId!, day } } }),
+        getEffectiveEntitlement(tx, req.userId!),
+      ]),
+    );
     res.json({
-      swipeId: swipe.id,
-      matched: false,
+      day,
+      likesUsed: usage?.likes ?? 0,
+      superLikesUsed: usage?.superLikes ?? 0,
+      tier: entitlement.tier,
     });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });
 
-/**
- * GET /swipes/received-notes — get the "Convince Me" notes from users who liked you
- */
 swipesRouter.get('/swipes/received-notes', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const userId = req.userId!;
+    const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit ?? '20'), 10) || 20));
     const notes = await prisma.swipe.findMany({
       where: {
-        swipedId: userId,
+        swipedId: req.userId!,
         action: { in: ['LIKE', 'SUPERLIKE'] },
         note: { not: null },
+        swiper: { status: 'ACTIVE' },
       },
       include: {
         swiper: {
@@ -124,53 +252,46 @@ swipesRouter.get('/swipes/received-notes', requireAuth, async (req: AuthedReques
         },
       },
       orderBy: { createdAt: 'desc' },
+      take: limit,
     });
-
     res.json({
-      notes: notes.map((n) => ({
-        swipeId: n.id,
-        fromUserId: n.swiperId,
-        fromName: n.swiper.profile?.displayName ?? 'Someone',
-        fromPhotoUrl: n.swiper.photos[0]?.url ?? null,
-        note: n.note,
-        createdAt: n.createdAt,
+      notes: notes.map((note) => ({
+        swipeId: note.id,
+        fromUserId: note.swiperId,
+        fromName: note.swiper.profile?.displayName ?? 'Someone',
+        fromPhotoUrl: note.swiper.photos[0]?.url ?? null,
+        note: note.note,
+        createdAt: note.createdAt,
       })),
     });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });
 
-/**
- * DELETE /swipes/:id — undo/retract a swipe you made
- *
- * If this swipe created a match (mutual like), the match is also deactivated.
- * Returns the swiped userId so the client can re-insert the profile into the deck.
- */
 swipesRouter.delete('/swipes/:id', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const userId = req.userId!;
-    const swipeId = req.params.id!;
-
-    const swipe = await prisma.swipe.findUnique({ where: { id: swipeId } });
-    if (!swipe) return res.status(404).json({ error: 'swipe_not_found' });
-    if (swipe.swiperId !== userId) return res.status(403).json({ error: 'not_your_swipe' });
-
-    const swipedId = swipe.swipedId;
-
-    const userAId = userId < swipedId ? userId : swipedId;
-    const userBId = userId < swipedId ? swipedId : userId;
-    await prisma.match
-      .update({
-        where: { userAId_userBId: { userAId, userBId } },
-        data: { isActive: false },
-      })
-      .catch(() => null);
-
-    await prisma.swipe.delete({ where: { id: swipeId } });
-
-    res.json({ ok: true, swipedId });
-  } catch (e) {
-    next(e);
+    const result = await prisma.$transaction(async (tx) => {
+      const entitlement = await getEffectiveEntitlement(tx, userId);
+      if (!entitlement.premium) {
+        throw new AppError('premium_required', 403, 'Rewind is available with SIMP+.');
+      }
+      const latest = await tx.swipe.findFirst({ where: { swiperId: userId }, orderBy: { createdAt: 'desc' } });
+      if (!latest || latest.id !== req.params.id) {
+        throw new AppError('only_latest_swipe_rewindable', 409, 'Only your latest swipe can be rewound.');
+      }
+      const userAId = userId < latest.swipedId ? userId : latest.swipedId;
+      const userBId = userId < latest.swipedId ? latest.swipedId : userId;
+      await tx.match.updateMany({
+        where: { userAId, userBId, isActive: true },
+        data: { isActive: false, deactivatedAt: new Date(), deactivatedById: userId },
+      });
+      await tx.swipe.delete({ where: { id: latest.id } });
+      return { swipedId: latest.swipedId };
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    next(error);
   }
 });

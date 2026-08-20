@@ -41,10 +41,10 @@ export function SkeletonScreen({ label = 'Loading' }: { label?: string }) {
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-black text-white">
       <div className="flex flex-col items-center gap-6 px-6">
         <div
-          className="size-16 rounded-full"
+          className="size-20 rounded-full"
           style={{
             backgroundImage:
-              'linear-gradient(90deg, rgba(212,169,58,0.0) 0%, rgba(212,169,58,0.4) 50%, rgba(212,169,58,0.0) 100%)',
+              'linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(212,169,58,0.26) 50%, rgba(255,255,255,0.04) 100%)',
             backgroundSize: '200% 100%',
             animation: 'simp-shimmer 1.6s ease-in-out infinite',
           }}

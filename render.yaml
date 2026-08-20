@@ -3,13 +3,20 @@ services:
     name: simp-backend
     plan: standard
     runtime: node
-    buildCommand: cd backend && npm install --no-audit --no-fund && npx prisma migrate deploy && npm run build
+    buildCommand: cd backend && npm ci --include=dev --no-audit --no-fund && npm run typecheck && npm run build
+    preDeployCommand: cd backend && npx prisma migrate deploy
     startCommand: cd backend && node dist/server.js
+    maxShutdownDelaySeconds: 120
+    healthCheckPath: /health/ready
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 22
       - key: PORT
         value: 4000
+      - key: APP_VERSION
+        value: 0.3.0-rc.1
       - key: DATABASE_URL
         fromDatabase:
           name: simp-db
@@ -18,32 +25,94 @@ services:
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      - key: IP_HASH_SECRET
+        generateValue: true
       - key: JWT_ACCESS_TTL
         value: 15m
       - key: JWT_REFRESH_TTL
         value: 30d
       - key: ALLOWED_ORIGINS
         value: https://simp-web.onrender.com
-      # ICE / WebRTC relay configuration. Without a TURN server, ~50% of
-      # cross-network viewers (corporate firewalls, VPNs, symmetric NATs)
-      # see a black screen. STUN-only works for open networks. See README
-      # "TURN setup" for Twilio NTS / Cloudflare Calls / self-hosted coturn.
+      - key: PUBLIC_BASE_URL
+        value: https://simp-backend-b8nz.onrender.com
+      - key: FRONTEND_URL
+        value: https://simp-web.onrender.com
+
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: simp/profile-photos
+
+      - key: EMAIL_PROVIDER
+        value: console
+      - key: EMAIL_FROM
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_WEBHOOK_URL
+        sync: false
+
+      - key: PUSH_PROVIDER
+        value: disabled
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+
       - key: STUN_URLS
         value: stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302
+      - key: TURN_PROVIDER
+        value: twilio
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
       - key: TURN_URLS
         sync: false
       - key: TURN_USERNAME
         sync: false
       - key: TURN_CREDENTIAL
         sync: false
-      - key: TURN_PROVIDER
-        sync: false
-    healthCheckPath: /health
 
-  - type: static
+      - key: FREE_DAILY_LIKES
+        value: 25
+      - key: FREE_DAILY_SUPER_LIKES
+        value: 1
+      - key: SIMP_PLUS_PRODUCT_IDS
+        value: app.simp.plus.monthly,app.simp.plus.yearly
+      - key: SIMP_ELITE_PRODUCT_IDS
+        value: app.simp.elite.monthly,app.simp.elite.yearly
+      - key: APPLE_BUNDLE_ID
+        value: app.simp.client
+      - key: APPLE_IAP_ISSUER_ID
+        sync: false
+      - key: APPLE_IAP_KEY_ID
+        sync: false
+      - key: APPLE_IAP_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_PLAY_PACKAGE_NAME
+        value: app.simp.client
+      - key: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: FEATURE_EXPERIENCES
+        value: "false"
+      - key: SENTRY_DSN
+        sync: false
+      - key: ANALYTICS_ENDPOINT
+        sync: false
+      - key: ANALYTICS_WRITE_KEY
+        sync: false
+
+  - type: web
+    runtime: static
     name: simp-web
-    plan: free
-    buildCommand: cd frontend && npm install --no-audit --no-fund && npm run build
+    buildCommand: cd frontend && npm ci --no-audit --no-fund && npm run typecheck && npm run lint && npm run build
     staticPublishPath: frontend/dist
     routes:
       - type: rewrite
@@ -52,11 +121,16 @@ services:
     envVars:
       - key: VITE_API_BASE_URL
         value: https://simp-backend-b8nz.onrender.com
+      - key: VITE_APP_VERSION
+        value: 0.3.0-rc.1
+      - key: VITE_BILLING_ENABLED
+        value: "false"
+      - key: VITE_SENTRY_DSN
+        sync: false
 
 databases:
   - name: simp-db
-  plan: basic_256mb
-  databaseName: simp_app
-  user: simp_user
-  region: oregon
-  version: 16
+    plan: basic_256mb
+    databaseName: simp_app
+    user: simp_user
+    region: oregon

@@ -82,9 +82,6 @@ const config: CapacitorConfig = {
       resizeOnFullScreen: true,
       style: 'DARK',
     },
-    SafeArea: {
-      customColorsForSystemBars: false,
-    },
   },
 };
 

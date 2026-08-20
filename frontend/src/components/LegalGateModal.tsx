@@ -3,11 +3,9 @@ import { motion } from 'framer-motion';
 import {
   acceptLegal,
   confirmAge,
-  getLegalStatus,
   getPrivacy,
   getTos,
   type LegalDocument,
-  type LegalStatus,
 } from '../api/legal';
 
 interface LegalGateModalProps {
@@ -39,7 +37,6 @@ interface LegalGateModalProps {
  * version just creates another TosAcceptance row, which is harmless).
  */
 export function LegalGateModal({ missing, onComplete, onClose }: LegalGateModalProps) {
-  const [status, setStatus] = useState<LegalStatus | null>(null);
   const [tos, setTos] = useState<LegalDocument | null>(null);
   const [privacy, setPrivacy] = useState<LegalDocument | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,12 +64,10 @@ export function LegalGateModal({ missing, onComplete, onClose }: LegalGateModalP
     }
     void (async () => {
       try {
-        const [s, t, p] = await Promise.all([
-          getLegalStatus(),
+        const [t, p] = await Promise.all([
           needsTos ? getTos() : Promise.resolve(null),
           needsPrivacy ? getPrivacy() : Promise.resolve(null),
         ]);
-        setStatus(s);
         setTos(t);
         setPrivacy(p);
       } catch (e) {

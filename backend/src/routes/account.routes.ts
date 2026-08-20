@@ -1,59 +1,54 @@
+import crypto from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import { z } from 'zod';
-import bcrypt from 'bcryptjs';
+import { env } from '../config/env.js';
 import { prisma } from '../config/db.js';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
-import { deleteCloudinaryAsset } from '../services/cloudinary.service.js';
+import { enqueueAssetDeletion } from '../services/asset-cleanup.service.js';
+import { deleteStoredPhoto } from '../services/photo.service.js';
+import { getRealtimeServer } from '../sockets/realtime.js';
+import { AppError } from '../utils/errors.js';
 
 export const accountRouter = Router();
 
-/**
- * Account deletion + data portability (GDPR Articles 15/17/20 + CCPA
- * CPRA + App Store Guideline 5.1.1(v) + Play Store Account Deletion
- * requirement).
- *
- * Both stores REQUIRE an in-app account deletion flow. Apple rejects
- * apps that only offer it via the website; Google Play requires it
- * accessible from the in-app settings screen.
- */
-
 const deleteSchema = z.object({
-  /// The user must re-enter their password to confirm. This is
-  /// industry standard for destructive actions and prevents CSRF or
-  /// stolen-token deletion.
-  password: z.string().min(1),
-  /// Optional confirmation phrase; if set, must equal exactly "DELETE"
-  /// to guard against accidental taps.
-  confirm: z.literal('DELETE').optional(),
+  password: z.string().min(1).max(128),
+  confirm: z.literal('DELETE'),
 });
+const userFingerprint = (id: string) =>
+  crypto
+    .createHmac('sha256', env.IP_HASH_SECRET ?? env.JWT_ACCESS_SECRET)
+    .update(id)
+    .digest('hex');
 
-/**
- * GET /account/me/export — GDPR Article 15 / 20 + CCPA right to know
- * + right to portability. Returns a JSON document containing every
- * piece of personal data we hold on the user, machine-readable so
- * they can take it elsewhere.
- */
 accountRouter.get('/account/me/export', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const userId = req.userId!;
-
     const [
       user,
-      profile,
       photos,
-      refreshTokens,
       interests,
+      sessions,
       swipesMade,
       swipesReceived,
-      matchesAsA,
-      matchesAsB,
+      matches,
       prompts,
       blocksMade,
       blocksReceived,
       reportsMade,
       reportsReceived,
-      streamsBroadcast,
+      streams,
       liveChatMessages,
+      liveReactions,
+      conversations,
+      notifications,
+      pushDevices,
+      notificationPreference,
+      entitlements,
+      dailyUsage,
+      verificationRequests,
+      moderationHistory,
       tosAcceptances,
     ] = await Promise.all([
       prisma.user.findUnique({
@@ -62,206 +57,212 @@ accountRouter.get('/account/me/export', requireAuth, async (req: AuthedRequest, 
           id: true,
           email: true,
           emailVerified: true,
+          emailVerifiedAt: true,
+          role: true,
+          status: true,
           createdAt: true,
           updatedAt: true,
+          onboardingStep: true,
+          onboardingCompletedAt: true,
           ageConfirmedAt: true,
+          profile: true,
+          discoveryPreference: true,
         },
       }),
-      prisma.profile.findUnique({ where: { userId } }),
-      prisma.photo.findMany({ where: { userId } }),
-      prisma.refreshToken.count({ where: { userId } }),
-      prisma.userInterest.findMany({
+      prisma.photo.findMany({
         where: { userId },
-        include: { interest: true },
+        select: { id: true, url: true, position: true, width: true, height: true, bytes: true, mimeType: true, createdAt: true },
+      }),
+      prisma.userInterest.findMany({ where: { userId }, include: { interest: true } }),
+      prisma.refreshToken.findMany({
+        where: { userId },
+        select: {
+          familyId: true,
+          deviceId: true,
+          deviceName: true,
+          platform: true,
+          createdAt: true,
+          lastUsedAt: true,
+          expiresAt: true,
+          revokedAt: true,
+        },
       }),
       prisma.swipe.findMany({
         where: { swiperId: userId },
-        select: { id: true, targetId: true, action: true, createdAt: true },
+        select: { id: true, swipedId: true, action: true, note: true, createdAt: true },
       }),
       prisma.swipe.findMany({
-        where: { targetId: userId },
-        select: { id: true, swiperId: true, action: true, createdAt: true },
+        where: { swipedId: userId },
+        select: { id: true, swiperId: true, action: true, note: true, createdAt: true },
       }),
       prisma.match.findMany({
-        where: { userAId: userId },
-        select: { id: true, userBId: true, createdAt: true, myNote: true, theirNote: true },
-      }),
-      prisma.match.findMany({
-        where: { userBId: userId },
-        select: { id: true, userAId: true, createdAt: true, myNote: true, theirNote: true },
+        where: { OR: [{ userAId: userId }, { userBId: userId }] },
+        select: {
+          id: true,
+          userAId: true,
+          userBId: true,
+          createdAt: true,
+          lastMessageAt: true,
+          isActive: true,
+          deactivatedAt: true,
+          deactivatedById: true,
+        },
       }),
       prisma.prompt.findMany({ where: { userId } }),
-      prisma.block.findMany({
-        where: { blockerId: userId },
-        select: { id: true, blockedId: true, createdAt: true },
-      }),
-      prisma.block.findMany({
-        where: { blockedId: userId },
-        select: { id: true, blockerId: true, createdAt: true },
-      }),
+      prisma.block.findMany({ where: { blockerId: userId } }),
+      prisma.block.findMany({ where: { blockedId: userId } }),
       prisma.report.findMany({
         where: { reporterId: userId },
-        select: { id: true, reportedId: true, reason: true, createdAt: true },
+        select: { id: true, reportedId: true, streamId: true, category: true, reason: true, details: true, status: true, createdAt: true },
       }),
       prisma.report.findMany({
         where: { reportedId: userId },
-        select: { id: true, reporterId: true, reason: true, createdAt: true },
+        select: { id: true, reporterId: true, streamId: true, category: true, reason: true, status: true, createdAt: true, reviewedAt: true, actionedAt: true },
       }),
-      prisma.liveStream.findMany({
-        where: { broadcasterId: userId },
-        select: { id: true, title: true, startedAt: true, endedAt: true, status: true },
+      prisma.liveStream.findMany({ where: { broadcasterId: userId } }),
+      prisma.liveChatMessage.findMany({ where: { senderId: userId } }),
+      prisma.liveReaction.findMany({ where: { userId } }),
+      prisma.conversation.findMany({
+        where: { match: { OR: [{ userAId: userId }, { userBId: userId }] } },
+        include: { messages: { orderBy: { createdAt: 'asc' } } },
       }),
-      prisma.liveChatMessage.findMany({
-        where: { senderId: userId },
-        select: { id: true, streamId: true, body: true, createdAt: true },
+      prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
+      prisma.pushToken.findMany({
+        where: { userId },
+        select: { id: true, deviceId: true, deviceName: true, platform: true, active: true, lastSeenAt: true, createdAt: true },
+      }),
+      prisma.notificationPreference.findUnique({ where: { userId } }),
+      prisma.entitlement.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          tier: true,
+          status: true,
+          platform: true,
+          productId: true,
+          transactionId: true,
+          originalTransactionId: true,
+          expiresAt: true,
+          autoRenewing: true,
+          environment: true,
+          lastVerifiedAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      prisma.dailyUsage.findMany({ where: { userId }, orderBy: { day: 'asc' } }),
+      prisma.profileVerificationRequest.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
+      prisma.moderationAction.findMany({
+        where: { targetUserId: userId },
+        select: { id: true, action: true, reason: true, metadata: true, createdAt: true },
       }),
       prisma.tosAcceptance.findMany({
         where: { userId },
         select: { id: true, type: true, version: true, acceptedAt: true, ipAddress: true, userAgent: true },
       }),
     ]);
+    if (!user) throw new AppError('user_not_found', 404, 'Account not found.');
 
     res.set('Content-Disposition', `attachment; filename="simp-data-export-${userId}.json"`);
+    res.set('Cache-Control', 'no-store');
     res.json({
       exportedAt: new Date().toISOString(),
-      schemaVersion: 1,
+      schemaVersion: 2,
       user,
-      profile,
       photos,
       interests,
-      prompts,
+      sessions,
       swipesMade,
       swipesReceived,
-      matchesAsA,
-      matchesAsB,
+      matches,
+      prompts,
       blocksMade,
       blocksReceived,
       reportsMade,
       reportsReceived,
-      streamsBroadcast,
+      streams,
       liveChatMessages,
+      liveReactions,
+      conversations,
+      notifications,
+      pushDevices,
+      notificationPreference,
+      entitlements,
+      dailyUsage,
+      verificationRequests,
+      moderationHistory,
       tosAcceptances,
-      /// Counts only (tokens themselves are hashed and not exportable;
-      /// we just tell the user how many active sessions we have on file).
-      activeSessionCount: refreshTokens,
     });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });
 
-/**
- * DELETE /account/me — hard-delete the user's account and all
- * associated personal data. Irreversible.
- *
- * Compliance rationale:
- *  - GDPR Article 17 (right to erasure): personal data is deleted.
- *  - GDPR Article 17(3)(b): retention exception applies only to
- *    financial records (kept anonymously for tax/anti-fraud) and
- *    safety reports (kept to enforce bans on repeat offenders).
- *  - App Store Guideline 5.1.1(v): in-app account deletion.
- *  - Play Store Account Deletion policy: same.
- *
- * Cleanup order:
- *   1. Photos — delete Cloudinary assets (cloud-side), then DB rows.
- *   2. Live streams — force-end any LIVE stream the user is broadcasting
- *      so other viewers don't see a dead socket.
- *   3. Cascade delete via FK constraints (swipes, matches, blocks,
- *      reports, prompts, interests, tos acceptances, etc.).
- *   4. Profile + RefreshToken + User (in this order to satisfy FK).
- *   5. Anonymized ledger row so we can prove (in a security incident)
- *      that the deletion happened, without retaining PII.
- */
 accountRouter.delete('/account/me', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
+    const { password } = deleteSchema.parse(req.body);
     const userId = req.userId!;
-    const { password, confirm } = deleteSchema.parse(req.body);
-
-    if (confirm !== 'DELETE') {
-      return res.status(400).json({
-        error: 'confirmation_required',
-        message: 'Send { "confirm": "DELETE", "password": "..." } to confirm.',
-      });
-    }
-
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, passwordHash: true, email: true },
+      select: { id: true, passwordHash: true },
     });
-    if (!user) return res.status(404).json({ error: 'user_not_found' });
+    if (!user) throw new AppError('user_not_found', 404, 'Account not found.');
+    if (!(await bcrypt.compare(password, user.passwordHash))) {
+      throw new AppError('invalid_password', 401, 'Password is incorrect.');
+    }
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: 'invalid_password' });
-
-    // 1. Delete Cloudinary photo assets (best-effort; failures are
-    //    logged but don't block deletion since the DB rows go away).
     const photos = await prisma.photo.findMany({ where: { userId } });
-    await Promise.allSettled(
-      photos
-        .map((p) => p.url)
-        .filter((u) => /res\.cloudinary\.com/.test(u))
-        .map((u) => deleteCloudinaryAsset(u))
-    );
+    const fingerprint = userFingerprint(userId);
+    const liveStreamIds = (
+      await prisma.liveStream.findMany({
+        where: { broadcasterId: userId, status: 'LIVE' },
+        select: { id: true },
+      })
+    ).map((stream) => stream.id);
 
-    // 2. Force-end any LIVE streams. Mark as ENDED so they no longer
-    //    appear in /live/streams; viewers' sockets will close on the
-    //    next ping.
-    await prisma.liveStream.updateMany({
-      where: { broadcasterId: userId, status: 'LIVE' },
-      data: { status: 'ENDED', endedAt: new Date() },
+    await prisma.$transaction(async (tx) => {
+      await Promise.all([
+        tx.report.updateMany({
+          where: { reporterId: userId },
+          data: { reporterFingerprint: fingerprint, reporterId: null },
+        }),
+        tx.report.updateMany({
+          where: { reportedId: userId },
+          data: { reportedFingerprint: fingerprint, reportedId: null },
+        }),
+        tx.moderationAction.updateMany({
+          where: { targetUserId: userId },
+          data: { targetFingerprint: fingerprint, targetUserId: null },
+        }),
+        tx.liveStream.updateMany({
+          where: { broadcasterId: userId, status: 'LIVE' },
+          data: { status: 'ENDED', endedAt: new Date(), viewerCount: 0 },
+        }),
+      ]);
+      await tx.accountDeletionReceipt.create({
+        data: {
+          userFingerprint: fingerprint,
+          photoCount: photos.length,
+          metadata: { schemaVersion: 2 },
+        },
+      });
+      await tx.user.delete({ where: { id: userId } });
     });
 
-    // 3-4. Delete in FK-safe order. Profile, interests, photos,
-    //    prompts, swipes (made + received), matches (asA + asB),
-    //    blocks, reports, liveChatMessages, tosAcceptances, refresh
-    //    tokens — all cascade from `User` via onDelete: Cascade in
-    //    the Prisma schema, but we delete the User last so the
-    //    cascade fires once.
-    await prisma.user.delete({ where: { id: userId } });
+    for (const streamId of liveStreamIds) {
+      getRealtimeServer()?.to(`stream:${streamId}`).emit('live:ended', {
+        streamId,
+        reason: 'account_deleted',
+      });
+    }
+    getRealtimeServer()?.to(`user:${userId}`).emit('account:deleted');
 
-    // 5. Anonymized deletion receipt. No PII — only counts + timestamp.
-    //    Kept for compliance audit; safe to retain.
-    console.log(
-      JSON.stringify({
-        event: 'account_deleted',
-        userId, // opaque cuid, no PII
-        emailDomain: user.email.split('@')[1] ?? null,
-        photoCount: photos.length,
-        ts: new Date().toISOString(),
-      })
-    );
-
+    for (const photo of photos) {
+      const deleted = await deleteStoredPhoto(photo);
+      if (!deleted) await enqueueAssetDeletion(photo);
+    }
     res.json({ ok: true });
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 });
-
-/**
- * POST /account/me/request-data-export — kicks off an async data
- * export and emails the user a download link. The inline GET version
- * above returns data immediately; this is for users with large
- * datasets (e.g. thousands of swipes / messages) where streaming the
- * full payload synchronously would time out.
- *
- * Scaffolded for future use; the inline GET works for current scale.
- */
-accountRouter.post(
-  '/account/me/request-data-export',
-  requireAuth,
-  async (req: AuthedRequest, res, next) => {
-    try {
-      // For now: redirect to the inline endpoint. Wire up a real
-      // email-when-ready flow when we add BullMQ or similar.
-      const userId = req.userId!;
-      res.status(202).json({
-        status: 'ready',
-        message: 'Inline export is available immediately.',
-        downloadUrl: `/account/me/export`,
-        userId,
-      });
-    } catch (e) {
-      next(e);
-    }
-  }
-);

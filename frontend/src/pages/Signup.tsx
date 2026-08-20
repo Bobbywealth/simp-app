@@ -10,10 +10,11 @@ import { useSwipeBack } from '../hooks/useSwipeBack';
 import { haptics } from '../lib/haptics';
 import { signup } from '../api/auth';
 import { useAuth } from '../store/auth';
+import { track } from '../api/analytics';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
-  password: z.string().min(8, 'At least 8 characters'),
+  password: z.string().min(10, 'At least 10 characters').regex(/[a-z]/, 'Add a lowercase letter').regex(/[A-Z]/, 'Add an uppercase letter').regex(/[0-9]/, 'Add a number'),
   displayName: z.string().min(2, 'At least 2 characters').max(40, 'Max 40 characters'),
 });
 
@@ -40,13 +41,15 @@ export default function Signup() {
       return;
     }
     setSubmitting(true);
+    void track('signup_started');
     try {
       await signup(parsed.data);
       // Force a refresh of the auth user state
       const me = await (await import('../api/auth')).me();
       setUser(me);
       haptics.success();
-      navigate('/profile-setup', { replace: true });
+      void track('signup_completed');
+      navigate('/verify-email-pending', { replace: true });
     } catch (e) {
       haptics.heavy();
       setError((e as Error).message || 'Sign up failed');
@@ -93,7 +96,7 @@ export default function Signup() {
               label="Password"
               type="password"
               autoComplete="new-password"
-              placeholder="At least 8 characters"
+              placeholder="10+ characters"
               {...register('password')}
               error={errors.password?.message}
             />
@@ -109,7 +112,7 @@ export default function Signup() {
             </Button>
 
             <p className="text-center text-xs text-white/50">
-              By creating an account, you agree to our Terms and Privacy Policy.
+              You’ll review and accept the current Terms and Privacy Policy during setup.
             </p>
           </form>
         </motion.div>
