@@ -4,6 +4,9 @@ import {
   getNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  pushSupported,
+  subscribeToWebPush,
+  unsubscribeFromWebPush,
 } from '../api/notifications';
 import type { InAppNotification } from '../types';
 import { getRealtimeSocket } from '../lib/realtime';
@@ -13,6 +16,9 @@ export default function Notifications() {
   const [items, setItems] = useState<InAppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,11 +37,56 @@ export default function Notifications() {
       setItems((current) => [notification, ...current.filter((item) => item.id !== notification.id)]);
     };
     socket.on('notification:new', onNew);
+
+    // Reflect current browser permission + existing push subscription.
+    if (pushSupported() && 'Notification' in window && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.ready
+        .then((reg) => reg.pushManager.getSubscription())
+        .then((sub) => setPushEnabled(Boolean(sub) && Notification.permission === 'granted'))
+        .catch(() => undefined);
+    }
+
+    // Service worker may post a navigate hint when a push is clicked.
+    const onSwMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; route?: string } | undefined;
+      if (data?.type === 'simp:navigate' && typeof data.route === 'string') {
+        navigate(data.route);
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', onSwMessage);
+
     return () => {
       cancelled = true;
       socket.off('notification:new', onNew);
+      navigator.serviceWorker?.removeEventListener('message', onSwMessage);
     };
-  }, []);
+  }, [navigate]);
+
+  async function handleTogglePush() {
+    setPushBusy(true);
+    setPushMessage(null);
+    try {
+      if (pushEnabled) {
+        await unsubscribeFromWebPush();
+        setPushEnabled(false);
+        setPushMessage('Notifications disabled.');
+      } else {
+        const result = await subscribeToWebPush();
+        if (result) {
+          setPushEnabled(true);
+          setPushMessage("You're subscribed. New matches and messages will alert you.");
+        } else if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+          setPushMessage('Notifications are blocked in your browser settings.');
+        } else {
+          setPushMessage('Notifications are not available on this device.');
+        }
+      }
+    } catch (err) {
+      setPushMessage((err as Error).message ?? 'Could not update notifications.');
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function open(notification: InAppNotification) {
     if (!notification.readAt) {
@@ -69,6 +120,37 @@ export default function Notifications() {
         <button type="button" onClick={() => void markAll()} className="mt-4 min-h-11 text-[10px] uppercase tracking-[0.14em] text-white/50 hover:text-white">Read all</button>
       </header>
       <main className="relative z-10 mx-auto w-full max-w-md px-4 pb-28">
+        {pushSupported() && (
+          <section className="mb-5 rounded-2xl border border-gold-400/20 bg-gold-400/[0.04] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
+                  Push Notifications
+                </p>
+                <p className="mt-1 text-sm text-white/65">
+                  {pushEnabled
+                    ? 'Get notified the moment you match or receive a message.'
+                    : 'Enable browser notifications so you never miss a match.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleTogglePush()}
+                disabled={pushBusy}
+                className={`min-h-11 shrink-0 rounded-full px-4 text-[10px] font-semibold uppercase tracking-[0.18em] transition disabled:opacity-40 ${
+                  pushEnabled
+                    ? 'border border-white/15 text-white/70 hover:bg-white/5'
+                    : 'btn-gold'
+                }`}
+              >
+                {pushBusy ? '…' : pushEnabled ? 'Disable' : 'Enable'}
+              </button>
+            </div>
+            {pushMessage && (
+              <p className="mt-3 text-[11px] text-white/45">{pushMessage}</p>
+            )}
+          </section>
+        )}
         {loading && (
           <div className="space-y-2">
             {[0, 1, 2, 3].map((item) => <div key={item} className="h-20 animate-pulse rounded-2xl bg-white/[0.05]" />)}

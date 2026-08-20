@@ -32,8 +32,16 @@ const schema = z
     RESEND_API_KEY: z.string().min(1).optional(),
     EMAIL_WEBHOOK_URL: z.string().url().optional(),
 
-    PUSH_PROVIDER: z.enum(['disabled', 'firebase']).default('disabled'),
+    PUSH_PROVIDER: z.enum(['disabled', 'firebase', 'webpush']).default('disabled'),
     FIREBASE_SERVICE_ACCOUNT_JSON: z.string().min(1).optional(),
+
+    // Web Push (VAPID). Required when PUSH_PROVIDER=webpush.
+    VAPID_PUBLIC_KEY: z.string().min(1).optional(),
+    VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+    VAPID_SUBJECT: z
+      .string()
+      .url()
+      .default('mailto:admin@simp.app'),
 
     STUN_URLS: z
       .string()
@@ -109,8 +117,14 @@ const schema = z
     } else if (!value.TURN_URLS || !value.TURN_USERNAME || !value.TURN_CREDENTIAL) {
       warnings.push('live_streaming: TURN credentials are missing — cross-network live stream viewers may see black screens');
     }
-    if (value.PUSH_PROVIDER !== 'firebase' || !value.FIREBASE_SERVICE_ACCOUNT_JSON) {
-      warnings.push('push: PUSH_PROVIDER is disabled — native push notifications will not be delivered');
+    if (value.PUSH_PROVIDER === 'firebase' && !value.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      warnings.push('push: PUSH_PROVIDER=firebase but FIREBASE_SERVICE_ACCOUNT_JSON is missing');
+    } else if (value.PUSH_PROVIDER === 'webpush') {
+      if (!value.VAPID_PUBLIC_KEY || !value.VAPID_PRIVATE_KEY) {
+        warnings.push('push: PUSH_PROVIDER=webpush but VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY is missing');
+      }
+    } else if (value.PUSH_PROVIDER === 'disabled') {
+      warnings.push('push: PUSH_PROVIDER is disabled — push notifications will not be delivered');
     }
     if (warnings.length) {
       // Persist warnings on the parsed result so /health/degraded can

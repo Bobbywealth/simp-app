@@ -596,13 +596,18 @@ model PushToken {
   userId     String
   user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   token      String       @unique
-  deviceId   String?
-  deviceName String?
-  platform   PushPlatform
-  active     Boolean      @default(true)
-  lastSeenAt DateTime     @default(now())
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  // Web Push subscription payload (endpoint + keys.p256dh + keys.auth).
+  // Stored as JSON to keep the schema simple and let the backend resend
+  // using the `web-push` library without re-deriving the structure.
+  subscription Json?
+  endpoint     String?     @unique
+  deviceId     String?
+  deviceName   String?
+  platform     PushPlatform
+  active       Boolean     @default(true)
+  lastSeenAt   DateTime    @default(now())
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
   @@index([userId, active])
   @@index([platform, active])
