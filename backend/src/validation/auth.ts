@@ -60,3 +60,38 @@ export const changePasswordSchema = z
 export type SignupInput = z.infer<typeof signupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type DeviceInput = z.infer<typeof deviceSchema>;
+
+// Sign in with Apple — the client posts the identity token Apple returned
+// (JWT) plus the user blob Apple sends ONLY on first authorization. The
+// backend verifies the JWT against Apple's published JWKs and the
+// configured APPLE_CLIENT_ID audience.
+export const appleSignInSchema = z.object({
+  identityToken: z.string().min(20).max(8192),
+  // First-time-only fields. The web/iOS SDK only forwards the user blob
+  // on the first auth, after which the server must read these from its
+  // own SocialIdentity row.
+  fullName: z.string().max(120).optional().nullable(),
+  firstName: z.string().max(60).optional().nullable(),
+  lastName: z.string().max(60).optional().nullable(),
+  email: z.string().email().max(254).optional().nullable(),
+  rawUser: z.unknown().optional(),
+  // Linking an Apple identity to an existing email/password account
+  // requires a merge token (issued via POST /auth/apple/merge-token and
+  // proved via a verification email).
+  linkToUserId: z.string().cuid().optional().nullable(),
+  linkMergeToken: z.string().min(20).max(512).optional().nullable(),
+  device: deviceSchema,
+});
+
+export type AppleSignInInput = z.infer<typeof appleSignInSchema>;
+
+// Google sign-in (optional, future). Same shape as Apple but with a
+// Google ID token instead.
+export const googleSignInSchema = z.object({
+  identityToken: z.string().min(20).max(8192),
+  linkToUserId: z.string().cuid().optional().nullable(),
+  linkMergeToken: z.string().min(20).max(512).optional().nullable(),
+  device: deviceSchema,
+});
+
+export type GoogleSignInInput = z.infer<typeof googleSignInSchema>;

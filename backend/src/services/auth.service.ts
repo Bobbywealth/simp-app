@@ -7,6 +7,7 @@ import { sendPasswordResetEmail, sendVerificationEmail } from './email.service.j
 import { hashPassword, verifyPassword } from '../utils/password.js';
 import { AppError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
+import { verifyAppleIdentityToken } from './apple-auth.service.js';
 import {
   signAccessToken,
   signRefreshToken,
@@ -359,4 +360,173 @@ async function issueTokens(userId: string, context: SessionContext = {}) {
     accessToken: signAccessToken(userId, familyId),
     refreshToken: refreshJwt,
   };
+}
+
+/**
+ * Sign in (or sign up) a user via Sign in with Apple.
+ *
+ * Flow:
+ *  1. Verify the identity token (Apple's public keys + audience check).
+ *  2. Look up an existing SocialIdentity by (provider=APPLE, subject=sub).
+ *     If found, this is a returning user — reuse their User.
+ *  3. If not found, check whether the user is trying to LINK Apple to an
+ *     existing email-based account: caller passes `linkToUserId` + a
+ *     merge token (proves they just proved ownership of that account).
+ *  4. Otherwise, create a brand-new User using either the verified
+ *     email (first-auth only) or a synthetic relay-safe placeholder.
+ *
+ * The function returns the standard auth token bundle plus a flag
+ * `isNewUser` so the frontend can route into onboarding.
+ */
+export async function appleSignIn(
+  input: {
+    identityToken: string;
+    fullName?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    rawUser?: unknown;
+    linkToUserId?: string | null;
+    linkMergeToken?: string | null;
+    device?: DeviceInput;
+  },
+  context: SessionContext = {},
+) {
+  const expectedAudience = env.APPLE_CLIENT_ID;
+  if (!expectedAudience) {
+    // The Apple auth flow is misconfigured on the server. Surface a 503
+    // (not 401) so the client knows it's a deploy problem, not a bad
+    // token.
+    throw new AuthError(
+      'apple_signin_unavailable',
+      503,
+      'Sign in with Apple is not configured on this server.',
+    );
+  }
+  const claims = await verifyAppleIdentityToken({
+    identityToken: input.identityToken,
+    expectedAudience,
+  });
+
+  // Returning user: identity is already linked.
+  const existing = await prisma.socialIdentity.findUnique({
+    where: {
+      provider_subject: { provider: 'APPLE', subject: claims.subject },
+    },
+    include: { user: true },
+  });
+
+  if (existing) {
+    assertAccountCanAuthenticate(existing.user);
+    await prisma.socialIdentity.update({
+      where: { id: existing.id },
+      data: { lastSeenAt: new Date() },
+    });
+    return {
+      ...(await issueTokens(existing.userId, { ...context, device: input.device ?? context.device })),
+      userId: existing.userId,
+      isNewUser: false,
+      needsOnboarding: existing.user.onboardingCompletedAt == null,
+      linked: false,
+    };
+  }
+
+  // Linking an Apple identity to an existing email/password account.
+  if (input.linkToUserId && input.linkMergeToken) {
+    try {
+      await consumeAuthActionToken(
+        input.linkMergeToken,
+        'APPLE_ACCOUNT_MERGE',
+        async () => {
+          /* no-op: we just need to verify and burn the token */
+        },
+      );
+    } catch {
+      throw new AuthError(
+        'invalid_merge_token',
+        401,
+        'Merge link expired. Please re-authenticate.',
+      );
+    }
+    const targetUser = await prisma.user.findUnique({ where: { id: input.linkToUserId } });
+    if (!targetUser) {
+      throw new AuthError('user_not_found', 404, 'Account not found.');
+    }
+    assertAccountCanAuthenticate(targetUser);
+    await prisma.socialIdentity.create({
+      data: {
+        userId: targetUser.id,
+        provider: 'APPLE',
+        subject: claims.subject,
+        email: input.email ?? claims.email,
+        emailVerified: claims.emailVerified,
+        displayName: input.fullName ?? ((`${input.firstName ?? ''} ${input.lastName ?? ''}`).trim() || null),
+        rawProfile: (input.rawUser as object | null) ?? (claims.rawClaims as object),
+      },
+    });
+    return {
+      ...(await issueTokens(targetUser.id, { ...context, device: input.device ?? context.device })),
+      userId: targetUser.id,
+      isNewUser: false,
+      needsOnboarding: targetUser.onboardingCompletedAt == null,
+      linked: true,
+    };
+  }
+
+  // New user: create an account.
+  const fallbackEmail = claims.email ?? `${claims.subject}@appleid.sim-p.app`;
+  // Apple's relay emails are not safe to expose to other users; for the
+  // canonical User.email we use a synthetic internal placeholder so
+  // SIMP never shows `@privaterelay.appleid.com` to anyone.
+  const canonicalEmail = claims.isPrivateRelay
+    ? `apple-${claims.subject.slice(0, 12)}@sim-p.app`
+    : (claims.email ?? (fallbackEmail as string));
+
+  const displayName =
+    input.fullName?.trim() ||
+    [input.firstName, input.lastName].filter(Boolean).join(' ').trim() ||
+    'SIMP Member';
+
+  const user = await prisma.user.create({
+    data: {
+      email: canonicalEmail.toLowerCase(),
+      // No password — sign in via Apple only. We still populate the column
+      // with a random bcrypt hash so account-takeover via password reset
+      // is impossible without also proving Apple identity.
+      passwordHash: await hashPassword(crypto.randomBytes(32).toString('hex')),
+      emailVerified: claims.emailVerified || !claims.isPrivateRelay,
+      onboardingState: { displayName },
+      onboardingStep: 1,
+      notificationPreference: { create: {} },
+      discoveryPreference: { create: {} },
+      socialIdentities: {
+        create: {
+          provider: 'APPLE',
+          subject: claims.subject,
+          email: input.email ?? claims.email,
+          emailVerified: claims.emailVerified,
+          displayName,
+          rawProfile: (input.rawUser as object | null) ?? (claims.rawClaims as object),
+        },
+      },
+    },
+  });
+
+  return {
+    ...(await issueTokens(user.id, { ...context, device: input.device ?? context.device })),
+    userId: user.id,
+    isNewUser: true,
+    needsOnboarding: true,
+    linked: false,
+  };
+}
+
+/**
+ * Issue a short-lived merge token that lets a returning user prove
+ * ownership of an existing account before linking their Apple identity
+ * to it. Sent in the verification email when the user picks "Link
+ * existing SIMP account" from the Apple sign-in screen.
+ */
+export async function issueAppleMergeToken(userId: string) {
+  return createAuthActionToken(userId, 'APPLE_ACCOUNT_MERGE', 15 * 60 * 1_000);
 }

@@ -58,9 +58,18 @@ const schema = z
     SIMP_PLUS_PRODUCT_IDS: z.string().default('app.simp.plus.monthly,app.simp.plus.yearly'),
     SIMP_ELITE_PRODUCT_IDS: z.string().default('app.simp.elite.monthly,app.simp.elite.yearly'),
     APPLE_BUNDLE_ID: z.string().default('app.simp.client'),
+    // Sign in with Apple — the App ID or Service ID whose audience claim
+    // will be present in identity tokens sent to the backend. Required
+    // for App Store compliance: any app that supports a third-party login
+    // must also offer Sign in with Apple, and Apple verifies the JWT
+    // audience matches this value.
+    APPLE_CLIENT_ID: z.string().optional(),
     APPLE_IAP_ISSUER_ID: z.string().optional(),
     APPLE_IAP_KEY_ID: z.string().optional(),
     APPLE_IAP_PRIVATE_KEY: z.string().optional(),
+    // Google sign-in (optional, future). Server-side client id used to
+    // verify Google ID tokens.
+    GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_PLAY_PACKAGE_NAME: z.string().default('app.simp.client'),
     GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: z.string().optional(),
 

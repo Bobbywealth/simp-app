@@ -12,10 +12,17 @@ import { AppError } from '../utils/errors.js';
 
 export const accountRouter = Router();
 
-const deleteSchema = z.object({
-  password: z.string().min(1).max(128),
-  confirm: z.literal('DELETE'),
-});
+// Account deletion — Apple-only users (no password) are authenticated via
+// their existing access token + the typed `DELETE` confirmation. Email
+// + password users must also re-enter their password.
+const deleteSchema = z
+  .object({
+    password: z.string().min(1).max(128).optional(),
+    confirm: z.literal('DELETE'),
+  })
+  .refine((value) => value.password !== undefined || value.password === undefined, {
+    message: 'password is optional; the access token + confirmation are enough for OAuth-only users',
+  });
 const userFingerprint = (id: string) =>
   crypto
     .createHmac('sha256', env.IP_HASH_SECRET ?? env.JWT_ACCESS_SECRET)
@@ -204,11 +211,28 @@ accountRouter.delete('/account/me', requireAuth, async (req: AuthedRequest, res,
     const userId = req.userId!;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, passwordHash: true },
+      select: {
+        id: true,
+        passwordHash: true,
+        socialIdentities: { select: { provider: true } },
+      },
     });
     if (!user) throw new AppError('user_not_found', 404, 'Account not found.');
-    if (!(await bcrypt.compare(password, user.passwordHash))) {
-      throw new AppError('invalid_password', 401, 'Password is incorrect.');
+
+    // Password check is only required if the user has a real password
+    // (i.e. signed up via email). Apple-only users have a random hash and
+    // rely on their access token + typed confirmation as proof.
+    const hasSocialLogin = user.socialIdentities.length > 0;
+    if (password) {
+      if (!(await bcrypt.compare(password, user.passwordHash))) {
+        throw new AppError('invalid_password', 401, 'Password is incorrect.');
+      }
+    } else if (!hasSocialLogin) {
+      throw new AppError(
+        'password_required',
+        400,
+        'Please enter your password to confirm account deletion.',
+      );
     }
 
     const photos = await prisma.photo.findMany({ where: { userId } });
@@ -266,3 +290,73 @@ accountRouter.delete('/account/me', requireAuth, async (req: AuthedRequest, res,
     next(error);
   }
 });
+
+// Social identities: list what's currently linked so the user can see
+// and unlink providers from the account settings page.
+accountRouter.get('/account/me/identities', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const identities = await prisma.socialIdentity.findMany({
+      where: { userId: req.userId! },
+      select: {
+        id: true,
+        provider: true,
+        email: true,
+        displayName: true,
+        linkedAt: true,
+        lastSeenAt: true,
+      },
+      orderBy: { linkedAt: 'asc' },
+    });
+    res.json({ identities });
+  } catch (error) {
+    next(error);
+  }
+});
+
+accountRouter.delete(
+  '/account/me/identities/:provider',
+  requireAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const provider = String(req.params.provider).toUpperCase();
+      if (provider !== 'APPLE' && provider !== 'GOOGLE') {
+        throw new AppError('unsupported_provider', 400, 'Unsupported provider.');
+      }
+      // Don't let a user unlink their ONLY login method — otherwise they
+      // can't get back into their account to delete it.
+      const remaining = await prisma.socialIdentity.count({
+        where: { userId: req.userId!, provider },
+      });
+      if (remaining === 0) {
+        throw new AppError(
+          'identity_not_linked',
+          404,
+          'That account is not linked.',
+        );
+      }
+      const passwordUser = await prisma.user.findUnique({
+        where: { id: req.userId! },
+        select: { passwordHash: true },
+      });
+      const hasPassword = passwordUser
+        ? !passwordUser.passwordHash.startsWith('$2a$12$QJ8f/6I0iDq2aOrxcmrKQ')
+        : false;
+      const otherIdentities = await prisma.socialIdentity.count({
+        where: { userId: req.userId!, NOT: { provider } },
+      });
+      if (!hasPassword && otherIdentities === 0) {
+        throw new AppError(
+          'cannot_unlink_only_login',
+          400,
+          'Set a password before unlinking your only sign-in method.',
+        );
+      }
+      await prisma.socialIdentity.deleteMany({
+        where: { userId: req.userId!, provider },
+      });
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  },
+);

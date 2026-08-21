@@ -47,6 +47,12 @@ enum AccountStatus {
 enum AuthTokenType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+  APPLE_ACCOUNT_MERGE
+}
+
+enum SocialProvider {
+  APPLE
+  GOOGLE
 }
 
 enum VerificationStatus {
@@ -174,6 +180,7 @@ model User {
   photos                    Photo[]
   refreshTokens             RefreshToken[]
   authActionTokens          AuthActionToken[]
+  socialIdentities           SocialIdentity[]
   interests                 UserInterest[]
   swipesMade                Swipe[]                      @relation("SwipesMade")
   swipesReceived            Swipe[]                      @relation("SwipesReceived")
@@ -328,6 +335,31 @@ model AuthActionToken {
   createdAt DateTime      @default(now())
 
   @@index([userId, type, expiresAt])
+}
+
+// Social identity rows. Each provider has its own stable `subject` (Apple
+// `sub`, Google `sub`); we never trust the raw email from the provider
+// because Apple issues a private-relay address that can change. The User
+// row owns the canonical account; identities can be linked / unlinked.
+model SocialIdentity {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider      SocialProvider
+  subject       String
+  // Cached at link time. For Apple, this is the private relay address
+  // (`xyz@privaterelay.appleid.com`); it is not used for login lookup.
+  email         String?
+  emailVerified Boolean          @default(false)
+  displayName   String?
+  // Provider-supplied raw user blob (decoded JWT `user` field for Apple,
+  // Google ID token claims for Google). Stored for audit only.
+  rawProfile    Json?
+  linkedAt      DateTime         @default(now())
+  lastSeenAt    DateTime         @default(now())
+
+  @@unique([provider, subject])
+  @@index([userId, provider])
 }
 
 model Swipe {

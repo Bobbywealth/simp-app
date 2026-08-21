@@ -5,7 +5,8 @@ import { useForm } from 'react-hook-form';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { SimpLogo } from '../components/SimpLogo';
-import { login, me } from '../api/auth';
+import AppleSignInButton, { type AppleCredential } from '../components/AppleSignInButton';
+import { appleSignIn, login, me } from '../api/auth';
 import { useAuth } from '../store/auth';
 
 type FormValues = { email: string; password: string };
@@ -53,6 +54,41 @@ export default function Login() {
       setSubmitting(false);
     }
   };
+
+  // Sign in with Apple — required by App Store guideline 4.8 (any app
+  // that supports a third-party login must offer Sign in with Apple).
+  // The backend verifies the JWT against Apple's published JWKs.
+  const handleAppleSuccess = async (cred: AppleCredential) => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await appleSignIn({
+        identityToken: cred.identityToken,
+        fullName: cred.fullName,
+        firstName: cred.firstName,
+        lastName: cred.lastName,
+        email: cred.email,
+        rawUser: cred.rawUser,
+      });
+      const meData = await me();
+      setUser(meData);
+      if (result.isNewUser || !meData.profile || !meData.onboardingCompletedAt) {
+        navigate('/profile-setup', { replace: true });
+      } else if (!meData.emailVerified) {
+        navigate('/verify-email-pending', { replace: true });
+      } else {
+        navigate('/home', { replace: true });
+      }
+    } catch (e) {
+      setError((e as Error).message || 'Apple sign-in failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const appleClientId = import.meta.env.VITE_APPLE_CLIENT_ID;
+  const showApple = Boolean(appleClientId);
+  const appleClientIdValue = appleClientId ?? '';
 
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
@@ -107,6 +143,25 @@ export default function Login() {
               Log in
             </Button>
           </form>
+
+          {showApple && (
+            <div className="mt-6">
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">or</span>
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+              <div className="mt-4">
+                <AppleSignInButton
+                  clientId={appleClientIdValue}
+                  mode="sign-in"
+                  onSuccess={handleAppleSuccess}
+                  onError={(e) => setError((e as Error)?.message ?? 'Apple sign-in failed')}
+                  disabled={submitting}
+                />
+              </div>
+            </div>
+          )}
         </motion.div>
 
         <div className="pb-safe py-6 text-center text-sm text-white/60">

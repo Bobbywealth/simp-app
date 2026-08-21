@@ -83,9 +83,12 @@ export function createApp() {
 
   app.use('/auth/signup', limiter(60 * 60_000, 5));
   app.use('/auth/login', limiter(15 * 60_000, 10));
+  app.use('/auth/apple', limiter(15 * 60_000, 15));
+  app.use('/auth/apple/merge-token', limiter(60 * 60_000, 5));
   app.use('/auth/forgot-password', limiter(60 * 60_000, 5));
   app.use('/auth/resend-verification', limiter(60 * 60_000, 3));
   app.use('/auth/refresh', limiter(5 * 60_000, 30));
+  app.use('/account/me', limiter(60 * 60_000, 3));
   app.use('/swipes', limiter(60_000, 60));
   app.use('/photos/upload', limiter(60_000, 6));
   app.use('/reports', limiter(60 * 60_000, 10));

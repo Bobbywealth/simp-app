@@ -30,6 +30,44 @@ export async function login(input: { email: string; password: string }) {
   return result;
 }
 
+/**
+ * Sign in (or sign up) with Apple. The client receives an identity
+ * token from the Apple ID SDK and forwards it to the backend, which
+ * verifies the JWT against Apple's published JWKs and either signs
+ * the user in, creates a new account, or links the Apple identity
+ * to an existing SIMP account.
+ */
+export async function appleSignIn(input: {
+  identityToken: string;
+  fullName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  rawUser?: unknown;
+  linkToUserId?: string;
+  linkMergeToken?: string;
+}) {
+  const device = await getDeviceContext();
+  const result = await apiFetch<AuthResult & { isNewUser: boolean; needsOnboarding: boolean }>(
+    '/auth/apple',
+    {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify({ ...input, device }),
+    },
+  );
+  await setTokens(result.accessToken, result.refreshToken);
+  return result;
+}
+
+/** Issue a one-time merge token for linking Apple to an existing account. */
+export async function requestAppleMergeToken() {
+  return apiFetch<{ mergeToken: string; expiresInSeconds: number }>(
+    '/auth/apple/merge-token',
+    { method: 'POST' },
+  );
+}
+
 export async function logout() {
   const refreshToken = getRefreshToken();
   const device = await getDeviceContext();

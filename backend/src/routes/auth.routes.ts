@@ -6,6 +6,7 @@ import { refreshTtlMs } from '../utils/jwt.js';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import * as authService from '../services/auth.service.js';
 import {
+  appleSignInSchema,
   changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
@@ -154,6 +155,40 @@ authRouter.post('/change-password', requireAuth, async (req: AuthedRequest, res,
     next(error);
   }
 });
+
+// Sign in with Apple. The client posts the JWT returned by
+// AuthenticationServices (iOS) or the AppleID JS SDK (web). The
+// backend verifies the JWT against Apple's published JWKs and either
+// signs the user in, creates a new account, or links the Apple
+// identity to an existing email/password account (when a merge token
+// is supplied).
+authRouter.post('/apple', async (req, res, next) => {
+  try {
+    const input = appleSignInSchema.parse(req.body);
+    const result = await authService.appleSignIn(input, contextFor(req, input.device));
+    return tokenResponse(res, result.isNewUser ? 201 : 200, result, input.device?.platform);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Issue a short-lived merge token so a user with an existing SIMP
+// account can link Apple to it without a verification email round
+// trip. The frontend collects this token after the user proves they
+// own the existing account (e.g. by re-entering their password) and
+// then posts it on the next /auth/apple call as `linkToUserId` + `linkMergeToken`.
+authRouter.post(
+  '/apple/merge-token',
+  requireAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const token = await authService.issueAppleMergeToken(req.userId!);
+      res.json({ mergeToken: token, expiresInSeconds: 15 * 60 });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 authRouter.get('/sessions', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
