@@ -175,6 +175,9 @@ export default defineConfig({
             ],
           },
         },
+        // Newer manifest fields — vite-plugin-pwa types don't yet include these,
+        // so cast the rest as `any`. They pass through into the generated
+        // manifest.webmanifest as plain JSON.
         widgets: [
           {
             name: 'SIMP Matches',
@@ -230,7 +233,7 @@ export default defineConfig({
             },
           },
         ],
-      },
+      } as any,
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
