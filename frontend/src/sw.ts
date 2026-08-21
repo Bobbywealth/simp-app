@@ -84,7 +84,7 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
 
 // Periodic Background Sync — let the browser wake the SW on a schedule
 // to refresh cached data. Tagged so we can register from the app.
-self.addEventListener('periodicsync', (event: PeriodicSyncEvent) => {
+self.addEventListener('periodicsync', (event: ExtendableEvent & { tag?: string }) => {
   if (event.tag === 'simp-refresh') {
     event.waitUntil(
       (async () => {
@@ -101,7 +101,7 @@ self.addEventListener('periodicsync', (event: PeriodicSyncEvent) => {
 });
 
 // Background Sync — replay queued writes when the device comes back online.
-self.addEventListener('sync', (event: SyncEvent) => {
+self.addEventListener('sync', (event: ExtendableEvent & { tag?: string; waitUntil: (p: Promise<unknown>) => void }) => {
   if (event.tag === 'simp-replay') {
     event.waitUntil(
       (async () => {
