@@ -11,7 +11,10 @@ export type AnalyticsEvent =
   | 'stream_started'
   | 'stream_viewed'
   | 'premium_screen_viewed'
-  | 'subscription_started';
+  | 'subscription_started'
+  | 'subscription_completed'
+  | 'subscription_failed'
+  | 'subscription_restored';
 
 export const track = (
   event: AnalyticsEvent,

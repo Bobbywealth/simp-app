@@ -27,3 +27,20 @@ export const verifyGooglePurchase = (purchaseToken: string, productId?: string) 
     method: 'POST',
     body: JSON.stringify({ purchaseToken, productId }),
   });
+
+/** Re-validate an existing entitlement by originalTransactionId. */
+export const refreshAppleEntitlement = (input: {
+  originalTransactionId: string;
+  environment?: 'Production' | 'Sandbox';
+}) =>
+  apiFetch<{ entitlement: Record<string, unknown> }>('/billing/apple/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ environment: 'Production', ...input }),
+  });
+
+/** Restore purchases — pass every originalTransactionId we have cached. */
+export const restoreApplePurchases = (originalTransactionIds: string[]) =>
+  apiFetch<{ restored: number }>('/billing/apple/restore', {
+    method: 'POST',
+    body: JSON.stringify({ originalTransactionIds }),
+  });

@@ -86,6 +86,10 @@ export function createApp() {
   app.use('/auth/login', limiter(15 * 60_000, 10));
   app.use('/auth/apple', limiter(15 * 60_000, 15));
   app.use('/auth/apple/merge-token', limiter(60 * 60_000, 5));
+  app.use('/billing/apple/refresh', limiter(60 * 60_000, 12));
+  app.use('/billing/apple/restore', limiter(60 * 60_000, 6));
+  // No rate limit on /billing/apple/notifications — it's an Apple-to-us
+  // webhook, never user-initiated. Brute-force protection at the firewall.
   app.use('/auth/forgot-password', limiter(60 * 60_000, 5));
   app.use('/auth/resend-verification', limiter(60 * 60_000, 3));
   app.use('/auth/refresh', limiter(5 * 60_000, 30));
