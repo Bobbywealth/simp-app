@@ -1,0 +1,12 @@
+{
+  "name": "SIMP Matches",
+  "short_name": "Matches",
+  "description": "Your latest matches at a glance.",
+  "template": "default",
+  "data": {
+    "title": "Your matches",
+    "matches": [
+      { "name": "Recent match", "status": "new" }
+    ]
+  }
+}

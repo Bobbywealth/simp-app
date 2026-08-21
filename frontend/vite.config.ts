@@ -15,7 +15,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
-      injectRegister: null,
+      injectRegister: 'inline',
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
@@ -57,9 +57,23 @@ export default defineConfig({
         scope: '/',
         start_url: '/?utm_source=pwa',
         prefer_related_applications: false,
-        related_applications: [],
+        related_applications: [
+          {
+            platform: 'itunes',
+            url: 'https://apps.apple.com/app/simp/id000000000',
+            id: 'app.simp.client',
+          },
+          {
+            platform: 'play',
+            url: 'https://play.google.com/store/apps/details?id=app.simp.client',
+            id: 'app.simp.client',
+          },
+        ],
         iarc_rating_id: 'fb48fbb8-31a6-4d8b-9f6e-7e8e3f3f3f3f',
-        scope_extensions: [],
+        scope_extensions: [
+          { origin: 'https://simp.app', scope: '/' },
+          { origin: 'https://api.simp.app', scope: '/' },
+        ],
         icons: [
           {
             src: '/icons/icon-192.png',
@@ -96,14 +110,14 @@ export default defineConfig({
           },
           {
             src: '/screenshots/home-mobile.png',
-            sizes: '1170x2532',
+            sizes: '1290x2796',
             type: 'image/png',
             form_factor: 'narrow',
             label: 'SIMP home — curated matches and live moments.',
           },
           {
             src: '/screenshots/discover-mobile.png',
-            sizes: '1170x2532',
+            sizes: '1179x2556',
             type: 'image/png',
             form_factor: 'narrow',
             label: 'SIMP discover — swipe through verified members.',

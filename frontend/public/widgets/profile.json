@@ -1,0 +1,10 @@
+{
+  "name": "SIMP Profile",
+  "short_name": "Profile",
+  "description": "Quick view of your SIMP profile.",
+  "template": "default",
+  "data": {
+    "title": "Your profile",
+    "completeness": 0
+  }
+}
