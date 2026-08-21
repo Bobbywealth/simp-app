@@ -1,12 +1,25 @@
 {
-  "name": "SIMP Matches",
-  "short_name": "Matches",
-  "description": "Your latest matches at a glance.",
-  "template": "default",
-  "data": {
-    "title": "Your matches",
-    "matches": [
-      { "name": "Recent match", "status": "new" }
-    ]
-  }
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Your matches",
+      "weight": "Bolder",
+      "size": "Medium"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Recent match nearby",
+      "wrap": true
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.OpenUrl",
+      "title": "View all",
+      "url": "https://simp-web.onrender.com/matches"
+    }
+  ]
 }

@@ -52,6 +52,7 @@ export default defineConfig({
         display_override: [
           'standalone',
           'window-controls-overlay',
+          'tabbed',
         ],
         orientation: 'portrait',
         scope: '/',
@@ -71,8 +72,8 @@ export default defineConfig({
         ],
         iarc_rating_id: 'fb48fbb8-31a6-4d8b-9f6e-7e8e3f3f3f3f',
         scope_extensions: [
-          { origin: 'https://simp.app', scope: '/' },
-          { origin: 'https://api.simp.app', scope: '/' },
+          { origin: 'https://simp.app' },
+          { origin: 'https://api.simp.app' },
         ],
         icons: [
           {

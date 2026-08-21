@@ -1,10 +1,25 @@
 {
-  "name": "SIMP Profile",
-  "short_name": "Profile",
-  "description": "Quick view of your SIMP profile.",
-  "template": "default",
-  "data": {
-    "title": "Your profile",
-    "completeness": 0
-  }
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Your profile",
+      "weight": "Bolder",
+      "size": "Medium"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Update your SIMP profile.",
+      "wrap": true
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.OpenUrl",
+      "title": "Open profile",
+      "url": "https://simp-web.onrender.com/profile"
+    }
+  ]
 }

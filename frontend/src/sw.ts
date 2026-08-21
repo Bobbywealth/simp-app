@@ -81,3 +81,43 @@ self.addEventListener('install', () => {
 self.addEventListener('activate', (event: ExtendableEvent) => {
   event.waitUntil(self.clients.claim());
 });
+
+// Periodic Background Sync — let the browser wake the SW on a schedule
+// to refresh cached data. Tagged so we can register from the app.
+self.addEventListener('periodicsync', (event: PeriodicSyncEvent) => {
+  if (event.tag === 'simp-refresh') {
+    event.waitUntil(
+      (async () => {
+        try {
+          const fresh = await fetch('/api/discovery?refresh=1', { credentials: 'include' });
+          const cache = await caches.open('simp-data');
+          await cache.put('/api/discovery', fresh.clone());
+        } catch {
+          // best-effort; no-op on failure
+        }
+      })(),
+    );
+  }
+});
+
+// Background Sync — replay queued writes when the device comes back online.
+self.addEventListener('sync', (event: SyncEvent) => {
+  if (event.tag === 'simp-replay') {
+    event.waitUntil(
+      (async () => {
+        const cache = await caches.open('simp-queue');
+        const queued = await cache.keys();
+        for (const req of queued) {
+          try {
+            const body = await cache.match(req);
+            if (!body) continue;
+            await fetch(req.clone(), { method: req.method, body: await body.text(), credentials: 'include' });
+            await cache.delete(req);
+          } catch {
+            // leave in queue for next attempt
+          }
+        }
+      })(),
+    );
+  }
+});
