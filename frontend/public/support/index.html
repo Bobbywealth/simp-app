@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SIMP — Support</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="SIMP support — how to get help with your account, billing, safety, and technical issues." />
+    <meta name="theme-color" content="#000000" />
+    <link rel="canonical" href="https://simp-web.onrender.com/support/" />
+    <style>
+      :root { color-scheme: dark; }
+      body { background:#0a0a0a; color:#f5f1ea; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter",system-ui,sans-serif; margin:0; line-height:1.65; }
+      main { max-width:720px; margin:0 auto; padding:48px 24px 96px; }
+      h1 { font-weight:300; font-size:38px; letter-spacing:-0.02em; margin:0 0 8px; }
+      h2 { font-weight:500; font-size:22px; margin:40px 0 12px; color:#d4a93a; }
+      h3 { font-weight:500; font-size:17px; margin:28px 0 8px; color:#e6c772; }
+      p { margin:12px 0; }
+      a { color:#d4a93a; }
+      ul { padding-left:22px; }
+      li { margin:8px 0; }
+      .meta { color:#a59b87; font-size:14px; margin-bottom:24px; }
+      .card { background:#181612; border-left:3px solid #d4a93a; padding:16px 20px; margin:16px 0; border-radius:0 8px 8px 0; }
+      .back { display:inline-block; margin-bottom:24px; color:#d4a93a; text-decoration:none; font-size:13px; }
+      .footer { margin-top:64px; color:#a59b87; font-size:13px; border-top:1px solid #2a2519; padding-top:24px; }
+      code { background:#2a2519; color:#e6c772; padding:2px 6px; border-radius:4px; font-family:"SF Mono",Menlo,Consolas,monospace; font-size:13px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="back" href="/">← Back to SIMP</a>
+      <h1>SIMP Support</h1>
+      <p class="meta">Last updated: 2026-08-21</p>
+
+      <div class="card">
+        <strong>Need help right now?</strong><br />
+        The fastest way to get help is from inside the app: <em>Settings → Help &amp; Support → Contact us</em>. This routes your message to the right team automatically — billing questions go to the Billing team, safety reports go to Trust &amp; Safety, and so on. Replies typically arrive within 24 hours, faster for billing and safety.
+      </div>
+
+      <h2>1. Account &amp; sign-in</h2>
+      <ul>
+        <li><strong>I can't sign in.</strong> Try the password-reset flow at <a href="/forgot-password">/forgot-password</a>. If you signed up with Apple ID and don't remember which Apple ID you used, go to <em>Settings → Apple ID → iCloud → Sign in &amp; Security → Apps Using Apple ID</em>.</li>
+        <li><strong>I want to change my email.</strong> <em>Settings → Account → Email</em>. For Apple-only accounts, we use a private-relay email, so you'll need to add a password first or contact support.</li>
+        <li><strong>My account is locked.</strong> Too many failed sign-in attempts. It unlocks automatically after 30 minutes, or you can reset your password to unlock immediately.</li>
+      </ul>
+
+      <h2>2. Billing &amp; subscriptions (SIMP+ / SIMP Elite)</h2>
+      <p>
+        All SIMP subscriptions are processed by Apple's App Store. SIMP never sees your payment card.
+      </p>
+      <ul>
+        <li><strong>How to subscribe</strong>: open the app → <em>Settings → SIMP+</em> (or <em>SIMP Elite</em>) → confirm the subscription in the App Store sheet.</li>
+        <li><strong>How to cancel</strong>: iPhone → <em>Settings → Apple ID → Subscriptions → SIMP</em> → Cancel subscription. You keep premium features until the end of the current billing period.</li>
+        <li><strong>How to restore a purchase</strong>: open the app → <em>Settings → SIMP+ → Restore purchases</em>. Required when you get a new device or reinstall the app.</li>
+        <li><strong>Refund requests</strong>: handled by Apple. <a href="https://support.apple.com/en-us/HT207594">Request a refund here</a>. SIMP cannot issue refunds directly because we never receive your payment information.</li>
+        <li><strong>Charge dispute</strong>: if you see a charge you don't recognize, contact <a href="mailto:billing@sim-p.app">billing@sim-p.app</a> first — we'll identify it within one business day. If it turns out to be unauthorized, we'll help you file a chargeback with your bank.</li>
+      </ul>
+
+      <h2>3. Safety &amp; Trust</h2>
+      <ul>
+        <li><strong>Report a user</strong>: open their profile → ⋯ → <em>Report</em>. Choose a reason. Reports are reviewed by humans within 24 hours.</li>
+        <li><strong>Block a user</strong>: open their profile → � → <em>Block</em>. They will not appear in your discovery and cannot message you.</li>
+        <li><strong>I'm in immediate danger</strong>: <strong>call 911 (US), 999 (UK), or your local emergency number first.</strong> Then use the in-app <em>Report</em> to flag the user. SIMP Trust &amp; Safety is on call 24/7 for imminent-harm reports.</li>
+        <li><strong>Someone is pressuring me for money, gifts, or intimate images.</strong> This is always a scam. Stop responding, block, and report. Read our <a href="/safety/">Safety Center</a> for the full playbook.</li>
+        <li><strong>Under-18 user</strong>: report them via the in-app <em>Report</em> with reason "Underage." We remove the account and all associated data within 24 hours.</li>
+      </ul>
+
+      <h2>4. Technical issues</h2>
+      <ul>
+        <li><strong>The app crashes on launch</strong>: force-quit → reopen. If it persists, reinstall (your data is on the server, not the device). If it still persists, contact <a href="mailto:support@sim-p.app">support@sim-p.app</a> with your device model + iOS version.</li>
+        <li><strong>I don't get push notifications</strong>: iPhone → <em>Settings → Notifications → SIMP</em> → enable <em>Allow notifications</em>. In-app → <em>Settings → Notifications</em> → make sure each category is on.</li>
+        <li><strong>Live stream is black for the viewer</strong>: usually a network firewall blocking WebRTC. We use Twilio's TURN relay for cross-network connectivity — if the issue persists, report the stream.</li>
+        <li><strong>Photos won't upload</strong>: usually a storage or network issue. We store photos on Cloudinary; if upload fails, retry after a moment or switch networks.</li>
+      </ul>
+
+      <h2>5. Privacy &amp; data</h2>
+      <ul>
+        <li><strong>Export my data</strong>: <em>Settings → Privacy → Export my data</em>. You'll receive a JSON archive within 7 days.</li>
+        <li><strong>Delete my account</strong>: <em>Settings → Privacy → Delete account</em>. Confirmation is required. Deletion completes within 30 days.</li>
+        <li><strong>Privacy questions</strong>: <a href="mailto:privacy@sim-p.app">privacy@sim-p.app</a>. See the full <a href="/privacy/">Privacy Policy</a>.</li>
+      </ul>
+
+      <h2>6. Reporting content / DMCA</h2>
+      <p>
+        If you believe content on SIMP infringes your copyright, send a DMCA notice to <a href="mailto:dmca@sim-p.app">dmca@sim-p.app</a> with: (a) identification of the copyrighted work, (b) the URL or screenshot of the allegedly infringing material, (c) your contact info, (d) a good-faith statement, (e) a statement under penalty of perjury that the notice is accurate and you are authorized to act for the copyright owner, and (f) your physical or electronic signature.
+      </p>
+
+      <h2>7. Contact by channel</h2>
+      <ul>
+        <li><strong>In-app</strong>: <em>Settings → Help &amp; Support</em> (preferred — routes automatically)</li>
+        <li><strong>Email — General</strong>: <a href="mailto:support@sim-p.app">support@sim-p.app</a></li>
+        <li><strong>Email — Billing</strong>: <a href="mailto:billing@sim-p.app">billing@sim-p.app</a></li>
+        <li><strong>Email — Safety / Trust &amp; Safety</strong>: <a href="mailto:safety@sim-p.app">safety@sim-p.app</a> (24/7, monitored)</li>
+        <li><strong>Email — Privacy / Data requests</strong>: <a href="mailto:privacy@sim-p.app">privacy@sim-p.app</a></li>
+        <li><strong>Email — Press / Media</strong>: <a href="mailto:press@sim-p.app">press@sim-p.app</a></li>
+        <li><strong>Email — DMCA</strong>: <a href="mailto:dmca@sim-p.app">dmca@sim-p.app</a></li>
+        <li><strong>Email — Law enforcement requests</strong>: <a href="mailto:legal@sim-p.app">legal@sim-p.app</a></li>
+        <li><strong>Apple App Store review contact</strong>: Bobby / Wolfpaq Marketing LLC — <a href="mailto:appstore@sim-p.app">appstore@sim-p.app</a></li>
+      </ul>
+
+      <h2>8. Status</h2>
+      <p>
+        Live service status: <a href="https://simp-web.onrender.com/api/health">/api/health</a>. We post major incidents on the in-app <em>What's New</em> banner.
+      </p>
+
+      <div class="footer">
+        © 2026 Wolfpaq Marketing LLC. SIMP, Successful · Intentional · Male · Providers, and the crown logo are trademarks of Wolfpaq Marketing LLC. Apple, the Apple logo, and iPhone are trademarks of Apple Inc.
+      </div>
+    </main>
+  </body>
+</html>
