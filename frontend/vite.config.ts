@@ -271,5 +271,14 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: false,
+    // Native-only modules are loaded dynamically at runtime when the
+    // iOS / Android shells are installed. Tell Rollup not to try to
+    // resolve them at build time so the web bundle doesn't fail.
+    rollupOptions: {
+      external: [
+        '@capacitor/storekit-bridge',
+        'cordova-plugin-purchase',
+      ],
+    },
   },
 });
