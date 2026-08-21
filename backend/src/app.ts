@@ -26,6 +26,7 @@ import { photosRouter } from './routes/photos.routes.js';
 import { publicRouter } from './routes/public.routes.js';
 import { swipesRouter } from './routes/swipes.routes.js';
 import { usersRouter } from './routes/users.routes.js';
+import { demoRouter } from './routes/demo.routes.js';
 
 const limiter = (windowMs: number, max: number) =>
   rateLimit({
@@ -97,6 +98,7 @@ export function createApp() {
   app.use('/analytics/events', limiter(60_000, 120));
 
   app.use('/health', healthRouter);
+  app.use(demoRouter);
   app.use('/auth', authRouter);
   app.use('/users', usersRouter);
   app.use(discoveryRouter);

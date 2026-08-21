@@ -19,7 +19,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src prisma --ext .ts",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "seed:demo-account": "tsx scripts/seed-demo-account.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -30,6 +31,7 @@
     "@types/jsonwebtoken": "^9.0.7",
     "@types/multer": "^2.2.0",
     "@types/node": "^22.9.0",
+    "@types/pg": "^8.23.1",
     "@types/web-push": "^3.6.4",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
@@ -42,6 +44,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
+    "pg": "^8.23.0",
     "pino": "^10.3.1",
     "prisma": "^5.22.0",
     "sharp": "^0.35.3",
