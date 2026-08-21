@@ -114,6 +114,10 @@ services:
     name: simp-web
     buildCommand: cd frontend && npm ci --no-audit --no-fund && npm run typecheck && npm run lint && npm run build
     staticPublishPath: frontend/dist
+    headers:
+      - path: /sw.js
+        name: Service-Worker-Allowed
+        value: /
     routes:
       - type: rewrite
         source: /*
