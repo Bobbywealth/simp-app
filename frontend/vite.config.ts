@@ -52,7 +52,6 @@ export default defineConfig({
         display_override: [
           'standalone',
           'window-controls-overlay',
-          'tabbed',
         ],
         orientation: 'portrait',
         scope: '/',
@@ -224,13 +223,11 @@ export default defineConfig({
         file_handlers: [
           {
             action: '/open-file',
-            name: 'SIMP Photo',
             accept: {
               'image/png': ['.png'],
               'image/jpeg': ['.jpg', '.jpeg'],
               'image/webp': ['.webp'],
             },
-            icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
           },
         ],
       },
