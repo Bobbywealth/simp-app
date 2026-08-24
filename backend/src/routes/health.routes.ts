@@ -18,6 +18,8 @@ healthRouter.get('/ready', async (_req, res) => {
       email:
         (env.EMAIL_PROVIDER === 'resend' && Boolean(env.RESEND_API_KEY && env.EMAIL_FROM)) ||
         (env.EMAIL_PROVIDER === 'webhook' && Boolean(env.EMAIL_WEBHOOK_URL && env.EMAIL_FROM)),
+      emailWebhook:
+        env.EMAIL_PROVIDER === 'resend' && Boolean(env.RESEND_WEBHOOK_SECRET),
       push:
         (env.PUSH_PROVIDER === 'firebase' && Boolean(env.FIREBASE_SERVICE_ACCOUNT_JSON)) ||
         (env.PUSH_PROVIDER === 'webpush' && Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY)),

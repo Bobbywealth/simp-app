@@ -30,6 +30,7 @@ const schema = z
     EMAIL_PROVIDER: z.enum(['disabled', 'console', 'resend', 'webhook']).default('disabled'),
     EMAIL_FROM: z.string().email().optional(),
     RESEND_API_KEY: z.string().min(1).optional(),
+    RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
     EMAIL_WEBHOOK_URL: z.string().url().optional(),
 
     PUSH_PROVIDER: z.enum(['disabled', 'firebase', 'webpush']).default('disabled'),
@@ -118,6 +119,13 @@ const schema = z
       warnings.push('email: EMAIL_WEBHOOK_URL is required when EMAIL_PROVIDER=webhook');
     } else if (!value.EMAIL_FROM) {
       warnings.push('email: EMAIL_FROM is required for production email delivery');
+    }
+    if (
+      value.EMAIL_PROVIDER === 'resend' &&
+      value.RESEND_API_KEY &&
+      !value.RESEND_WEBHOOK_SECRET
+    ) {
+      warnings.push('email: RESEND_WEBHOOK_SECRET is not set — bounce/complaint webhooks will be ignored');
     }
     if (value.TURN_PROVIDER === 'twilio') {
       if (!value.TWILIO_ACCOUNT_SID || !value.TWILIO_AUTH_TOKEN) {

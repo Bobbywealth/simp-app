@@ -26,6 +26,7 @@ import { photosRouter } from './routes/photos.routes.js';
 import { publicRouter } from './routes/public.routes.js';
 import { swipesRouter } from './routes/swipes.routes.js';
 import { usersRouter } from './routes/users.routes.js';
+import { webhooksRouter } from './routes/webhooks.routes.js';
 import { demoRouter } from './routes/demo.routes.js';
 
 const limiter = (windowMs: number, max: number) =>
@@ -65,6 +66,18 @@ export function createApp() {
     }),
   );
   app.use(express.json({ limit: '1mb', strict: true }));
+  // /webhooks/* receives signed payloads from upstream providers (Resend,
+  // Stripe, etc.) — the signature must be verified against the exact raw
+  // bytes the provider sent. Mount express.raw() here BEFORE the global
+  // JSON parser consumes the body, and the per-route handler reads
+  // req.body as a Buffer.
+  app.use(
+    '/webhooks',
+    express.raw({
+      type: () => true,
+      limit: '1mb',
+    }),
+  );
   app.use(cookieParser());
   app.use((_req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -102,6 +115,7 @@ export function createApp() {
   app.use('/analytics/events', limiter(60_000, 120));
 
   app.use('/health', healthRouter);
+  app.use(webhooksRouter);
   app.use(demoRouter);
   app.use('/auth', authRouter);
   app.use('/users', usersRouter);

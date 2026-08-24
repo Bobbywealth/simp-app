@@ -163,6 +163,11 @@ model User {
 
   emailVerified         Boolean       @default(false)
   emailVerifiedAt       DateTime?
+  // Tracks the most recent hard-bounce or spam-complaint from the
+  // transactional email provider. Used to flag accounts that should
+  // update their email and to suppress further sends until they do.
+  emailBounceAt         DateTime?
+  emailBounceType       String?
   role                  UserRole      @default(USER)
   status                AccountStatus @default(ACTIVE)
   statusReason          String?
@@ -202,6 +207,7 @@ model User {
   notificationActions       Notification[]               @relation("NotificationActor")
   notificationPreference    NotificationPreference?
   pushTokens                PushToken[]
+  emailEvents               EmailEvent[]
   entitlements              Entitlement[]
   dailyUsages               DailyUsage[]
   moderationActionsTaken    ModerationAction[]           @relation("ModeratorActions")
@@ -756,4 +762,26 @@ model AccountDeletionReceipt {
   metadata        Json?
 
   @@index([completedAt])
+}
+
+/// Transactional email deliverability events. One row per provider
+/// webhook delivery (delivered, bounced, complained, opened, clicked,
+/// etc.) so we have an audit trail of every send. userId is nullable
+/// because Resend webhooks can fire for recipients that aren't matched
+/// to a User yet (e.g. waitlist addresses, test sends).
+model EmailEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email     String
+  type      String
+  provider  String   @default("resend")
+  subject   String?
+  messageId String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
+  @@index([type, createdAt])
 }

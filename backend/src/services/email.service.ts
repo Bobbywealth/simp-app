@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import { passwordResetEmail, verificationEmail } from './email-templates.js';
 import { AppError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
@@ -65,20 +66,47 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
 
 export async function sendVerificationEmail(to: string, token: string): Promise<void> {
   const url = `${env.FRONTEND_URL.replace(/\/$/, '')}/verify-email?token=${encodeURIComponent(token)}`;
-  await sendEmail({
-    to,
-    subject: 'Verify your SIMP email',
-    text: `Verify your SIMP email by opening this link: ${url}\n\nThis link expires in 24 hours.`,
-    html: `<h1>Welcome to SIMP</h1><p>Verify your email to finish setting up your account.</p><p><a href="${url}">Verify email</a></p><p>This link expires in 24 hours.</p>`,
-  });
+  if (await recipientBounced(to)) {
+    logger.warn({ event: 'verification_email_skipped_bounced', to });
+    return;
+  }
+  const template = verificationEmail({ to, verifyUrl: url });
+  await sendEmail({ to, subject: template.subject, text: template.text, html: template.html });
 }
 
 export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
+  // Avoid leaking whether the email exists — return early without sending
+  // when the address is clearly malformed. We don't validate format here
+  // because login already requires a valid email at signup; the worst case
+  // is a 4xx from the provider, which we log but don't surface to the
+  // caller (requestPasswordReset is intentionally fire-and-forget).
+  if (!to.includes('@')) return;
+  if (await recipientBounced(to)) {
+    logger.warn({ event: 'password_reset_email_skipped_bounced', to });
+    return;
+  }
   const url = `${env.FRONTEND_URL.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
-  await sendEmail({
-    to,
-    subject: 'Reset your SIMP password',
-    text: `Reset your SIMP password by opening this link: ${url}\n\nThis link expires in 30 minutes. If you did not request it, ignore this email.`,
-    html: `<h1>Reset your password</h1><p><a href="${url}">Choose a new password</a></p><p>This link expires in 30 minutes. If you did not request it, ignore this email.</p>`,
+  const template = passwordResetEmail({ to, resetUrl: url });
+  await sendEmail({ to, subject: template.subject, text: template.text, html: template.html });
+}
+
+/**
+ * Returns true when the recipient has a recent hard bounce or spam
+ * complaint and shouldn't receive further transactional mail until
+ * they re-verify. The webhook handler clears these flags on the next
+ * successful delivery.
+ */
+export async function recipientBounced(email: string): Promise<boolean> {
+  // Lazy import to keep this module free of circular Prisma deps at
+  // boot — the service file is loaded before the client in tests.
+  const { prisma } = await import('../config/db.js');
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { emailBounceAt: true, emailBounceType: true },
   });
+  if (!user?.emailBounceAt) return false;
+  // Hard bounces and complaints stay sticky for 7 days. After that
+  // we re-attempt; a successful delivery clears the flag.
+  const ageMs = Date.now() - user.emailBounceAt.getTime();
+  return ageMs < 7 * 24 * 60 * 60 * 1_000;
 }
