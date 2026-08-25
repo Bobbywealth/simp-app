@@ -4,8 +4,13 @@ import { prisma } from './config/db.js';
 import { env } from './config/env.js';
 import { seedLegalDocuments } from './legal/seedLegal.js';
 import { startAssetCleanupWorker } from './services/asset-cleanup.service.js';
+import { captureException, initSentry } from './services/sentry.service.js';
 import { attachLiveSocket } from './sockets/live.js';
 import { logger } from './utils/logger.js';
+
+// Initialize Sentry as the first thing at startup. initSentry() is a
+// no-op if SENTRY_DSN is unset, so this is always safe to call.
+initSentry();
 
 const REQUIRED_MIGRATION = '20260818000000_release_candidate_core';
 
@@ -67,6 +72,7 @@ void main().catch(async (error: unknown) => {
     error: error instanceof Error ? error.message : String(error),
     stack: env.NODE_ENV === 'production' ? undefined : error instanceof Error ? error.stack : undefined,
   });
+  captureException(error, { phase: 'startup' });
   await prisma.$disconnect().catch(() => undefined);
   process.exit(1);
 });

@@ -4,6 +4,7 @@ import cors from 'cors';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import { sentryErrorHandler, sentryRequestHandler } from './services/sentry.service.js';
 import { allowedOrigins, env } from './config/env.js';
 import { requestContext } from './middleware/request-context.js';
 import { errorHandler } from './middleware/error.js';
@@ -46,6 +47,10 @@ export function createApp() {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
+  // Sentry request handler MUST be first so it can start a transaction
+  // before any other middleware runs (so route + handler timing is
+  // captured). The handler is a no-op if SENTRY_DSN is unset.
+  app.use(sentryRequestHandler);
   app.use(requestContext);
   app.use(
     helmet({
@@ -144,6 +149,10 @@ export function createApp() {
       requestId: res.locals.requestId,
     }),
   );
+  // Sentry error handler captures 5xx before the JSON error middleware
+  // formats the response. Mounted BEFORE errorHandler so Sentry sees
+  // the original error object with its stack.
+  app.use(sentryErrorHandler);
   app.use(errorHandler);
   return app;
 }

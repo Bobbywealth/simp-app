@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../config/db.js';
 import { env, productionWarnings } from '../config/env.js';
+import { isSentryActive } from '../services/sentry.service.js';
 
 export const healthRouter = Router();
 
@@ -28,6 +29,7 @@ healthRouter.get('/ready', async (_req, res) => {
         Boolean(env.TURN_URLS && env.TURN_USERNAME && env.TURN_CREDENTIAL),
       billingApple: Boolean(env.APPLE_IAP_ISSUER_ID && env.APPLE_IAP_KEY_ID && env.APPLE_IAP_PRIVATE_KEY),
       billingGoogle: Boolean(env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON),
+      sentry: isSentryActive(),
     };
     // The service is considered live in production as long as the
     // database and HTTP layer are healthy. Missing third-party

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { UserResponse } from '../types';
 import { getAccessToken, loadTokens, refreshAccessToken, setTokens } from '../api/client';
 import { logout as apiLogout, me } from '../api/auth';
+import { setSentryUser } from '../lib/sentry';
 
 interface AuthState {
   user: UserResponse | null;
@@ -20,7 +21,10 @@ export const useAuth = create<AuthState>((set, get) => ({
   ready: false,
   initialized: false,
 
-  setUser: (user) => set({ user, ready: true }),
+  setUser: (user) => {
+    setSentryUser(user?.id ?? null);
+    set({ user, ready: true });
+  },
 
   initialize: async () => {
     if (get().initialized) return;
@@ -32,9 +36,11 @@ export const useAuth = create<AuthState>((set, get) => ({
         return;
       }
       const user = await me();
+      setSentryUser(user.id);
       set({ user, ready: true });
     } catch {
       await setTokens(null, null);
+      setSentryUser(null);
       set({ user: null, ready: true });
     } finally {
       set({ loading: false });
@@ -43,14 +49,18 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   refresh: async () => {
     try {
-      set({ user: await me() });
+      const user = await me();
+      setSentryUser(user.id);
+      set({ user });
     } catch {
+      setSentryUser(null);
       set({ user: null });
     }
   },
 
   logout: async () => {
     await apiLogout().catch(() => setTokens(null, null));
+    setSentryUser(null);
     set({ user: null, ready: true });
   },
 }));
