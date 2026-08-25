@@ -501,7 +501,7 @@ adminRouter.get('/admin/audit-log', async (req: AuthedRequest, res, next) => {
         targetFingerprint: a.targetFingerprint,
         createdAt: a.createdAt,
       })),
-      nextCursor: hasMore ? page[page.length - 1].id : null,
+      nextCursor: hasMore && page.length > 0 ? page[page.length - 1]!.id : null,
     });
   } catch (error) {
     next(error);
