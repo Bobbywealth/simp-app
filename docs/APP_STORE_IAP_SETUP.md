@@ -77,7 +77,7 @@ Render accepts the literal newline characters.
 ### Step 4: Configure App Store Server Notifications V2
 
 1. App Store Connect → My Apps → SIMP → Subscriptions → App Store Server Notifications
-2. **Production Server URL**: `https://simp-backend-b8nz.onrender.com/billing/apple/notifications`
+2. **Production Server URL**: `https://api.mysimp.app/billing/apple/notifications`
 3. **Sandbox Server URL**: same URL (Apple routes both to the same endpoint; we auto-detect environment from the JWS payload)
 4. **Version**: 2 (Notification V2)
 5. Apple will start POSTing JWS-signed payloads to this endpoint whenever any of these events happen:

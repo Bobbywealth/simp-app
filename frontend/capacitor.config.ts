@@ -17,7 +17,7 @@ const config: CapacitorConfig = {
     /// Allow navigation to our own API so the WebView can make XHR
     /// calls + open the Socket.IO stream without being blocked by the
     /// cleartext / CORS rules on iOS 14+ and Android 9+.
-    allowNavigation: ['simp-web.onrender.com', 'simp-backend-b8nz.onrender.com', 'mysimp.app', 'www.mysimp.app', 'api.mysimp.app'],
+    allowNavigation: ['mysimp.app', 'www.mysimp.app', 'api.mysimp.app'],
     cleartext: false,
   },
 

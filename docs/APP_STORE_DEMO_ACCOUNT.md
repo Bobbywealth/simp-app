@@ -14,7 +14,7 @@ The backend has a one-shot endpoint at `POST /demo/seed` that creates the demo u
 4. **Run the seed**:
 
    ```bash
-   curl -X POST https://simp-backend-b8nz.onrender.com/demo/seed \
+   curl -X POST https://api.mysimp.app/demo/seed \
      -H 'Content-Type: application/json' \
      -d '{
        "email": "review@sim-p.app",

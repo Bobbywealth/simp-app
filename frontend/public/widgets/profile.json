@@ -19,7 +19,7 @@
     {
       "type": "Action.OpenUrl",
       "title": "Open profile",
-      "url": "https://simp-web.onrender.com/profile"
+      "url": "https://mysimp.app/profile"
     }
   ]
 }

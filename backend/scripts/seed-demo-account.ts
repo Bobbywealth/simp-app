@@ -83,9 +83,9 @@ async function main() {
        ("id", "userId", "url", "position", "width", "height", "bytes", "mimeType", "createdAt", "updatedAt")
      VALUES
        ('pho_demo_' || substr(md5(random()::text), 1, 22), $1,
-        'https://simp-web.onrender.com/icons/icon-512.png', 0, 512, 512, 19638, 'image/png', NOW(), NOW()),
+        'https://mysimp.app/icons/icon-512.png', 0, 512, 512, 19638, 'image/png', NOW(), NOW()),
        ('pho_demo_' || substr(md5(random()::text), 1, 22), $1,
-        'https://simp-web.onrender.com/screenshots/desktop-wide.png', 1, 1920, 1080, 561928, 'image/png', NOW(), NOW())`,
+        'https://mysimp.app/screenshots/desktop-wide.png', 1, 1920, 1080, 561928, 'image/png', NOW(), NOW())`,
     [userId],
   );
   console.log('[photos] 2');

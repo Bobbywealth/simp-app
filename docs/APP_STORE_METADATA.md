@@ -54,10 +54,10 @@ SAFETY FIRST
 SIMP Trust & Safety is on call 24/7. Every report is reviewed by a human moderator within 24 hours. Zero tolerance for payment-for-intimacy, scams, or minors. Tap the in-app Help button for the National Domestic Violence Hotline and other regional resources.
 
 PRIVACY
-We do not sell your data. We do not use advertising trackers. We use Apple ID, Apple Push Notifications, and Apple's App Store for everything that touches your identity, your device, and your wallet. See our full Privacy Policy in the app or at simp-web.onrender.com/privacy.
+We do not sell your data. We do not use advertising trackers. We use Apple ID, Apple Push Notifications, and Apple's App Store for everything that touches your identity, your device, and your wallet. See our full Privacy Policy in the app or at mysimp.app/privacy.
 
 —-
-SIMP is for adults 18+. Photo verification and human moderation are required for SIMP Elite. Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period; manage in iOS Settings → Apple ID → Subscriptions. Payment will be charged to your Apple ID account. Terms: simp-web.onrender.com/terms. Privacy: simp-web.onrender.com/privacy.
+SIMP is for adults 18+. Photo verification and human moderation are required for SIMP Elite. Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period; manage in iOS Settings → Apple ID → Subscriptions. Payment will be charged to your Apple ID account. Terms: mysimp.app/terms. Privacy: mysimp.app/privacy.
 ```
 
 ## Promotional text (≤ 170 chars)
@@ -98,31 +98,31 @@ We'd love your feedback. Tap Settings → Help & Support to get in touch.
 ## Support URL
 
 ```
-https://simp-web.onrender.com/support/
+https://mysimp.app/support/
 ```
 
 ## Marketing URL (optional)
 
 ```
-https://simp-web.onrender.com/
+https://mysimp.app/
 ```
 
 ## Privacy Policy URL
 
 ```
-https://simp-web.onrender.com/privacy/
+https://mysimp.app/privacy/
 ```
 
 ## Terms of Service URL (EULA / custom)
 
 ```
-https://simp-web.onrender.com/terms/
+https://mysimp.app/terms/
 ```
 
 (Note: the `/terms/` page needs to be written. See TODO list item — for now use the link below.)
 
 ```
-https://simp-web.onrender.com/terms-of-service/
+https://mysimp.app/terms-of-service/
 ```
 
 ## App icon

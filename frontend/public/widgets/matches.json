@@ -19,7 +19,7 @@
     {
       "type": "Action.OpenUrl",
       "title": "View all",
-      "url": "https://simp-web.onrender.com/matches"
+      "url": "https://mysimp.app/matches"
     }
   ]
 }
