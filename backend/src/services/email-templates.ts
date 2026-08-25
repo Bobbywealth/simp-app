@@ -16,11 +16,11 @@
 
 const BRAND = {
   appName: 'SIMP',
-  appUrl: 'https://mysimp.app',
-  supportEmail: 'support@mysimp.app',
-  privacyUrl: 'https://mysimp.app/privacy',
-  termsUrl: 'https://mysimp.app/terms',
-  safetyUrl: 'https://mysimp.app/safety',
+  appUrl: 'https://mysimp.com',
+  supportEmail: 'support@mysimp.com',
+  privacyUrl: 'https://mysimp.com/privacy',
+  termsUrl: 'https://mysimp.com/terms',
+  safetyUrl: 'https://mysimp.com/safety',
   tagline: 'EXPERIENCES > CONNECTIONS > MEMORIES',
 } as const;
 

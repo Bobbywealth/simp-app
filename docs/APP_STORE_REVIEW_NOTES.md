@@ -39,9 +39,9 @@ REPORTING & BLOCKING
 Every profile has a Report and Block action. Reports go to a human moderator queue and are reviewed within 24 hours. Block prevents the user from seeing your profile, messaging you, or appearing in your discovery.
 
 PRIVACY POLICY & EULA
-Privacy Policy: https://mysimp.app/privacy/
-Support: https://mysimp.app/support/
-Safety Center: https://mysimp.app/safety/
+Privacy Policy: https://mysimp.com/privacy/
+Support: https://mysimp.com/support/
+Safety Center: https://mysimp.com/safety/
 
 DATA COLLECTION
 We do not sell user data. We do not use third-party tracking SDKs. We do not request IDFA (so App Tracking Transparency prompt is not shown). The only data linked to user identity is what App Store Connect's Privacy Nutrition Labels describe. Full inventory in docs/APP_STORE_PRIVACY_NUTRITION_LABELS.md.
@@ -92,7 +92,7 @@ Thank you for your time and your review.
 | Guideline 2.1 — App completeness | All flows functional; demo account has populated data |
 | Guideline 4.0 — Spam/minimum functionality | SIMP is not a wrapper; has full dating, messaging, live, safety, billing |
 | Guideline 1.4.3 — Dating app requires 17+ + reporting/blocking | Both implemented and verified |
-| Guideline 5.1.1 — Privacy policy URL | https://mysimp.app/privacy/ |
+| Guideline 5.1.1 — Privacy policy URL | https://mysimp.com/privacy/ |
 | Guideline 2.3 — Accurate metadata | Names, screenshots, descriptions all real and accurate |
 | Guideline 3.1 — IAP for digital content | All SIMP+ / Elite subscriptions go through StoreKit |
 | Tracking / ATT | We don't track; ATT prompt not shown |

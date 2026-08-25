@@ -19,7 +19,7 @@
     {
       "type": "Action.OpenUrl",
       "title": "View all",
-      "url": "https://mysimp.app/matches"
+      "url": "https://mysimp.com/matches"
     }
   ]
 }

@@ -112,7 +112,7 @@ demoRouter.post('/demo/seed', async (req, res, next) => {
       data: [
         {
           userId: user.id,
-          url: 'https://mysimp.app/icons/icon-512.png',
+          url: 'https://mysimp.com/icons/icon-512.png',
           position: 0,
           width: 512,
           height: 512,
@@ -121,7 +121,7 @@ demoRouter.post('/demo/seed', async (req, res, next) => {
         },
         {
           userId: user.id,
-          url: 'https://mysimp.app/screenshots/desktop-wide.png',
+          url: 'https://mysimp.com/screenshots/desktop-wide.png',
           position: 1,
           width: 1920,
           height: 1080,

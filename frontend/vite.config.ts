@@ -72,8 +72,8 @@ export default defineConfig({
         ],
         iarc_rating_id: 'fb48fbb8-31a6-4d8b-9f6e-7e8e3f3f3f3f',
         scope_extensions: [
-          { origin: 'https://mysimp.app' },
-          { origin: 'https://api.mysimp.app' },
+          { origin: 'https://mysimp.com' },
+          { origin: 'https://api.mysimp.com' },
         ],
         icons: [
           {

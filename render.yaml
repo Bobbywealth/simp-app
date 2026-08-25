@@ -32,11 +32,11 @@ services:
       - key: JWT_REFRESH_TTL
         value: 30d
       - key: ALLOWED_ORIGINS
-        value: https://mysimp.app,https://www.mysimp.app
+        value: https://mysimp.com,https://www.mysimp.com
       - key: PUBLIC_BASE_URL
-        value: https://api.mysimp.app
+        value: https://api.mysimp.com
       - key: FRONTEND_URL
-        value: https://mysimp.app
+        value: https://mysimp.com
 
       - key: STORAGE_PROVIDER
         value: local
@@ -130,7 +130,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://api.mysimp.app
+        value: https://api.mysimp.com
       - key: VITE_APP_VERSION
         value: 0.3.0-rc.1
       - key: VITE_BILLING_ENABLED

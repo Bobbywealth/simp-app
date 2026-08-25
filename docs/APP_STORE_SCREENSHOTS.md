@@ -51,7 +51,7 @@ For initial drafts you can capture from the live PWA in Chrome DevTools with the
 
 ```bash
 # Open Chrome → DevTools → Toggle Device Toolbar → iPhone 15 Pro Max → 1290x2796
-# Navigate to https://mysimp.app and walk through each flow
+# Navigate to https://mysimp.com and walk through each flow
 # Cmd+Shift+P → "Capture screenshot"
 ```
 

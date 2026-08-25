@@ -54,10 +54,10 @@ SAFETY FIRST
 SIMP Trust & Safety is on call 24/7. Every report is reviewed by a human moderator within 24 hours. Zero tolerance for payment-for-intimacy, scams, or minors. Tap the in-app Help button for the National Domestic Violence Hotline and other regional resources.
 
 PRIVACY
-We do not sell your data. We do not use advertising trackers. We use Apple ID, Apple Push Notifications, and Apple's App Store for everything that touches your identity, your device, and your wallet. See our full Privacy Policy in the app or at mysimp.app/privacy.
+We do not sell your data. We do not use advertising trackers. We use Apple ID, Apple Push Notifications, and Apple's App Store for everything that touches your identity, your device, and your wallet. See our full Privacy Policy in the app or at mysimp.com/privacy.
 
 —-
-SIMP is for adults 18+. Photo verification and human moderation are required for SIMP Elite. Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period; manage in iOS Settings → Apple ID → Subscriptions. Payment will be charged to your Apple ID account. Terms: mysimp.app/terms. Privacy: mysimp.app/privacy.
+SIMP is for adults 18+. Photo verification and human moderation are required for SIMP Elite. Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period; manage in iOS Settings → Apple ID → Subscriptions. Payment will be charged to your Apple ID account. Terms: mysimp.com/terms. Privacy: mysimp.com/privacy.
 ```
 
 ## Promotional text (≤ 170 chars)
@@ -98,31 +98,31 @@ We'd love your feedback. Tap Settings → Help & Support to get in touch.
 ## Support URL
 
 ```
-https://mysimp.app/support/
+https://mysimp.com/support/
 ```
 
 ## Marketing URL (optional)
 
 ```
-https://mysimp.app/
+https://mysimp.com/
 ```
 
 ## Privacy Policy URL
 
 ```
-https://mysimp.app/privacy/
+https://mysimp.com/privacy/
 ```
 
 ## Terms of Service URL (EULA / custom)
 
 ```
-https://mysimp.app/terms/
+https://mysimp.com/terms/
 ```
 
 (Note: the `/terms/` page needs to be written. See TODO list item — for now use the link below.)
 
 ```
-https://mysimp.app/terms-of-service/
+https://mysimp.com/terms-of-service/
 ```
 
 ## App icon

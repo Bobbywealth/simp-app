@@ -2,7 +2,7 @@
 //
 // Exercises the full discovery → match → chat loop against the configured
 // backend. By default points at the live Render deploy. Override with:
-//   SMOKE_BASE_URL=https://staging.mysimp.app npm run smoke
+//   SMOKE_BASE_URL=https://staging.mysimp.com npm run smoke
 //
 // Creates two temporary accounts (alicia+<random>@smoke.simp.test,
 // bob+<random>@smoke.simp.test), force-verifies their emails via the DB,
@@ -15,7 +15,7 @@
 import { PrismaClient } from '@prisma/client';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const BASE_URL = process.env.SMOKE_BASE_URL ?? 'https://api.mysimp.app';
+const BASE_URL = process.env.SMOKE_BASE_URL ?? 'https://api.mysimp.com';
 const PASSWORD = 'SmokeTest!2026';
 const REAL_DB_URL = process.env.SMOKE_DATABASE_URL ?? process.env.DATABASE_URL ?? '';
 const NANO_PNG_BASE64 =

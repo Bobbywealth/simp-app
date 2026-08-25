@@ -20,7 +20,7 @@ Database service ID: `dpg-d9pnemr9ik0c73c9hg5g-a`
 | Render blueprint `validate`               | green  | `render blueprints validate render.yaml` → `valid: true, totalActions: 4`                                 |
 | Backend live deploy (commit `4c0c855`)   | green  | `render deploys list` shows `dep-da2bo2qjnfac73ad8gpg`, status `live`                                     |
 | Web live deploy (commit `211b71f`)        | green  | `render deploys list` shows `dep-da2bhpflk1mc73c3q1cg`, status `live`                                     |
-| Frontend HTTP root (HTTPS)                | green  | `GET https://mysimp.app/` returned 200 + valid HTML                                            |
+| Frontend HTTP root (HTTPS)                | green  | `GET https://mysimp.com/` returned 200 + valid HTML                                            |
 | Backend `GET /health`                     | green  | returned `{"status":"ok","service":"simp-backend","version":"0.3.0-rc.1"}`                               |
 | Backend `GET /health/ready`               | green  | returned `database:true`, integrations, and 4 `degradedFeatures` warnings                                 |
 | Backend `POST /auth/signup` (valid)       | green  | returned 201 with access + refresh JWTs; `verificationRequired:true`                                      |
@@ -38,9 +38,9 @@ Database service ID: `dpg-d9pnemr9ik0c73c9hg5g-a`
 - `NODE_ENV=production`
 - `DATABASE_URL` (from `simp-db`)
 - `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `IP_HASH_SECRET` (regenerated)
-- `ALLOWED_ORIGINS=https://mysimp.app` (HTTPS-only)
-- `PUBLIC_BASE_URL=https://api.mysimp.app`
-- `FRONTEND_URL=https://mysimp.app`
+- `ALLOWED_ORIGINS=https://mysimp.com` (HTTPS-only)
+- `PUBLIC_BASE_URL=https://api.mysimp.com`
+- `FRONTEND_URL=https://mysimp.com`
 - `STORAGE_PROVIDER=local` (degraded feature — see below)
 - `EMAIL_PROVIDER=console` (degraded feature — see below)
 - `PUSH_PROVIDER=disabled` (degraded feature — see below)

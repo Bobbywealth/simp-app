@@ -84,7 +84,7 @@ Without this, `/health/ready` will keep reporting `emailWebhook: false`
 and bounce tracking won't fire.
 
 1. In Resend: **Webhooks → Add Webhook**.
-2. **Endpoint URL**: `https://api.mysimp.app/webhooks/resend`
+2. **Endpoint URL**: `https://api.mysimp.com/webhooks/resend`
 3. **Events to send**: tick at minimum `email.bounced`,
    `email.complained`, `email.delivered`. `email.opened` /
    `email.clicked` are optional analytics.
@@ -98,7 +98,7 @@ and bounce tracking won't fire.
 After redeploy, hit these in a terminal or browser:
 
 ```bash
-curl https://api.mysimp.app/health/ready
+curl https://api.mysimp.com/health/ready
 ```
 
 Expected: `"email": true, "emailWebhook": true`, and
@@ -191,7 +191,7 @@ Save → backend redeploys.
 ### 2d. Verify it's live (2 min)
 
 ```bash
-curl https://api.mysimp.app/health/ready
+curl https://api.mysimp.com/health/ready
 ```
 
 Expected: `"push": true`, no `push:` warning in `degradedFeatures`.

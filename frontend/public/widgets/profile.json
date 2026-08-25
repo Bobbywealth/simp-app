@@ -19,7 +19,7 @@
     {
       "type": "Action.OpenUrl",
       "title": "Open profile",
-      "url": "https://mysimp.app/profile"
+      "url": "https://mysimp.com/profile"
     }
   ]
 }
