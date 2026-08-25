@@ -27,7 +27,7 @@ export default function NotFound() {
       {user && (
         <NavHeader
           title="Not found"
-          onBack={() => navigate(-1)}
+          showBack
         />
       )}
       <motion.main
