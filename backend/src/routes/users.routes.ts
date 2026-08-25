@@ -249,22 +249,52 @@ usersRouter.patch('/me/onboarding', requireAuth, async (req: AuthedRequest, res,
     // Step max matches TOTAL_STEPS in frontend/src/pages/ProfileSetup.tsx.
     // If you add steps, bump both in lockstep.
     const input = z
-      .object({ step: z.number().int().min(1).max(7), state: onboardingStateSchema.partial() })
+      .object({
+        step: z.number().int().min(1).max(7),
+        state: onboardingStateSchema.partial(),
+        // Explicit reset flag wipes the persisted onboardingState and
+        // resets onboardingStep to 1. Used by Settings → "Restart
+        // onboarding" so a user who wants to redo their profile can do
+        // so without leaving orphan fields in the merged JSON.
+        reset: z.boolean().optional(),
+      })
       .parse(req.body);
     if (input.state.birthDate) adultBirthDate(input.state.birthDate);
     const current = await prisma.user.findUnique({
       where: { id: req.userId! },
-      select: { onboardingState: true, onboardingStep: true },
+      select: { onboardingState: true, onboardingStep: true, onboardingCompletedAt: true },
     });
+
+    // Reset path: discard existing JSON, clear completion, restart at step 1.
+    if (input.reset) {
+      const user = await prisma.user.update({
+        where: { id: req.userId! },
+        data: {
+          onboardingState: {},
+          onboardingStep: 1,
+          onboardingCompletedAt: null,
+        },
+        select: { onboardingState: true, onboardingStep: true, onboardingCompletedAt: true },
+      });
+      return res.json(user);
+    }
+
     const prior =
       current?.onboardingState && typeof current.onboardingState === 'object' && !Array.isArray(current.onboardingState)
         ? (current.onboardingState as Record<string, unknown>)
         : {};
+    // Monotonicity guard: the new step must be >= the current step.
+    // Users can stay on the same step (re-saving) or advance by 1, but
+    // can't jump backward or skip ahead. The frontend always sends
+    // `current + 1` after a successful step, so this only fires if a
+    // client tries to bypass validation.
+    const currentStep = current?.onboardingStep ?? 0;
+    const targetStep = Math.max(currentStep, input.step);
     const user = await prisma.user.update({
       where: { id: req.userId! },
       data: {
         onboardingState: { ...prior, ...input.state },
-        onboardingStep: Math.max(current?.onboardingStep ?? 0, input.step),
+        onboardingStep: targetStep,
       },
       select: { onboardingState: true, onboardingStep: true, onboardingCompletedAt: true },
     });

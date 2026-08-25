@@ -1,6 +1,6 @@
 import { Component, lazy, Suspense, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig, useReducedMotion } from 'framer-motion';
 import { useAuth } from './store/auth';
 import { BottomTabBar } from './components/BottomTabBar';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -34,6 +34,7 @@ const Conversation = lazy(() => import('./pages/Conversation'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const Licenses = lazy(() => import('./pages/Licenses'));
 const Admin = lazy(() => import('./pages/Admin'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 export default function App() {
   const { initialize, ready, user } = useAuth();
@@ -83,6 +84,11 @@ export default function App() {
 
   return (
     <AppErrorBoundary>
+      {/* Global prefers-reduced-motion compliance: every framer-motion
+          animation in the entire app respects the system setting. The
+          `useReducedMotion` import stays for places that need to branch
+          on the value explicitly (e.g. "skip the staggered entrance"). */}
+      <MotionConfig reducedMotion="user">
       <Suspense fallback={<LoadingScreen />}>
         <InstallPrompt />
         {!online && (
@@ -125,13 +131,14 @@ export default function App() {
               <Route path="/premium" element={<ProtectedRoute requireOnboarding><Premium /></ProtectedRoute>} />
               <Route path="/licenses" element={<ProtectedRoute requireOnboarding><Licenses /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute allowedRoles={['MODERATOR', 'ADMIN', 'SUPER_ADMIN']}><Admin /></ProtectedRoute>} />
-              <Route path="*" element={<Navigate to={user ? '/home' : '/login'} replace />} />
+              <Route path="*" element={<ProtectedRoute><NotFound /></ProtectedRoute>} />
             </Routes>
             <BottomTabBar />
             <PwaUpdatePrompt />
           </motion.div>
         </AnimatePresence>
       </Suspense>
+      </MotionConfig>
     </AppErrorBoundary>
   );
 }
