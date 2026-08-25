@@ -90,6 +90,7 @@ export async function signup(input: SignupInput, context: SessionContext = {}) {
 
   return {
     ...(await issueTokens(user.id, { ...context, device: input.device ?? context.device })),
+    user: { id: user.id, email: user.email },
     verificationRequired: true,
     verificationEmailSent,
   };
