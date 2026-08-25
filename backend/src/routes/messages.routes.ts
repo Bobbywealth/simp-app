@@ -11,6 +11,7 @@ import {
   sendMessage,
 } from '../services/messaging.service.js';
 import { cloudinaryThumbnailUrl } from '../services/cloudinary.service.js';
+import { trackAnalytics } from '../services/analytics.service.js';
 
 export const messagesRouter = Router();
 
@@ -184,6 +185,16 @@ messagesRouter.post(
         conversationId: req.params.id!,
         senderId: req.userId!,
         ...input,
+      });
+      // Server-side message_sent event for funnel analysis. Per-user
+      // first_message milestone is tracked client-side via trackMilestone.
+      setImmediate(() => {
+        void trackAnalytics({
+          event: 'message_sent',
+          userId: req.userId!,
+          source: 'server',
+          properties: { conversationId: req.params.id! },
+        });
       });
       res.status(201).json(message);
     } catch (error) {

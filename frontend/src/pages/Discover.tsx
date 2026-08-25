@@ -6,7 +6,7 @@ import { createSwipe, undoSwipe } from '../api/swipes';
 import { blockUser, reportUser, REPORT_REASONS, type ReportReason } from '../api/moderation';
 import type { DiscoveryPreferences, DiscoveryProfile, SwipeAction } from '../types';
 import { getDiscoveryPreferences, updateDiscoveryPreferences } from '../api/users';
-import { track } from '../api/analytics';
+import { track, trackMilestone } from '../api/analytics';
 import { SimpLogo } from '../components/SimpLogo';
 import { DiscoverFilters } from '../components/DiscoverFilters';
 
@@ -112,21 +112,30 @@ export default function Discover() {
         setMatchedProfile(profile);
         setMatchedNote(note ?? null);
         void track('match_created');
+        void trackMilestone('first_match');
       }
-      if (action === 'LIKE' || action === 'SUPERLIKE') void track('swipe_like', { action });
+      // Per-action discovery events for granular funnel analysis.
+      const actionEvent =
+        action === 'PASS' ? 'discovery_pass' :
+        action === 'LIKE' ? 'discovery_like' :
+        action === 'SUPERLIKE' ? 'discovery_super_like' : 'discovery_pass';
+      void track(actionEvent);
+      // Generic discovery_swipe covers all actions for the high-level funnel.
+      void track('discovery_swipe', { action });
+      void trackMilestone('first_swipe', { action });
       advanceDeck();
     } catch (e) {
       setError((e as Error).message);
     }
   }
 
-  function onSwipeRight(profile: DiscoveryProfile) {
-    setPendingLike(profile);
-    setConvinceText('');
-  }
-
   function onSwipeLeft(profile: DiscoveryProfile) {
     void doSwipe(profile, 'PASS');
+  }
+
+  function onSwipeRight(profile: DiscoveryProfile) {
+    // Right-swipe (LIKE) is the most common path through the funnel.
+    void doSwipe(profile, 'LIKE');
   }
 
   function onSwipeUp(profile: DiscoveryProfile) {

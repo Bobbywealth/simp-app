@@ -7,6 +7,7 @@ import type { LiveChatMessage, LiveStream } from '../api/live';
 import { useAuth } from '../store/auth';
 import { API_BASE_URL, getAccessToken } from '../api/client';
 import { getIceConfig, type IceServer } from '../api/config';
+import { track } from '../api/analytics';
 
 type ConnectionState = 'loading' | 'preview' | 'connecting' | 'live' | 'ended' | 'error';
 
@@ -18,6 +19,19 @@ export default function LiveStreamPage() {
   const [stream, setStream] = useState<LiveStream | null>(null);
   const [isBroadcaster, setIsBroadcaster] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Viewer join analytics. Dedupe per-session-per-stream via sessionStorage
+  // so a viewer re-loading the page doesn't double-count.
+  useEffect(() => {
+    if (!streamId) return;
+    const KEY = `simp_live_viewed_${streamId}`;
+    try {
+      if (sessionStorage.getItem(KEY)) return;
+      sessionStorage.setItem(KEY, '1');
+    } catch {
+      /* sessionStorage may be unavailable */
+    }
+    void track('live_viewed', { streamId });
+  }, [streamId]);
   const [viewerCount, setViewerCount] = useState(0);
   const [heartCount, setHeartCount] = useState(0);
   const [messages, setMessages] = useState<LiveChatMessage[]>([]);

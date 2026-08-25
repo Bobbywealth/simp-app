@@ -8,6 +8,7 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { PageTransition } from './components/PageTransition';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
+import { usePageViewTracker, useAppLifecycleTracker } from './lib/analytics-pageview';
 
 const Welcome = lazy(() => import('./pages/Welcome'));
 const Onboarding = lazy(() => import('./pages/Onboarding'));
@@ -38,6 +39,10 @@ export default function App() {
   const { initialize, ready, user } = useAuth();
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
+  // Auto-fire page_viewed + app_backgrounded/foregrounded for funnel analytics.
+  // No-ops gracefully if the user is offline (apiFetch swallows errors).
+  usePageViewTracker();
+  useAppLifecycleTracker();
   const [online, setOnline] = useState(navigator.onLine);
 
   useEffect(() => {

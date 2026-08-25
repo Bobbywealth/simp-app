@@ -5,6 +5,7 @@ import { AppError } from '../utils/errors.js';
 import { refreshTtlMs } from '../utils/jwt.js';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import * as authService from '../services/auth.service.js';
+import { trackAnalytics } from '../services/analytics.service.js';
 import {
   appleSignInSchema,
   changePasswordSchema,
@@ -54,6 +55,16 @@ authRouter.post('/signup', async (req, res, next) => {
   try {
     const input = signupSchema.parse(req.body);
     const result = await authService.signup(input, contextFor(req, input.device));
+    // Server-side canonical signup_completed event. The client also fires
+    // this on the signup form success path, so we let both land and dedupe
+    // in the funnel endpoint if needed.
+    setImmediate(() => {
+      void trackAnalytics({
+        event: 'signup_completed',
+        userId: result.user.id,
+        source: 'server',
+      });
+    });
     return tokenResponse(res, 201, result, input.device?.platform);
   } catch (error) {
     next(error);
@@ -120,8 +131,13 @@ authRouter.post('/reset-password', async (req, res, next) => {
 authRouter.post('/verify-email', async (req, res, next) => {
   try {
     const { token } = verifyEmailSchema.parse(req.body);
-    await authService.verifyEmail(token);
+    const { userId } = await authService.verifyEmail(token);
     res.json({ ok: true, message: 'Your email is verified.' });
+    // Fire analytics after the response so a tracking failure doesn't
+    // affect UX and the client gets the success message first.
+    setImmediate(() => {
+      void trackAnalytics({ event: 'email_verified', userId, source: 'server' });
+    });
   } catch (error) {
     next(error);
   }

@@ -8,6 +8,7 @@ import { getRealtimeServer } from '../sockets/realtime.js';
 import { AppError } from '../utils/errors.js';
 import { getProfileCompletion } from '../services/profile-completion.service.js';
 import { REPORT_CATEGORIES } from './moderation.routes.js';
+import { trackAnalytics } from '../services/analytics.service.js';
 
 export const liveRouter = Router();
 
@@ -162,6 +163,14 @@ liveRouter.post(
         return tx.liveStream.create({ data: { broadcasterId: userId, title: input.title } });
       });
       res.status(201).json({ streamId: stream.id, startedAt: stream.startedAt });
+      setImmediate(() => {
+        void trackAnalytics({
+          event: 'live_started',
+          userId,
+          source: 'server',
+          properties: { streamId: stream.id },
+        });
+      });
     } catch (error) {
       next(error);
     }
@@ -177,6 +186,14 @@ liveRouter.post('/live/streams/:id/end', requireAuth, async (req: AuthedRequest,
     if (!result.count) throw new AppError('stream_not_found', 404, 'Live stream not found.');
     getRealtimeServer()?.to(`stream:${req.params.id}`).emit('live:ended', { streamId: req.params.id });
     res.json({ ok: true });
+    setImmediate(() => {
+      void trackAnalytics({
+        event: 'live_ended',
+        userId: req.userId!,
+        source: 'server',
+        properties: { streamId: req.params.id! },
+      });
+    });
   } catch (error) {
     next(error);
   }
@@ -234,6 +251,14 @@ liveRouter.post('/live/streams/:id/heart', requireAuth, async (req: AuthedReques
       heartCount: result.heartCount,
     });
     res.json({ streamId, heartCount: result.heartCount });
+    setImmediate(() => {
+      void trackAnalytics({
+        event: 'live_reacted',
+        userId: req.userId!,
+        source: 'server',
+        properties: { streamId, type: 'heart' },
+      });
+    });
   } catch (error) {
     next(error);
   }

@@ -71,7 +71,7 @@ export default function Premium() {
     setSuccess(null);
     setPurchasing(product.productId);
     haptics.medium();
-    void track('subscription_started', { tier: product.tier, platform: 'native_or_web' });
+    void track('purchase_started', { tier: product.tier, platform: 'native_or_web' });
     try {
       const result = await purchaseSubscription(product);
       await verifyApplePurchase(result.transactionId, result.environment === 'Sandbox' ? 'Sandbox' : 'Production');
@@ -85,11 +85,11 @@ export default function Premium() {
         },
       });
       haptics.success();
-      void track('subscription_completed', { tier: product.tier });
+      void track('purchase_completed', { tier: product.tier });
       setSuccess(`Welcome to ${product.displayName}! Your subscription is active.`);
     } catch (e) {
       haptics.heavy();
-      void track('subscription_failed', { tier: product.tier, reason: (e as Error).message ?? 'unknown' });
+      void track('purchase_failed', { tier: product.tier, reason: (e as Error).message ?? 'unknown' });
       setError((e as Error).message ?? 'The purchase did not complete.');
     } finally {
       setPurchasing(null);
@@ -125,7 +125,7 @@ export default function Premium() {
           },
         });
         setSuccess(`Restored ${restored.restored} subscription${restored.restored === 1 ? '' : 's'}.`);
-        void track('subscription_restored', { count: restored.restored });
+        void track('purchase_restored', { count: restored.restored });
       } else {
         setSuccess('No active subscriptions were found for this account.');
       }

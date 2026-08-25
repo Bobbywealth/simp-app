@@ -5,6 +5,7 @@ import { env } from '../config/env.js';
 import { prisma } from '../config/db.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { deleteStoredPhoto } from '../services/photo.service.js';
+import { getFunnelCounts } from '../services/analytics.service.js';
 import { AppError } from '../utils/errors.js';
 import { getRealtimeServer } from '../sockets/realtime.js';
 
@@ -358,6 +359,78 @@ adminRouter.get('/admin/users/:id/moderation-history', async (req: AuthedRequest
       take: 200,
     });
     res.json({ actions });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Funnel analytics for the admin dashboard.
+ *
+ * Returns counts of each funnel event over a date range plus computed
+ * conversion rates between adjacent stages. Useful for at-a-glance
+ * health checks ("signup → first match conversion is 12%") without
+ * requiring a 3rd-party analytics provider.
+ *
+ * Example: GET /admin/analytics/funnel?days=7
+ */
+adminRouter.get('/admin/analytics/funnel', async (req: AuthedRequest, res, next) => {
+  try {
+    const input = z
+      .object({
+        days: z.coerce.number().int().min(1).max(180).default(7),
+        source: z.enum(['client', 'server']).optional(),
+      })
+      .parse(req.query);
+    const end = new Date();
+    const start = new Date(end.getTime() - input.days * 24 * 60 * 60 * 1000);
+
+    const counts = await getFunnelCounts({
+      start,
+      end,
+      ...(input.source ? { source: input.source } : {}),
+    });
+
+    // Conversion rates between funnel stages. null = denominator is zero.
+    const safeRate = (numerator: number, denominator: number): number | null =>
+      denominator === 0 ? null : Math.round((numerator / denominator) * 1000) / 10;
+
+    res.json({
+      windowDays: input.days,
+      start,
+      end,
+      counts,
+      conversions: {
+        signupStartedToCompleted: safeRate(
+          counts.signup_completed ?? 0,
+          counts.signup_started ?? 0,
+        ),
+        signupCompletedToOnboarded: safeRate(
+          counts.onboarding_completed ?? 0,
+          counts.signup_completed ?? 0,
+        ),
+        onboardedToFirstSwipe: safeRate(
+          counts.first_swipe ?? 0,
+          counts.onboarding_completed ?? 0,
+        ),
+        firstSwipeToFirstMatch: safeRate(
+          counts.first_match ?? 0,
+          counts.first_swipe ?? 0,
+        ),
+        firstMatchToFirstMessage: safeRate(
+          counts.first_message ?? 0,
+          counts.first_match ?? 0,
+        ),
+        firstMessageToPurchase: safeRate(
+          counts.purchase_completed ?? 0,
+          counts.first_message ?? 0,
+        ),
+        purchaseStartedToCompleted: safeRate(
+          counts.purchase_completed ?? 0,
+          counts.purchase_started ?? 0,
+        ),
+      },
+    });
   } catch (error) {
     next(error);
   }

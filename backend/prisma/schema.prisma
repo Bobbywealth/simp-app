@@ -208,6 +208,7 @@ model User {
   notificationPreference    NotificationPreference?
   pushTokens                PushToken[]
   emailEvents               EmailEvent[]
+  analyticsEvents           AnalyticsEvent[]
   entitlements              Entitlement[]
   dailyUsages               DailyUsage[]
   moderationActionsTaken    ModerationAction[]           @relation("ModeratorActions")
@@ -784,4 +785,33 @@ model EmailEvent {
   @@index([userId, createdAt])
   @@index([email, createdAt])
   @@index([type, createdAt])
+}
+
+/// Funnel analytics events. One row per client-side `track()` call.
+/// Used by the admin funnel endpoint to compute conversion rates
+/// (signup_started → signup_completed → first_swipe → first_match
+/// → first_message → purchase_started → purchase_completed).
+///
+/// userId is nullable because signup_started fires before the user
+/// exists (anonymous funnel start). sessionId lets us tie anonymous
+/// events to the eventual user via the eventual track with userId.
+///
+/// Properties payload is application-defined per event. We never
+/// store PII (email/name/photo/token/etc.) — the route-level Zod
+/// validator rejects sensitive keys before this row is written.
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  event       String
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId   String?
+  source      String   @default("client") // 'client' | 'server'
+  appVersion  String?
+  properties  Json?
+  createdAt   DateTime @default(now())
+
+  @@index([event, createdAt])
+  @@index([userId, createdAt])
+  @@index([sessionId])
+  @@index([createdAt])
 }

@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import { prisma } from '../config/db.js';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import { verifyAppleTransaction, verifyGooglePurchase } from '../services/billing.service.js';
+import { trackAnalytics } from '../services/analytics.service.js';
 import {
   handleAppStoreServerNotification,
   refreshAppleEntitlementByOriginalTransaction,
@@ -69,7 +70,34 @@ billingRouter.post('/billing/apple/verify', requireAuth, async (req: AuthedReque
       input.environment,
     );
     res.json({ entitlement });
+    // Server-side purchase_completed. The iOS client also fires
+    // purchase_started before opening the App Store sheet so we have a
+    // full purchase_started -> purchase_completed conversion rate.
+    setImmediate(() => {
+      void trackAnalytics({
+        event: 'purchase_completed',
+        userId: req.userId!,
+        source: 'server',
+        properties: {
+          platform: 'apple',
+          tier: entitlement.tier,
+          transactionId: input.transactionId,
+        },
+      });
+    });
   } catch (error) {
+    // If verifyAppleTransaction threw, surface the error AND fire a
+    // purchase_failed event so the funnel endpoint can attribute drop-offs.
+    if (!((error as { status?: number })?.status && (error as { status?: number }).status! < 500)) {
+      setImmediate(() => {
+        void trackAnalytics({
+          event: 'purchase_failed',
+          userId: req.userId!,
+          source: 'server',
+          properties: { platform: 'apple' },
+        });
+      });
+    }
     next(error);
   }
 });

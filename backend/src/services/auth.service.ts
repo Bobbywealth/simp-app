@@ -271,12 +271,13 @@ export async function resendVerification(userId: string) {
   return { alreadyVerified: false };
 }
 
-export async function verifyEmail(token: string) {
-  await consumeAuthActionToken(token, 'EMAIL_VERIFICATION', async (tx, userId) => {
+export async function verifyEmail(token: string): Promise<{ userId: string }> {
+  return consumeAuthActionToken(token, 'EMAIL_VERIFICATION', async (tx, userId) => {
     await tx.user.update({
       where: { id: userId },
       data: { emailVerified: true, emailVerifiedAt: new Date() },
     });
+    return { userId };
   });
 }
 

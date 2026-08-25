@@ -12,6 +12,7 @@ import { unmatch } from '../api/matches';
 import type { ConversationDetail, Message } from '../types';
 import { useAuth } from '../store/auth';
 import { getRealtimeSocket } from '../lib/realtime';
+import { track, trackMilestone } from '../api/analytics';
 
 export default function Conversation() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +24,19 @@ export default function Conversation() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  // Fire conversation_opened once per mount; dedupe across re-entries via
+  // sessionStorage so we count unique conversations opened, not page refreshes.
+  useEffect(() => {
+    if (!id) return;
+    const KEY = `simp_convo_opened_${id}`;
+    try {
+      if (sessionStorage.getItem(KEY)) return;
+      sessionStorage.setItem(KEY, '1');
+    } catch {
+      /* sessionStorage may be unavailable */
+    }
+    void track('conversation_opened', { conversationId: id });
+  }, [id]);
   const [composer, setComposer] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);

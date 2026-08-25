@@ -6,6 +6,7 @@ import { requireAuth, requireVerifiedEmail, type AuthedRequest } from '../middle
 import { AppError } from '../utils/errors.js';
 import { consumeSwipeAllowance, getEffectiveEntitlement, utcUsageDay } from '../services/entitlement.service.js';
 import { createNotification, dispatchNotification } from '../services/notification.service.js';
+import { trackAnalytics } from '../services/analytics.service.js';
 
 export const swipesRouter = Router();
 
@@ -130,6 +131,13 @@ swipesRouter.post(
               (await tx.match.create({
                 data: { userAId, userBId, conversation: { create: {} } },
               }));
+            // Server-side match_created event (fires after the response
+            // so the transaction has committed). Per-user first_match
+            // milestone is handled client-side via trackMilestone so we
+            // can dedupe with localStorage without a DB lookup.
+            setImmediate(() => {
+              void trackAnalytics({ event: 'match_created', userId: swiperId });
+            });
             if (!existingMatch) {
               const [mine, theirs] = await Promise.all([
                 tx.user.findUnique({
