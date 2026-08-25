@@ -42,13 +42,12 @@ export function initSentry(): boolean {
         Sentry.replayIntegration({
           maskAllText: true,
           blockAllMedia: true,
-          // 10% baseline, 100% on error
-          sampleRate: 0.1,
-          errorSampleRate: 1.0,
         }),
       ],
       // 10% performance, 100% errors
       tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+      // 10% of sessions get a replay, 100% of sessions get one on error
+      replaysSessionSampleRate: 0.1,
       replaysOnErrorSampleRate: 1.0,
       // Strip PII before sending to Sentry
       beforeSend(event) {
