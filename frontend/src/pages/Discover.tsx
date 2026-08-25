@@ -239,17 +239,33 @@ export default function Discover() {
   if (deck === 'empty' || topIndex >= profiles.length) {
     return (
       <Scaffold onBack={() => navigate('/home')} showFilters={() => setShowFilters(true)}>
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 text-center">
           <SimpLogo size={64} variant="emblem" />
           <h2 className="display-heading text-2xl font-light text-white">
-            You&apos;ve seen everyone.
+            You&apos;ve seen everyone nearby.
           </h2>
           <p className="text-sm text-white/60 max-w-xs">
-            New curated profiles appear throughout the day. Check back soon.
+            New curated profiles appear throughout the day. Try one of these to keep going:
           </p>
-          <button onClick={() => loadDeck(true)} className="btn-gold px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]">
-            Refresh
-          </button>
+          <div className="flex flex-col gap-3 w-full max-w-xs">
+            <button
+              onClick={() => loadDeck(true)}
+              className="btn-gold w-full py-3 text-sm font-medium uppercase tracking-[0.18em]"
+              aria-label="Refresh discovery deck with new profiles"
+            >
+              Refresh
+            </button>
+            <button
+              onClick={() => setShowFilters(true)}
+              className="btn-gold-outline w-full py-3 text-sm font-medium uppercase tracking-[0.18em]"
+              aria-label="Open filters to expand your discovery radius or age range"
+            >
+              Expand filters
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-white/40 max-w-xs">
+            SIMP refreshes new profiles every 30 minutes. Come back soon — your next match could be loading.
+          </p>
         </div>
       </Scaffold>
     );
