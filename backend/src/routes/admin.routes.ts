@@ -435,3 +435,159 @@ adminRouter.get('/admin/analytics/funnel', async (req: AuthedRequest, res, next)
     next(error);
   }
 });
+
+/**
+ * Cross-user moderation audit log. Returns the last N moderator
+ * actions across all targets, with moderator name + target name joined.
+ * Used for accountability (who banned who, when) and for compliance
+ * audits (every action that affects a user's account status is
+ * logged here + a row in ModerationAction per-user).
+ */
+adminRouter.get('/admin/audit-log', async (req: AuthedRequest, res, next) => {
+  try {
+    const input = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        cursor: z.string().optional(),
+        moderatorId: z.string().optional(),
+        actionType: z
+          .enum([
+            'WARN',
+            'SUSPEND',
+            'BAN',
+            'RESTORE',
+            'REMOVE_PHOTO',
+            'END_STREAM',
+            'APPROVE_VERIFICATION',
+            'REJECT_VERIFICATION',
+          ])
+          .optional(),
+      })
+      .parse(req.query);
+    const where = {
+      ...(input.moderatorId ? { moderatorId: input.moderatorId } : {}),
+      ...(input.actionType ? { action: input.actionType } : {}),
+    };
+    const rows = await prisma.moderationAction.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: input.limit + 1,
+      ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+      include: {
+        moderator: { select: { id: true, profile: { select: { displayName: true } } } },
+        target: { select: { id: true, profile: { select: { displayName: true } } } },
+      },
+    });
+    const hasMore = rows.length > input.limit;
+    const page = hasMore ? rows.slice(0, input.limit) : rows;
+    res.json({
+      actions: page.map((a) => ({
+        id: a.id,
+        actionType: a.action,
+        reason: a.reason,
+        metadata: a.metadata,
+        moderator: a.moderator
+          ? {
+              id: a.moderator.id,
+              displayName: a.moderator.profile?.displayName ?? 'Moderator',
+            }
+          : null,
+        targetUser: a.target
+          ? {
+              id: a.target.id,
+              displayName: a.target.profile?.displayName ?? 'User',
+            }
+          : null,
+        targetFingerprint: a.targetFingerprint,
+        createdAt: a.createdAt,
+      })),
+      nextCursor: hasMore ? page[page.length - 1].id : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Abuse monitoring metrics. Returns rolling counts over the requested
+ * window so mods can spot abuse spikes (sudden report volume from one
+ * user, mass-block patterns, etc.) without running SQL by hand.
+ *
+ * Heavy operations are rate-limited via the router-level rate limits
+ * applied in app.ts.
+ */
+adminRouter.get('/admin/abuse-metrics', async (req: AuthedRequest, res, next) => {
+  try {
+    const input = z
+      .object({
+        hours: z.coerce.number().int().min(1).max(168).default(24),
+      })
+      .parse(req.query);
+    const since = new Date(Date.now() - input.hours * 60 * 60 * 1000);
+
+    const [openReports, recentReports, recentBlocks, recentDeletes] = await Promise.all([
+      prisma.report.count({ where: { status: { in: ['OPEN', 'REVIEWING'] } } }),
+      prisma.report.count({ where: { createdAt: { gte: since } } }),
+      prisma.block.count({ where: { createdAt: { gte: since } } }),
+      prisma.photo.count({
+        where: { deletedAt: { not: null }, deletedAt: { gte: since } },
+      }),
+    ]);
+
+    // Top reporters — find users who have filed the most reports in
+    // the window. Useful for catching coordinated bad-faith report
+    // campaigns against a target.
+    const topReporters = await prisma.report.groupBy({
+      by: ['reporterId'],
+      where: { createdAt: { gte: since } },
+      _count: { _all: true },
+      orderBy: { _count: { reporterId: 'desc' } },
+      take: 10,
+    });
+
+    // Top reported targets — users receiving the most reports.
+    const topTargets = await prisma.report.groupBy({
+      by: ['targetUserId'],
+      where: { createdAt: { gte: since } },
+      _count: { _all: true },
+      orderBy: { _count: { targetUserId: 'desc' } },
+      take: 10,
+    });
+
+    // Hydrate display names in a single query rather than N queries
+    const userIds = Array.from(
+      new Set([
+        ...topReporters.map((r) => r.reporterId),
+        ...topTargets.map((r) => r.targetUserId),
+      ]),
+    );
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, profile: { select: { displayName: true } } },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u.profile?.displayName ?? 'User']));
+
+    res.json({
+      windowHours: input.hours,
+      since,
+      totals: {
+        openReports,
+        recentReports,
+        recentBlocks,
+        recentPhotoDeletions: recentDeletes,
+      },
+      topReporters: topReporters.map((r) => ({
+        userId: r.reporterId,
+        displayName: userMap.get(r.reporterId) ?? 'User',
+        reportCount: r._count._all,
+      })),
+      topReportedTargets: topTargets.map((t) => ({
+        userId: t.targetUserId,
+        displayName: userMap.get(t.targetUserId) ?? 'User',
+        reportCount: t._count._all,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
