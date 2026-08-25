@@ -525,40 +525,60 @@ adminRouter.get('/admin/abuse-metrics', async (req: AuthedRequest, res, next) =>
       .parse(req.query);
     const since = new Date(Date.now() - input.hours * 60 * 60 * 1000);
 
-    const [openReports, recentReports, recentBlocks, recentDeletes] = await Promise.all([
+    const [openReports, recentReports, recentBlocks, recentPhotoDeletions] = await Promise.all([
       prisma.report.count({ where: { status: { in: ['OPEN', 'REVIEWING'] } } }),
       prisma.report.count({ where: { createdAt: { gte: since } } }),
       prisma.block.count({ where: { createdAt: { gte: since } } }),
-      prisma.photo.count({
-        where: { deletedAt: { not: null }, deletedAt: { gte: since } },
+      // Photo deletions are hard-delete in the current schema
+      // (no soft-delete column on Photo). We count admin photo-removal
+      // events from ModerationAction.metadata.removedAt instead, so
+      // the metric reflects moderator-initiated deletions, not user self-removals.
+      prisma.moderationAction.count({
+        where: {
+          action: 'REMOVE_PHOTO',
+          createdAt: { gte: since },
+        },
       }),
     ]);
 
     // Top reporters — find users who have filed the most reports in
     // the window. Useful for catching coordinated bad-faith report
-    // campaigns against a target.
-    const topReporters = await prisma.report.groupBy({
+    // campaigns against a target. reporterId is nullable (anonymous
+    // reports allowed) so we filter out nulls explicitly.
+    const topReportersRaw = await prisma.report.groupBy({
       by: ['reporterId'],
-      where: { createdAt: { gte: since } },
+      where: { createdAt: { gte: since }, reporterId: { not: null } },
       _count: { _all: true },
       orderBy: { _count: { reporterId: 'desc' } },
       take: 10,
     });
+    // Prisma's groupBy output type infers reporterId as the scalar
+    // type but with null filter we know it's non-null at runtime.
+    const topReporters = topReportersRaw.map((r) => ({
+      reporterId: r.reporterId as string,
+      _count: { _all: r._count._all },
+    }));
 
     // Top reported targets — users receiving the most reports.
-    const topTargets = await prisma.report.groupBy({
-      by: ['targetUserId'],
-      where: { createdAt: { gte: since } },
+    // reportedId is also nullable (could be a stream report or anonymous),
+    // use explicit non-null filter.
+    const topTargetsRaw = await prisma.report.groupBy({
+      by: ['reportedId'],
+      where: { createdAt: { gte: since }, reportedId: { not: null } },
       _count: { _all: true },
-      orderBy: { _count: { targetUserId: 'desc' } },
+      orderBy: { _count: { reportedId: 'desc' } },
       take: 10,
     });
+    const topTargets = topTargetsRaw.map((t) => ({
+      reportedId: t.reportedId as string,
+      _count: { _all: t._count._all },
+    }));
 
     // Hydrate display names in a single query rather than N queries
     const userIds = Array.from(
       new Set([
         ...topReporters.map((r) => r.reporterId),
-        ...topTargets.map((r) => r.targetUserId),
+        ...topTargets.map((t) => t.reportedId),
       ]),
     );
     const users = await prisma.user.findMany({
@@ -574,7 +594,7 @@ adminRouter.get('/admin/abuse-metrics', async (req: AuthedRequest, res, next) =>
         openReports,
         recentReports,
         recentBlocks,
-        recentPhotoDeletions: recentDeletes,
+        recentPhotoDeletions,
       },
       topReporters: topReporters.map((r) => ({
         userId: r.reporterId,
@@ -582,8 +602,8 @@ adminRouter.get('/admin/abuse-metrics', async (req: AuthedRequest, res, next) =>
         reportCount: r._count._all,
       })),
       topReportedTargets: topTargets.map((t) => ({
-        userId: t.targetUserId,
-        displayName: userMap.get(t.targetUserId) ?? 'User',
+        userId: t.reportedId,
+        displayName: userMap.get(t.reportedId) ?? 'User',
         reportCount: t._count._all,
       })),
     });
