@@ -112,7 +112,24 @@ export default function ProfileSetup() {
         await saveOnboardingState(step + 2, draft());
         setStep((current) => current + 1);
       } catch (value) {
-        setError((value as Error).message);
+        // Auto-retry transient failures (network drops, 5xx). The most
+        // common in-the-wild failure is the user closing the app or losing
+        // connectivity mid-step; we try once more before showing the error.
+        const message = (value as Error).message ?? '';
+        const isTransient =
+          /network|fetch|timeout|5\d\d|aborted|failed to fetch/i.test(message) ||
+          !navigator.onLine;
+        if (isTransient) {
+          try {
+            await new Promise((resolve) => setTimeout(resolve, 600));
+            await saveOnboardingState(step + 2, draft());
+            setStep((current) => current + 1);
+            return;
+          } catch {
+            // Fall through to error display below.
+          }
+        }
+        setError(message);
       }
     } else {
       await finish();

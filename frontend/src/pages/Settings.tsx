@@ -219,10 +219,51 @@ export default function Settings() {
               <button type="button" onClick={() => void savePassword()} disabled={busy === 'password' || !currentPassword || !newPassword || !confirmPassword} className="btn-gold w-full py-3 text-xs uppercase tracking-[0.16em] disabled:opacity-30">Update password</button>
             </div>
           </details>
-          <details className="border-t border-white/[0.06] p-4">
+          <details className="border-t border-white/[0.06] p-4" open>
             <summary className="cursor-pointer text-sm font-medium">Active sessions <span className="text-white/35">({sessions.length})</span></summary>
-            <div className="mt-3 space-y-2">{sessions.map((session) => <div key={session.id} className="flex items-center gap-3 rounded-xl bg-white/[0.035] p-3"><div className="min-w-0 flex-1"><p className="truncate text-sm">{session.deviceName ?? session.platform}</p><p className="text-[10px] text-white/35">{session.current ? 'This device' : `Last active ${new Date(session.lastUsedAt).toLocaleDateString()}`}</p></div>{!session.current && <button type="button" onClick={() => void run(`session:${session.id}`, async () => { await revokeSession(session.id); setSessions((items) => items.filter((item) => item.id !== session.id)); }, 'Session revoked.').catch(() => undefined)} className="text-[10px] uppercase text-red-300">Revoke</button>}</div>)}</div>
-            <button type="button" onClick={() => void run('logoutAll', async () => { await logoutAll(); await logout(); navigate('/login', { replace: true }); }, '').catch(() => undefined)} className="mt-3 min-h-11 w-full text-xs uppercase tracking-[0.15em] text-red-300">Sign out everywhere</button>
+            <div className="mt-3 space-y-2">{sessions.map((session) => {
+              const isCurrent = session.current;
+              const otherCount = sessions.filter((s) => !s.current).length;
+              return (
+                <div key={session.id} className="flex items-center gap-3 rounded-xl bg-white/[0.035] p-3">
+                  <span aria-hidden="true" className="text-base">{session.platform === 'IOS' ? '📱' : session.platform === 'ANDROID' ? '🤖' : '💻'}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm">{session.deviceName ?? session.platform}</p>
+                      {isCurrent && <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-300">This device</span>}
+                    </div>
+                    <p className="text-[10px] text-white/35">{isCurrent ? 'Active now' : `Last active ${formatRelative(session.lastUsedAt)}`}</p>
+                  </div>
+                  {!isCurrent && (
+                    <button
+                      type="button"
+                      onClick={() => void run(`session:${session.id}`, async () => {
+                        await revokeSession(session.id);
+                        setSessions((items) => items.filter((item) => item.id !== session.id));
+                      }, 'Session revoked.').catch(() => undefined)}
+                      className="text-[10px] uppercase text-red-300"
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </div>
+              );
+            })}</div>
+            {sessions.filter((s) => !s.current).length > 0 && (
+              <button
+                type="button"
+                onClick={() => void run('logoutOtherDevices', async () => {
+                  const others = sessions.filter((s) => !s.current);
+                  await Promise.all(others.map((s) => revokeSession(s.id)));
+                  setSessions((items) => items.filter((item) => item.current));
+                  return undefined;
+                }, `${sessions.filter((s) => !s.current).length} other session${sessions.filter((s) => !s.current).length === 1 ? '' : 's'} signed out.`).catch(() => undefined)}
+                className="mt-3 min-h-11 w-full rounded-xl border border-amber-400/30 bg-amber-500/10 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-amber-200"
+              >
+                Sign out other devices ({sessions.filter((s) => !s.current).length})
+              </button>
+            )}
+            <button type="button" onClick={() => void run('logoutAll', async () => { await logoutAll(); await logout(); navigate('/login', { replace: true }); }, '').catch(() => undefined)} className="mt-2 min-h-11 w-full text-xs uppercase tracking-[0.15em] text-red-300">Sign out everywhere</button>
           </details>
         </SettingsSection>
 
@@ -287,4 +328,19 @@ function StaticRow({ label, value }: { label: string; value: string }) {
 }
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return <label className="flex min-h-11 items-center justify-between gap-4"><span className="text-sm text-white/75">{label}</span><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-gold-400" /></label>;
+}
+
+/**
+ * Compact human-readable "X ago" string for the active-sessions list.
+ * Inlined here (rather than in Notifications.tsx where a similar
+ * helper exists) because Settings doesn't depend on Notifications.
+ */
+function formatRelative(value: string): string {
+  const seconds = Math.max(1, Math.floor((Date.now() - new Date(value).getTime()) / 1_000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric' });
 }

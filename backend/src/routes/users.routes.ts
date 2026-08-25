@@ -246,8 +246,10 @@ usersRouter.get('/me/onboarding', requireAuth, async (req: AuthedRequest, res, n
 
 usersRouter.patch('/me/onboarding', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
+    // Step max matches TOTAL_STEPS in frontend/src/pages/ProfileSetup.tsx.
+    // If you add steps, bump both in lockstep.
     const input = z
-      .object({ step: z.number().int().min(1).max(17), state: onboardingStateSchema.partial() })
+      .object({ step: z.number().int().min(1).max(7), state: onboardingStateSchema.partial() })
       .parse(req.body);
     if (input.state.birthDate) adultBirthDate(input.state.birthDate);
     const current = await prisma.user.findUnique({

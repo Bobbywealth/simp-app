@@ -105,28 +105,63 @@ export default function Discover() {
   }
 
   async function doSwipe(profile: DiscoveryProfile, action: SwipeAction, note?: string | null) {
+    // Optimistic UI: advance the deck + record the swipe BEFORE awaiting
+    // the server response. If the server rejects (rate limit, validation,
+    // network error), we roll back the deck + show a toast.
+    //
+    // We use a tiny client-generated id (`temp-${timestamp}-${random}`) as
+    // the swipeHistory key. On success, we keep the entry. On failure, we
+    // remove it and re-insert the profile at its prior deck position.
+    const tempSwipeId = `temp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const priorTopIndex = topIndex;
+    const priorHistoryLength = swipeHistory.length;
+
+    // 1. Optimistic state updates
+    setSwipeHistory((prev) => [...prev, { swipeId: tempSwipeId, profile }]);
+    advanceDeck();
+    trackOptimistic(action);
+
     try {
+      // 2. Server roundtrip — could reject on rate-limit / validation /
+      //    network errors. createSwipe throws on non-2xx.
       const res = await createSwipe({ swipedId: profile.userId, action, note });
-      setSwipeHistory((prev) => [...prev, { swipeId: res.swipeId, profile }]);
+      // 3a. Replace the temp entry with the real one + propagate match modal.
+      setSwipeHistory((prev) =>
+        prev.map((entry) => (entry.swipeId === tempSwipeId ? { swipeId: res.swipeId, profile } : entry)),
+      );
       if (res.matched) {
         setMatchedProfile(profile);
         setMatchedNote(note ?? null);
         void track('match_created');
         void trackMilestone('first_match');
       }
-      // Per-action discovery events for granular funnel analysis.
-      const actionEvent =
-        action === 'PASS' ? 'discovery_pass' :
-        action === 'LIKE' ? 'discovery_like' :
-        action === 'SUPERLIKE' ? 'discovery_super_like' : 'discovery_pass';
-      void track(actionEvent);
-      // Generic discovery_swipe covers all actions for the high-level funnel.
-      void track('discovery_swipe', { action });
-      void trackMilestone('first_swipe', { action });
-      advanceDeck();
-    } catch (e) {
-      setError((e as Error).message);
+    } catch (err) {
+      // 3b. Rollback: restore deck position + remove the temp swipe from
+      // history so a rewind doesn't surface a swipe the server never saw.
+      setTopIndex(priorTopIndex);
+      setSwipeHistory((prev) => {
+        if (prev.length !== priorHistoryLength + 1) return prev;
+        return prev.slice(0, priorHistoryLength);
+      });
+      const message = (err as Error).message || 'Could not save your swipe. Please try again.';
+      setError(message);
+      window.setTimeout(() => setError(null), 4000);
     }
+  }
+
+  /**
+   * Fire-and-forget analytics that don't depend on the server response.
+   * The track('discovery_swipe') + per-action events all fire optimistically;
+   * the funnel endpoint already handles dedupe of duplicate fires.
+   */
+  function trackOptimistic(action: SwipeAction) {
+    const actionEvent =
+      action === 'PASS' ? 'discovery_pass' :
+      action === 'LIKE' ? 'discovery_like' :
+      action === 'SUPERLIKE' ? 'discovery_super_like' : 'discovery_pass';
+    void track(actionEvent);
+    void track('discovery_swipe', { action });
+    void trackMilestone('first_swipe', { action });
   }
 
   function onSwipeLeft(profile: DiscoveryProfile) {
