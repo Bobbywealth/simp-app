@@ -32,11 +32,11 @@ services:
       - key: JWT_REFRESH_TTL
         value: 30d
       - key: ALLOWED_ORIGINS
-        value: https://simp-web.onrender.com
+        value: https://simp-web.onrender.com,https://mysimp.app,https://www.mysimp.app
       - key: PUBLIC_BASE_URL
-        value: https://simp-backend-b8nz.onrender.com
+        value: https://api.mysimp.app
       - key: FRONTEND_URL
-        value: https://simp-web.onrender.com
+        value: https://mysimp.app
 
       - key: STORAGE_PROVIDER
         value: local

@@ -17,7 +17,7 @@ const config: CapacitorConfig = {
     /// Allow navigation to our own API so the WebView can make XHR
     /// calls + open the Socket.IO stream without being blocked by the
     /// cleartext / CORS rules on iOS 14+ and Android 9+.
-    allowNavigation: ['simp-web.onrender.com', 'simp-backend-b8nz.onrender.com'],
+    allowNavigation: ['simp-web.onrender.com', 'simp-backend-b8nz.onrender.com', 'mysimp.app', 'www.mysimp.app', 'api.mysimp.app'],
     cleartext: false,
   },
 
@@ -29,7 +29,7 @@ const config: CapacitorConfig = {
     /// Status bar styling matches the dark-gold PWA theme.
     backgroundColor: '#050505',
     /// Universal links for password reset emails etc.
-    associatedDomains: ['applinks:simp.app', 'applinks:www.simp.app'],
+    associatedDomains: ['applinks:mysimp.app', 'applinks:www.mysimp.app'],
   },
 
   android: {

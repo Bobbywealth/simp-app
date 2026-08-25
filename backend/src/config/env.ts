@@ -42,7 +42,7 @@ const schema = z
     VAPID_SUBJECT: z
       .string()
       .url()
-      .default('mailto:admin@simp.app'),
+      .default('mailto:admin@mysimp.app'),
 
     STUN_URLS: z
       .string()
