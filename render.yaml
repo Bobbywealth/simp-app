@@ -120,6 +120,15 @@ services:
     name: simp-web
     buildCommand: cd frontend && npm ci --no-audit --no-fund && npm run typecheck && npm run lint && npm run build
     staticPublishPath: frontend/dist
+    # Permanently redirect every request from the onrender URL to the
+    # production mysimp.com domain. 301 = permanent + cacheable. This
+    # retires the onrender hostname so any bookmark, link, or App
+    # Store review tab that lands on simp-web.onrender.com cleanly
+    # 301s to the canonical mysimp.com URL with the same path.
+    redirects:
+      - source: /*
+        destination: https://mysimp.com/:splat
+        statusCode: 301
     headers:
       - path: /sw.js
         name: Service-Worker-Allowed
