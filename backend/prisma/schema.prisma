@@ -572,6 +572,20 @@ model ProfileVerificationRequest {
   @@index([userId, createdAt])
 }
 
+model LivekitUsageSnapshot {
+  id                        String   @id @default(cuid())
+  participantMinutes        Float    @default(0)
+  participantMinutesLimit   Float    @default(0)
+  recordingStorageGb        Float    @default(0)
+  recordingStorageLimitGb   Float    @default(0)
+  egressGb                  Float    @default(0)
+  egressLimitGb             Float    @default(0)
+  planName                  String?
+  createdAt                 DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model LiveStream {
   id            String           @id @default(cuid())
   broadcasterId String

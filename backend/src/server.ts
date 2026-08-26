@@ -4,6 +4,7 @@ import { prisma } from './config/db.js';
 import { env } from './config/env.js';
 import { seedLegalDocuments } from './legal/seedLegal.js';
 import { startAssetCleanupWorker } from './services/asset-cleanup.service.js';
+import { startLivekitUsageWorker } from './services/livekit-usage.service.js';
 import { captureException, initSentry } from './services/sentry.service.js';
 import { attachLiveSocket } from './sockets/live.js';
 import { logger } from './utils/logger.js';
@@ -39,6 +40,7 @@ async function main() {
   const httpServer = createServer(app);
   const socketServer = attachLiveSocket(httpServer);
   startAssetCleanupWorker();
+  startLivekitUsageWorker();
 
   await new Promise<void>((resolve) => {
     httpServer.listen(env.PORT, () => {

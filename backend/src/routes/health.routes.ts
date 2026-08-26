@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../config/db.js';
 import { env, productionWarnings } from '../config/env.js';
 import { isSentryActive } from '../services/sentry.service.js';
+import { lastLivekitUsage, summarizeBand } from '../services/livekit-usage.service.js';
 
 export const healthRouter = Router();
 
@@ -36,11 +37,13 @@ healthRouter.get('/ready', async (_req, res) => {
     // database and HTTP layer are healthy. Missing third-party
     // integrations are reported as degraded features so the rest of
     // the app can be smoke-tested before paid services are connected.
+    const usage = lastLivekitUsage();
+    const usageFeatures = usage ? [summarizeBand(usage)] : [];
     res.status(200).json({
       status: 'ready',
       database: true,
       integrations,
-      degradedFeatures: productionWarnings,
+      degradedFeatures: [...productionWarnings, ...usageFeatures],
     });
   } catch {
     res.status(503).json({ status: 'unavailable', database: false });

@@ -7,6 +7,7 @@ import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth
 import { deleteStoredPhoto } from '../services/photo.service.js';
 import { getFunnelCounts } from '../services/analytics.service.js';
 import { listRecordings as listLiveRecordings } from '../services/livekit.service.js';
+import { lastLivekitUsage, snapshotLivekitUsage } from '../services/livekit-usage.service.js';
 import { AppError } from '../utils/errors.js';
 import { getRealtimeServer } from '../sockets/realtime.js';
 
@@ -243,6 +244,48 @@ adminRouter.patch('/admin/reports/:id', async (req: AuthedRequest, res, next) =>
       },
     });
     res.json(report);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /admin/live/usage
+ *
+ * Returns the latest LiveKit Cloud usage summary + the last 30 days of
+ * snapshots. Lets the admin page plot trends and spot when the free
+ * tier is running out.
+ */
+adminRouter.get('/admin/live/usage', async (_req: AuthedRequest, res, next) => {
+  try {
+    const latest = lastLivekitUsage() ?? (await snapshotLivekitUsage());
+    const history = await prisma.livekitUsageSnapshot.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
+    res.json({
+      current: latest,
+      history: history.map((row) => ({
+        id: row.id,
+        createdAt: row.createdAt,
+        participantMinutes: row.participantMinutes,
+        participantMinutesLimit: row.participantMinutesLimit,
+        recordingStorageGb: row.recordingStorageGb,
+        recordingStorageLimitGb: row.recordingStorageLimitGb,
+        egressGb: row.egressGb,
+        egressLimitGb: row.egressLimitGb,
+        planName: row.planName,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.post('/admin/live/usage/refresh', async (_req: AuthedRequest, res, next) => {
+  try {
+    const summary = await snapshotLivekitUsage();
+    res.json({ ok: true, summary });
   } catch (error) {
     next(error);
   }
