@@ -89,8 +89,14 @@ export default function Premium() {
       setSuccess(`Welcome to ${product.displayName}! Your subscription is active.`);
     } catch (e) {
       haptics.heavy();
-      void track('purchase_failed', { tier: product.tier, reason: (e as Error).message ?? 'unknown' });
-      setError((e as Error).message ?? 'The purchase did not complete.');
+      const message = (e as Error).message ?? 'The purchase did not complete.';
+      void track('purchase_failed', { tier: product.tier, reason: message });
+      // Web fallback — storekit.ts dispatches 'simp:web-install-prompt'
+      // before throwing. We let the InstallPrompt component show its
+      // own card and suppress the generic error toast.
+      if (message !== 'web_purchase_redirected') {
+        setError(message);
+      }
     } finally {
       setPurchasing(null);
     }

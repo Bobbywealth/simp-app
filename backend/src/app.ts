@@ -13,6 +13,8 @@ import { adminRouter } from './routes/admin.routes.js';
 import { analyticsRouter } from './routes/analytics.routes.js';
 import { authRouter } from './routes/auth.routes.js';
 import { billingRouter } from './routes/billing.routes.js';
+import { billingExtrasRouter } from './routes/billing-extra.routes.js';
+import { googleRtdnRouter } from './routes/google-rtdn.routes.js';
 import { configRouter } from './routes/config.routes.js';
 import { discoveryRouter } from './routes/discovery.routes.js';
 import { experiencesRouter } from './routes/experiences.routes.js';
@@ -143,6 +145,8 @@ export function createApp() {
   app.use(liveRouter);
   app.use(notificationsRouter);
   app.use(billingRouter);
+  app.use(googleRtdnRouter);
+  app.use(billingExtrasRouter);
   app.use(experiencesRouter);
   app.use(analyticsRouter);
   app.use(adminRouter);

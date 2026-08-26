@@ -17,6 +17,11 @@ import type { BillingPlatform, EntitlementStatus, EntitlementTier } from '@prism
 import { env } from '../config/env.js';
 import { prisma } from '../config/db.js';
 import { AppError } from '../utils/errors.js';
+import {
+  classifyAppleNotificationType,
+  recordEntitlementEvent,
+  type EntitlementEventSource,
+} from './entitlement-event.service.js';
 
 export type AppleEnvironment = 'Production' | 'Sandbox';
 
@@ -146,7 +151,12 @@ export async function refreshAppleEntitlementByOriginalTransaction(
   if (!tx) {
     throw new AppError('apple_purchase_invalid', 400, 'Apple returned an undecodable transaction.');
   }
-  return persistAppleTransaction(userId, tx, latest, environment);
+  const externalTransactionId = typeof tx.transactionId === 'string' ? tx.transactionId : originalTransactionId;
+  return persistAppleTransaction(userId, tx, latest, environment, {
+    source: 'APPLE_REFRESH',
+    externalId: `refresh:${externalTransactionId}`,
+    type: 'RENEWAL',
+  });
 }
 
 /**
@@ -158,6 +168,7 @@ export async function persistAppleTransaction(
   transaction: Record<string, unknown>,
   receiptValue: string,
   environment: AppleEnvironment,
+  audit?: { source: EntitlementEventSource; externalId: string; type?: ReturnType<typeof classifyAppleNotificationType> },
 ) {
   const productId = typeof transaction.productId === 'string' ? transaction.productId : null;
   const transactionId = typeof transaction.transactionId === 'string' ? transaction.transactionId : null;
@@ -227,6 +238,24 @@ export async function persistAppleTransaction(
   // canonical source of truth; the profile field is a cache.
   const premium = ['ACTIVE', 'GRACE_PERIOD'].includes(status);
   await prisma.profile.updateMany({ where: { userId }, data: { isPremium: premium } });
+
+  if (audit) {
+    await recordEntitlementEvent({
+      entitlementId: entitlement.id,
+      userId,
+      type: audit.type ?? 'PURCHASE',
+      source: audit.source,
+      tier: entitlement.tier,
+      status,
+      platform: 'APPLE',
+      productId,
+      transactionId,
+      originalTransactionId,
+      externalId: audit.externalId,
+      environment,
+      expiresAt,
+    });
+  }
 
   return entitlement;
 }
@@ -366,6 +395,11 @@ export async function handleAppStoreServerNotification(signedPayload: string) {
       transaction,
       signedTransactionInfo,
       (data.environment as AppleEnvironment) ?? 'Production',
+      {
+        source: 'APPLE_WEBHOOK',
+        externalId: payload.notificationUUID ?? `${payload.notificationType}:${originalTransactionId}`,
+        type: classifyAppleNotificationType(payload.notificationType),
+      },
     );
   }
   if (NOTIFICATIONS_REQUIRING_CANCEL.has(payload.notificationType)) {
@@ -376,6 +410,11 @@ export async function handleAppStoreServerNotification(signedPayload: string) {
       { ...transaction, revocationDate: Date.now() },
       signedTransactionInfo,
       (data.environment as AppleEnvironment) ?? 'Production',
+      {
+        source: 'APPLE_WEBHOOK',
+        externalId: payload.notificationUUID ?? `${payload.notificationType}:${originalTransactionId}`,
+        type: classifyAppleNotificationType(payload.notificationType),
+      },
     );
   }
 

@@ -122,6 +122,33 @@ enum BillingPlatform {
   PROMOTIONAL
 }
 
+enum EntitlementEventType {
+  PURCHASE
+  RENEWAL
+  UPGRADE
+  DOWNGRADE
+  CANCEL
+  REFUND
+  GRACE_PERIOD
+  RECOVER
+  EXPIRE
+  RESTORE
+  PAUSE
+  UNCANCEL
+}
+
+enum EntitlementEventSource {
+  APPLE_VERIFY
+  APPLE_WEBHOOK
+  APPLE_REFRESH
+  GOOGLE_VERIFY
+  GOOGLE_RTDN
+  GOOGLE_PUBSUB
+  CLIENT_VERIFY
+  CLIENT_RESTORE
+  RECONCILE
+}
+
 enum ModerationActionType {
   WARN
   SUSPEND
@@ -185,7 +212,7 @@ model User {
   photos                    Photo[]
   refreshTokens             RefreshToken[]
   authActionTokens          AuthActionToken[]
-  socialIdentities           SocialIdentity[]
+  socialIdentities          SocialIdentity[]
   interests                 UserInterest[]
   swipesMade                Swipe[]                      @relation("SwipesMade")
   swipesReceived            Swipe[]                      @relation("SwipesReceived")
@@ -210,6 +237,7 @@ model User {
   emailEvents               EmailEvent[]
   analyticsEvents           AnalyticsEvent[]
   entitlements              Entitlement[]
+  entitlementEvents         EntitlementEvent[]
   dailyUsages               DailyUsage[]
   moderationActionsTaken    ModerationAction[]           @relation("ModeratorActions")
   moderationActionsReceived ModerationAction[]           @relation("TargetActions")
@@ -250,11 +278,21 @@ model Profile {
   // no authorization decision may rely on this field.
   isPremium Boolean @default(false)
 
+  // Elite boost — a decaying score the discover query orders by so
+  // recently boosted profiles surface first. Set by POST /me/boost,
+  // capped at 1 active boost per day per user, and reset to 0 by the
+  // daily reconciliation cron once the boost window expires.
+  boostScore    Float     @default(0)
+  boostedUntil  DateTime?
+  lastBoostedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([gender, birthDate])
   @@index([verificationStatus])
+  @@index([boostScore])
+  @@index([boostedUntil])
 }
 
 model DiscoveryPreference {
@@ -349,21 +387,21 @@ model AuthActionToken {
 // because Apple issues a private-relay address that can change. The User
 // row owns the canonical account; identities can be linked / unlinked.
 model SocialIdentity {
-  id            String           @id @default(cuid())
+  id            String         @id @default(cuid())
   userId        String
-  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   provider      SocialProvider
   subject       String
   // Cached at link time. For Apple, this is the private relay address
   // (`xyz@privaterelay.appleid.com`); it is not used for login lookup.
   email         String?
-  emailVerified Boolean          @default(false)
+  emailVerified Boolean        @default(false)
   displayName   String?
   // Provider-supplied raw user blob (decoded JWT `user` field for Apple,
   // Google ID token claims for Google). Stored for audit only.
   rawProfile    Json?
-  linkedAt      DateTime         @default(now())
-  lastSeenAt    DateTime         @default(now())
+  linkedAt      DateTime       @default(now())
+  lastSeenAt    DateTime       @default(now())
 
   @@unique([provider, subject])
   @@index([userId, provider])
@@ -631,47 +669,74 @@ model NotificationPreference {
 }
 
 model PushToken {
-  id         String       @id @default(cuid())
-  userId     String
-  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token      String       @unique
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String       @unique
   // Web Push subscription payload (endpoint + keys.p256dh + keys.auth).
   // Stored as JSON to keep the schema simple and let the backend resend
   // using the `web-push` library without re-deriving the structure.
   subscription Json?
-  endpoint     String?     @unique
+  endpoint     String?      @unique
   deviceId     String?
   deviceName   String?
   platform     PushPlatform
-  active       Boolean     @default(true)
-  lastSeenAt   DateTime    @default(now())
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  active       Boolean      @default(true)
+  lastSeenAt   DateTime     @default(now())
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@index([userId, active])
   @@index([platform, active])
 }
 
 model Entitlement {
-  id                    String            @id @default(cuid())
+  id                    String             @id @default(cuid())
   userId                String
-  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   tier                  EntitlementTier
-  status                EntitlementStatus @default(ACTIVE)
+  status                EntitlementStatus  @default(ACTIVE)
   platform              BillingPlatform
   productId             String
-  transactionId         String?           @unique
+  transactionId         String?            @unique
   originalTransactionId String?
   expiresAt             DateTime?
-  autoRenewing          Boolean           @default(false)
+  autoRenewing          Boolean            @default(false)
   environment           String?
   receiptHash           String?
   lastVerifiedAt        DateTime?
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  events                EntitlementEvent[]
 
   @@index([userId, status, expiresAt])
   @@index([originalTransactionId])
+}
+
+model EntitlementEvent {
+  id                    String                 @id @default(cuid())
+  entitlementId         String
+  entitlement           Entitlement            @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  type                  EntitlementEventType
+  source                EntitlementEventSource
+  tier                  EntitlementTier
+  status                EntitlementStatus
+  platform              BillingPlatform
+  productId             String
+  transactionId         String?
+  originalTransactionId String?
+  externalId            String?
+  environment           String?
+  expiresAt             DateTime?
+  metadata              Json?
+  createdAt             DateTime               @default(now())
+
+  @@unique([externalId])
+  @@index([userId, createdAt])
+  @@index([entitlementId])
+  @@index([type, createdAt])
 }
 
 model DailyUsage {
@@ -800,15 +865,15 @@ model EmailEvent {
 /// store PII (email/name/photo/token/etc.) — the route-level Zod
 /// validator rejects sensitive keys before this row is written.
 model AnalyticsEvent {
-  id          String   @id @default(cuid())
-  event       String
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  sessionId   String?
-  source      String   @default("client") // 'client' | 'server'
-  appVersion  String?
-  properties  Json?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  event      String
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sessionId  String?
+  source     String   @default("client") // 'client' | 'server'
+  appVersion String?
+  properties Json?
+  createdAt  DateTime @default(now())
 
   @@index([event, createdAt])
   @@index([userId, createdAt])

@@ -296,6 +296,11 @@ swipesRouter.delete('/swipes/:id', requireAuth, async (req: AuthedRequest, res, 
         data: { isActive: false, deactivatedAt: new Date(), deactivatedById: userId },
       });
       await tx.swipe.delete({ where: { id: latest.id } });
+      await tx.dailyUsage.upsert({
+        where: { userId_day: { userId, day: utcUsageDay() } },
+        create: { userId, day: utcUsageDay(), rewinds: 1 },
+        update: { rewinds: { increment: 1 } },
+      });
       return { swipedId: latest.swipedId };
     });
     res.json({ ok: true, ...result });

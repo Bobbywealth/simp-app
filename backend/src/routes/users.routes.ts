@@ -358,6 +358,21 @@ usersRouter.patch('/me/discovery-preferences', requireAuth, async (req: AuthedRe
     const minAge = input.minAge ?? existing?.minAge ?? 18;
     const maxAge = input.maxAge ?? existing?.maxAge ?? 99;
     if (minAge > maxAge) throw new AppError('invalid_age_range', 400, 'Choose a valid age range.');
+    // SIMP+ is required for the verified-only filter. We do the check
+    // here at the write boundary so the discover query can stay free
+    // of entitlement logic for the common case.
+    if ((input.verifiedOnly ?? existing?.verifiedOnly ?? false)) {
+      const { getActiveTier } = await import('../middleware/require-tier.js');
+      const tier = await getActiveTier(req.userId!);
+      if (tier === 'FREE') {
+        throw new AppError(
+          'payment_required',
+          402,
+          'Verified-only matching is a SIMP+ feature.',
+          { details: { requiredTier: 'SIMP_PLUS', currentTier: tier } },
+        );
+      }
+    }
     const data = {
       ...input,
       ...(input.locationLat !== undefined

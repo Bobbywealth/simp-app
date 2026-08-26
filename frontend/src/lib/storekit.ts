@@ -160,16 +160,26 @@ async function purchaseViaGooglePlayBilling(product: PurchaseProduct): Promise<P
 }
 
 async function purchaseViaWebRedirect(product: PurchaseProduct): Promise<PurchaseResult> {
-  // We never collect payment card data on the web (PCI / App Store
-  // guideline 3.1.2). Instead, deep-link to the App Store subscription
-  // page. The user completes the purchase there, then comes back to
-  // SIMP and we reconcile via the iOS app's standard receipt.
+  // Per App Store guideline 3.1.2 and Google Play ToS, web purchases
+  // for digital subscriptions must go through the user's store account,
+  // not through our own card form. SIMP never sees the card. The
+  // caller should treat this branch as "show an install-the-app card"
+  // rather than throw — Premium.tsx now opens the deep link and shows
+  // a friendly "Open the App Store" button instead of an error toast.
   const url = appleSubscriptionManagementUrl(product.nativeProductId);
-  if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
-  throw new Error(
-    'Web purchases must be completed inside the iOS / Android app. ' +
-      'We just opened the App Store subscription page in a new tab — finish the purchase there, then return to SIMP.',
-  );
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('simp:web-install-prompt', {
+        detail: {
+          productId: product.nativeProductId,
+          tier: product.tier,
+          appStoreUrl: url,
+          playStoreUrl: `https://play.google.com/store/apps/details?id=app.simp.client`,
+        },
+      }),
+    );
+  }
+  throw new Error('web_purchase_redirected');
 }
 
 /**

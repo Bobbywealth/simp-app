@@ -1,10 +1,11 @@
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { GoogleAuth } from 'google-auth-library';
-import type { BillingPlatform, EntitlementStatus, EntitlementTier } from '@prisma/client';
+import type { BillingPlatform, EntitlementStatus, EntitlementTier, EntitlementEventSource } from '@prisma/client';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/errors.js';
+import { recordEntitlementEvent, type EntitlementEventType } from './entitlement-event.service.js';
 
 const plusProducts = new Set(env.SIMP_PLUS_PRODUCT_IDS.split(',').map((item) => item.trim()).filter(Boolean));
 const eliteProducts = new Set(env.SIMP_ELITE_PRODUCT_IDS.split(',').map((item) => item.trim()).filter(Boolean));
@@ -26,6 +27,12 @@ async function saveEntitlement(input: {
   autoRenewing: boolean;
   environment?: string;
   receiptValue: string;
+  /** Source of the mutation; threaded into the EntitlementEvent row. */
+  source: import('@prisma/client').EntitlementEventSource;
+  /** External dedupe key (notificationUUID / pubsub messageId / orderId). */
+  externalId?: string;
+  /** Override the implied event type (defaults to PURCHASE on first write, RENEWAL on update). */
+  eventType?: import('./entitlement-event.service.js').EntitlementEventType;
 }) {
   const entitlement = await prisma.entitlement.upsert({
     where: { transactionId: input.transactionId },
@@ -58,6 +65,26 @@ async function saveEntitlement(input: {
   const premium = ['ACTIVE', 'GRACE_PERIOD'].includes(entitlement.status) &&
     (!entitlement.expiresAt || entitlement.expiresAt > new Date());
   await prisma.profile.updateMany({ where: { userId: input.userId }, data: { isPremium: premium } });
+
+  // Audit log. Imported externalId is the canonical dedupe key for
+  // server-to-server sources; manual / refresh callers pass
+  // transactionId-based externalId.
+  await recordEntitlementEvent({
+    entitlementId: entitlement.id,
+    userId: input.userId,
+    type: input.eventType ?? 'PURCHASE',
+    source: input.source,
+    tier: entitlement.tier,
+    status: entitlement.status,
+    platform: input.platform,
+    productId: input.productId,
+    transactionId: input.transactionId,
+    originalTransactionId: input.originalTransactionId,
+    externalId: input.externalId ?? input.transactionId,
+    environment: input.environment ?? null,
+    expiresAt: input.expiresAt,
+  });
+
   return entitlement;
 }
 
@@ -125,6 +152,8 @@ export async function verifyAppleTransaction(
     autoRenewing: transaction.type === 'Auto-Renewable Subscription' && active,
     environment: transaction.environment ?? environment,
     receiptValue: body.signedTransactionInfo,
+    source: 'APPLE_VERIFY',
+    externalId: `verify:${transaction.transactionId}`,
   });
 }
 
@@ -193,5 +222,7 @@ export async function verifyGooglePurchase(
     autoRenewing: line.autoRenewingPlan?.autoRenewEnabled ?? false,
     environment: 'GooglePlay',
     receiptValue: purchaseToken,
+    source: 'GOOGLE_VERIFY',
+    externalId: `verify:${transactionId}`,
   });
 }
