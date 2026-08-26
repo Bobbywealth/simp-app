@@ -5,6 +5,7 @@ import { allowedOrigins } from '../config/env.js';
 import { authorizeConversation, markMessagesDelivered, markMessagesRead, sendMessage } from '../services/messaging.service.js';
 import { logger } from '../utils/logger.js';
 import { verifyAccessToken } from '../utils/jwt.js';
+import { deleteRoom, stopRecording } from '../services/livekit.service.js';
 import { setRealtimeServer } from './realtime.js';
 
 const STREAM_MAX_DURATION_MS = 4 * 60 * 60 * 1_000;
@@ -433,6 +434,7 @@ export function attachLiveSocket(httpServer: HttpServer) {
 }
 
 async function endStream(streamId: string, reason: string) {
+  const stream = await prisma.liveStream.findUnique({ where: { id: streamId }, select: { recordingEgressId: true } });
   await prisma.liveStream.updateMany({
     where: { id: streamId, status: 'LIVE' },
     data: { status: 'ENDED', endedAt: new Date(), viewerCount: 0 },
@@ -443,6 +445,14 @@ async function endStream(streamId: string, reason: string) {
   const timer = broadcasterEndTimers.get(streamId);
   if (timer) clearTimeout(timer);
   broadcasterEndTimers.delete(streamId);
+  // Recording + room cleanup is async, non-blocking. Recording failures
+  // are logged but never affect the user-facing 'ended' event.
+  if (stream?.recordingEgressId) {
+    void stopRecording(streamId, stream.recordingEgressId).catch(() => undefined);
+  } else {
+    void stopRecording(streamId).catch(() => undefined);
+  }
+  void deleteRoom(streamId).catch(() => undefined);
 }
 
 export function getIO() {

@@ -52,6 +52,11 @@ const schema = z
     TURN_CREDENTIAL: z.string().optional(),
     TURN_PROVIDER: z.enum(['twilio', 'coturn', 'manual']).optional(),
     TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
+    LIVEKIT_URL: z.string().url().optional(),
+    LIVEKIT_API_KEY: z.string().min(1).optional(),
+    LIVEKIT_API_SECRET: z.string().min(1).optional(),
+    LIVEKIT_RECORDING_ENABLED: z.enum(['true', 'false']).default('false'),
+    LIVEKIT_RECORDING_TEMPLATE: z.string().min(1).optional(),
     TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
 
     FREE_DAILY_LIKES: z.coerce.number().int().min(1).max(500).default(25),
@@ -131,7 +136,24 @@ const schema = z
       if (!value.TWILIO_ACCOUNT_SID || !value.TWILIO_AUTH_TOKEN) {
         warnings.push('live_streaming: Twilio TURN is selected but TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN is missing');
       }
-    } else if (!value.TURN_URLS || !value.TURN_USERNAME || !value.TURN_CREDENTIAL) {
+    }
+    if (
+      value.LIVEKIT_URL ||
+      value.LIVEKIT_API_KEY ||
+      value.LIVEKIT_API_SECRET
+    ) {
+      const missing = [
+        !value.LIVEKIT_URL ? 'LIVEKIT_URL' : null,
+        !value.LIVEKIT_API_KEY ? 'LIVEKIT_API_KEY' : null,
+        !value.LIVEKIT_API_SECRET ? 'LIVEKIT_API_SECRET' : null,
+      ].filter(Boolean);
+      if (missing.length) {
+        warnings.push(
+          `live_streaming: LiveKit env vars are partial (missing ${missing.join(', ')})`,
+        );
+      }
+    }
+    if (!value.TURN_URLS || !value.TURN_USERNAME || !value.TURN_CREDENTIAL) {
       warnings.push('live_streaming: TURN credentials are missing — cross-network live stream viewers may see black screens');
     }
     if (value.PUSH_PROVIDER === 'firebase' && !value.FIREBASE_SERVICE_ACCOUNT_JSON) {

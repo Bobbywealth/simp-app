@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { resolveIceServers } from '../services/twilio-turn.service.js';
+import { livekitPublicConfig } from '../services/livekit.service.js';
 
 /**
  * GET /config/ice-servers
@@ -22,5 +23,24 @@ export const configRouter = Router();
 
 configRouter.get('/config/ice-servers', async (_req, res) => {
   const config = await resolveIceServers();
+  res.json(config);
+});
+
+/**
+ * GET /config/livekit
+ *
+ * Public, unauthenticated — returns just the LiveKit WebSocket URL and
+ * whether recording is enabled. The API secret never leaves the server.
+ * The room-scoped access token is issued by the auth-gated /live/token
+ * route.
+ */
+configRouter.get('/config/livekit', (_req, res) => {
+  const config = livekitPublicConfig();
+  if (!config) {
+    // 204 No Content is the right shape for "feature not configured" — the
+    // frontend falls back to the legacy WebRTC mesh path until the env
+    // vars are set.
+    return res.status(204).end();
+  }
   res.json(config);
 });

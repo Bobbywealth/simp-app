@@ -29,6 +29,7 @@ healthRouter.get('/ready', async (_req, res) => {
         Boolean(env.TURN_URLS && env.TURN_USERNAME && env.TURN_CREDENTIAL),
       billingApple: Boolean(env.APPLE_IAP_ISSUER_ID && env.APPLE_IAP_KEY_ID && env.APPLE_IAP_PRIVATE_KEY),
       billingGoogle: Boolean(env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON),
+      livekit: Boolean(env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET),
       sentry: isSentryActive(),
     };
     // The service is considered live in production as long as the

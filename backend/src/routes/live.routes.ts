@@ -9,6 +9,12 @@ import { AppError } from '../utils/errors.js';
 import { getProfileCompletion } from '../services/profile-completion.service.js';
 import { REPORT_CATEGORIES } from './moderation.routes.js';
 import { trackAnalytics } from '../services/analytics.service.js';
+import {
+  issueLiveToken,
+  startRecording,
+  stopRecording,
+  deleteRoom,
+} from '../services/livekit.service.js';
 
 export const liveRouter = Router();
 
@@ -170,12 +176,68 @@ liveRouter.post(
           source: 'server',
           properties: { streamId: stream.id },
         });
+        // Kick off composite recording asynchronously. Failures here are
+        // non-fatal — the stream is live regardless; recording just won't
+        // be retained.
+        void startRecording(stream.id).catch(() => undefined);
       });
     } catch (error) {
       next(error);
     }
   },
 );
+
+/**
+ * Issue a LiveKit access token for the requested stream. The token is
+ * scoped to that one room, has canPublish derived from the user's role
+ * (broadcaster = canPublish + canSubscribe; viewer = canSubscribe only),
+ * and expires in 4h. The frontend calls this right before
+ * `Room.connect(url, token)`.
+ */
+liveRouter.post("/live/token", requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const input = z
+      .object({
+        streamId: z.string().min(1).max(80),
+        isBroadcaster: z.boolean().optional(),
+      })
+      .parse(req.body ?? {});
+    const userId = req.userId!;
+    const stream = await prisma.liveStream.findFirst({
+      where: { id: input.streamId, status: "LIVE" },
+      include: { broadcaster: { select: { id: true, profile: { select: { displayName: true } } } } },
+    });
+    if (!stream) throw new AppError("stream_not_live", 404, "Stream is not live.");
+    let isBroadcaster = Boolean(input.isBroadcaster);
+    if (isBroadcaster && stream.broadcasterId !== userId) {
+      throw new AppError("not_broadcaster", 403, "Only the broadcaster can publish.");
+    }
+    if (input.isBroadcaster === undefined && stream.broadcasterId === userId) {
+      isBroadcaster = true;
+    }
+    if (!isBroadcaster) {
+      const blocks = await prisma.block.findFirst({
+        where: {
+          OR: [
+            { blockerId: userId, blockedId: stream.broadcasterId },
+            { blockerId: stream.broadcasterId, blockedId: userId },
+          ],
+        },
+      });
+      if (blocks) throw new AppError("stream_unavailable", 403, "Stream not available.");
+    }
+    const displayName = stream.broadcaster.profile?.displayName ?? "SIMP member";
+    const { token, url } = await issueLiveToken({
+      userId,
+      roomName: input.streamId,
+      isBroadcaster,
+      displayName,
+    });
+    res.json({ token, url, roomName: input.streamId, isBroadcaster });
+  } catch (error) {
+    next(error);
+  }
+});
 
 liveRouter.post('/live/streams/:id/end', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
@@ -184,15 +246,20 @@ liveRouter.post('/live/streams/:id/end', requireAuth, async (req: AuthedRequest,
       data: { status: 'ENDED', endedAt: new Date(), viewerCount: 0 },
     });
     if (!result.count) throw new AppError('stream_not_found', 404, 'Live stream not found.');
-    getRealtimeServer()?.to(`stream:${req.params.id}`).emit('live:ended', { streamId: req.params.id });
+    const streamId = req.params.id!;
+    const egress = await prisma.liveStream.findUnique({ where: { id: streamId }, select: { recordingEgressId: true } });
+    getRealtimeServer()?.to(`stream:${streamId}`).emit('live:ended', { streamId });
     res.json({ ok: true });
     setImmediate(() => {
       void trackAnalytics({
         event: 'live_ended',
         userId: req.userId!,
         source: 'server',
-        properties: { streamId: req.params.id! },
+        properties: { streamId },
       });
+      // Recording stop is async — we don't gate the response on it.
+      void stopRecording(streamId, egress?.recordingEgressId).catch(() => undefined);
+      void deleteRoom(streamId).catch(() => undefined);
     });
   } catch (error) {
     next(error);

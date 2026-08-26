@@ -581,6 +581,12 @@ model LiveStream {
   heartCount    Int              @default(0)
   startedAt     DateTime         @default(now())
   endedAt       DateTime?
+  // LiveKit egress state for moderator review + App Store / Play Store
+  // trust-and-safety compliance. recordingEgressId is the LiveKit handle
+  // (stopped when the stream ends); recordingUrl is the resolved S3
+  // path once the egress is COMPLETE (filled by the post-stop hook).
+  recordingEgressId String?
+  recordingUrl      String?
 
   broadcaster  User              @relation("StreamsBroadcast", fields: [broadcasterId], references: [id], onDelete: Cascade)
   chatMessages LiveChatMessage[]
