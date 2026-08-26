@@ -153,7 +153,18 @@ const schema = z
         );
       }
     }
-    if (!value.TURN_URLS || !value.TURN_USERNAME || !value.TURN_CREDENTIAL) {
+    // Only warn about static TURN creds when no dynamic TURN provider is wired.
+    // Twilio / coturn fetch their own creds at runtime; LiveKit handles its own
+    // ICE servers via its SFU. Suppressing this false positive keeps the
+    // degradedFeatures list honest.
+    const hasDynamicTurn =
+      value.TURN_PROVIDER === 'twilio' ||
+      value.TURN_PROVIDER === 'coturn' ||
+      value.TURN_PROVIDER === 'manual';
+    if (
+      !hasDynamicTurn &&
+      (!value.TURN_URLS || !value.TURN_USERNAME || !value.TURN_CREDENTIAL)
+    ) {
       warnings.push('live_streaming: TURN credentials are missing — cross-network live stream viewers may see black screens');
     }
     if (value.PUSH_PROVIDER === 'firebase' && !value.FIREBASE_SERVICE_ACCOUNT_JSON) {
