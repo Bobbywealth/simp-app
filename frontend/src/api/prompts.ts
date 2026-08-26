@@ -7,6 +7,7 @@ export interface Prompt {
   answer: string;
   position: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export function listMyPrompts() {
@@ -24,13 +25,22 @@ export function createPrompt(input: {
   });
 }
 
-export function deletePrompt(id: string) {
-  return apiFetch<{ ok: boolean }>(`/users/me/prompts/${id}`, { method: 'DELETE' });
-}
-
-export function patchMyProfile(input: Record<string, unknown>) {
-  return apiFetch<{ ok: boolean }>('/users/me/profile', {
+export function updatePrompt(id: string, input: { question?: string; answer?: string }) {
+  return apiFetch<Prompt>(`/users/me/prompts/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(input),
+  });
+}
+
+export function deletePrompt(id: string) {
+  return apiFetch<{ ok: boolean }>(`/users/me/prompts/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export function reorderPrompts(ids: string[]) {
+  return apiFetch<{ prompts: Prompt[] }>('/users/me/prompts/reorder', {
+    method: 'PUT',
+    body: JSON.stringify({ ids }),
   });
 }

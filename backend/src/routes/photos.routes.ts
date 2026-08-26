@@ -28,16 +28,21 @@ const serialize = (photo: {
   position: number;
   width: number | null;
   height: number | null;
-}) => ({
-  id: photo.id,
-  photoId: photo.id,
-  url: photo.url,
-  thumbnailUrl: cloudinaryThumbnailUrl(photo.url),
-  position: photo.position,
-  width: photo.width,
-  height: photo.height,
-  isPrimary: photo.position === 0,
-});
+}) => {
+  const aspectRatio =
+    photo.width && photo.height ? Number((photo.width / photo.height).toFixed(3)) : null;
+  return {
+    id: photo.id,
+    photoId: photo.id,
+    url: photo.url,
+    thumbnailUrl: cloudinaryThumbnailUrl(photo.url),
+    position: photo.position,
+    width: photo.width,
+    height: photo.height,
+    aspectRatio,
+    isPrimary: photo.position === 0,
+  };
+};
 
 photosRouter.post(
   '/photos/upload',

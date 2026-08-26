@@ -25,6 +25,17 @@ const profileSchema = z.object({
   occupation: z.string().trim().max(80).optional().nullable(),
   heightCm: z.number().int().min(120).max(230).optional().nullable(),
   interestSlugs: interestSlugsSchema.optional(),
+  customInterests: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(2)
+        .max(24)
+        .regex(/^[\p{L}\p{N}\s'&\-./]+$/u, { message: 'Letters, numbers, and basic punctuation only.' }),
+    )
+    .max(3)
+    .optional(),
 });
 const profilePatchSchema = profileSchema.partial();
 
@@ -135,6 +146,7 @@ async function myProfilePayload(userId: string) {
     isPremium: Boolean(entitlement),
     interests,
     completion,
+    customInterests: profile.customInterests ?? [],
     user: {
       ...profile.user,
       photos: profile.user.photos.map((photo) => ({
@@ -173,6 +185,7 @@ usersRouter.put('/me/profile', requireAuth, async (req: AuthedRequest, res, next
           city: data.city || null,
           occupation: data.occupation || null,
           heightCm: data.heightCm ?? null,
+          customInterests: data.customInterests ?? [],
         },
         update: {
           displayName: data.displayName,
@@ -183,6 +196,7 @@ usersRouter.put('/me/profile', requireAuth, async (req: AuthedRequest, res, next
           city: data.city || null,
           occupation: data.occupation || null,
           heightCm: data.heightCm ?? null,
+          ...(data.customInterests !== undefined ? { customInterests: data.customInterests } : {}),
         },
       });
       if (data.interestSlugs) await replaceInterests(tx, userId, data.interestSlugs);
@@ -211,6 +225,7 @@ usersRouter.patch('/me/profile', requireAuth, async (req: AuthedRequest, res, ne
     if (data.city !== undefined) update.city = data.city || null;
     if (data.occupation !== undefined) update.occupation = data.occupation || null;
     if (data.heightCm !== undefined) update.heightCm = data.heightCm;
+    if (data.customInterests !== undefined) update.customInterests = data.customInterests;
 
     await prisma.$transaction(async (tx) => {
       const exists = await tx.profile.findUnique({ where: { userId }, select: { id: true } });
@@ -433,6 +448,41 @@ usersRouter.patch('/me/prompts/:id', requireAuth, async (req: AuthedRequest, res
       throw new AppError('prompt_not_found', 404, 'Prompt not found.');
     }
     res.json(await prisma.prompt.update({ where: { id: prompt.id }, data: input }));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Bulk reorder — client sends the full ordered list of prompt ids; we
+// rewrite position values in a single transaction so the UI can drag-to-
+// reorder without round-tripping every prompt.
+usersRouter.put('/me/prompts/reorder', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const { ids } = z.object({ ids: z.array(z.string().min(1)).min(1).max(3) }).parse(req.body);
+    const userId = req.userId!;
+    const existing = await prisma.prompt.findMany({
+      where: { userId, id: { in: ids } },
+      select: { id: true },
+    });
+    if (existing.length !== ids.length || new Set(ids).size !== ids.length) {
+      throw new AppError('invalid_prompt_reorder', 400, 'Send your current prompt ids in the new order.');
+    }
+    await prisma.$transaction(async (tx) => {
+      // pg_advisory_xact_lock keyed on userId prevents two concurrent
+      // reorder writes from clobbering each other.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+      await Promise.all(
+        ids.map((id, index) =>
+          tx.prompt.update({ where: { id }, data: { position: index } }),
+        ),
+      );
+    });
+    res.json({
+      prompts: await prisma.prompt.findMany({
+        where: { userId },
+        orderBy: { position: 'asc' },
+      }),
+    });
   } catch (error) {
     next(error);
   }

@@ -18,6 +18,7 @@ export type ProfileInput = {
   occupation?: string | null;
   heightCm?: number | null;
   interestSlugs?: string[];
+  customInterests?: string[];
 };
 
 export const getMyProfile = () => apiFetch<Profile | null>('/users/me/profile');

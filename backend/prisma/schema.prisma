@@ -286,6 +286,12 @@ model Profile {
   boostedUntil  DateTime?
   lastBoostedAt DateTime?
 
+  // Up to 3 short user-typed interest labels (separate from the
+  // curated Interest table). Shown alongside curated interests on
+  // the profile and Discover cards. Sanitized client-side; max 24
+  // chars each.
+  customInterests String[] @default([])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

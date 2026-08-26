@@ -4,10 +4,11 @@ export interface UploadedPhoto {
   id: string;
   photoId: string;
   url: string;
-  thumbnailUrl: string;
+  thumbnailUrl: string | null;
   position: number;
   width: number | null;
   height: number | null;
+  aspectRatio: number | null;
   isPrimary: boolean;
 }
 

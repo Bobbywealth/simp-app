@@ -52,6 +52,7 @@ export interface Profile {
   profileCompletedAt: string | null;
   isPremium: boolean;
   interests: { interest: Interest }[];
+  customInterests?: string[];
   completion?: ProfileCompletion;
   user?: {
     id: string;
@@ -70,11 +71,12 @@ export interface Interest {
 export interface DiscoveryPhoto {
   id: string;
   url: string;
-  thumbnailUrl?: string;
+  thumbnailUrl?: string | null;
   position: number;
   isPrimary?: boolean;
   width?: number | null;
   height?: number | null;
+  aspectRatio?: number | null;
 }
 
 export interface DiscoveryPrompt {
