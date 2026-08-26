@@ -32,7 +32,7 @@ export default function Matches() {
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
       <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
-      <header className="relative z-10 flex items-center justify-between px-6 pt-safe pt-6">
+      <header className="relative z-10 mx-auto flex w-full max-w-md items-center justify-between px-6 pt-safe pt-6">
         <button
           onClick={() => navigate('/home')}
           className="text-xs font-medium uppercase tracking-[0.2em] text-white/60 hover:text-white"
@@ -43,7 +43,7 @@ export default function Matches() {
         <span className="w-12" />
       </header>
 
-      <main className="relative z-10 flex-1 px-6 pt-6 pb-24">
+      <main className="relative z-10 mx-auto w-full max-w-md flex-1 px-6 pt-6 pb-24">
         {loading && <MatchesSkeleton />}
 
         {error && !loading && (
@@ -62,9 +62,16 @@ export default function Matches() {
 
         {!loading && !error && matches.length > 0 && (
           <>
-            <p className="mb-4 text-xs text-white/50">
-              {matches.length} {matches.length === 1 ? 'match' : 'matches'}
-            </p>
+            <section className="mb-5 rounded-3xl border border-gold-400/20 bg-gradient-to-br from-gold-400/10 via-white/[0.035] to-transparent p-5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-300">Curated connections</p>
+              <h2 className="display-heading mt-2 text-3xl font-light">People who chose you back.</h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">
+                Start with their note, shared energy, or a date idea. Keep the first move intentional.
+              </p>
+              <div className="mt-4 inline-flex rounded-full border border-white/10 bg-black/35 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/55">
+                {matches.length} {matches.length === 1 ? 'match' : 'matches'} ready
+              </div>
+            </section>
             <ul className="space-y-3">
               {matches.map((m, i) => (
                 <motion.li
@@ -75,12 +82,12 @@ export default function Matches() {
                 >
                   <button
                     onClick={() => navigate(`/matches/${m.matchId}`)}
-                    className="relative flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-ink-900/60 p-3 text-left hover:border-gold-400/30 hover:bg-ink-800/60"
+                    className="relative flex w-full items-center gap-4 rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.02] p-4 text-left shadow-soft hover:border-gold-400/30 hover:bg-ink-800/60"
                   >
                     {m.noteFromOther && (
                       <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-gold-400" />
                     )}
-                    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-gold-400/30">
+                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-gold-400/30">
                       {m.otherUser.photoUrl ? (
                         <img
                           src={m.otherUser.photoUrl}
@@ -106,9 +113,12 @@ export default function Matches() {
                         <span className="text-xs text-white/60">{m.otherUser.age}</span>
                       </div>
                       {m.noteFromOther ? (
-                        <p className="mt-1 line-clamp-2 text-xs italic text-gold-300/80">
-                          &ldquo;{m.noteFromOther}&rdquo;
-                        </p>
+                        <div className="mt-2 rounded-2xl border border-gold-400/15 bg-black/25 px-3 py-2">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-gold-300/70">Opening note</p>
+                          <p className="mt-1 line-clamp-2 text-xs italic text-gold-200/90">
+                            &ldquo;{m.noteFromOther}&rdquo;
+                          </p>
+                        </div>
                       ) : (
                         <p className="mt-1 text-xs text-white/50">
                           {m.otherUser.occupation ?? 'New match'}

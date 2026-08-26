@@ -98,8 +98,14 @@ export default function Onboarding() {
   };
 
   return (
-    <OnboardingLayout step={step} total={total} onNext={next} showSkip={step < total - 1}>
-      <div className="relative flex min-h-[calc(100vh-100px)] flex-col px-6 pb-6 pt-safe">
+    <OnboardingLayout
+      step={step}
+      total={total}
+      onNext={next}
+      nextLabel={step === total - 1 ? 'CREATE ACCOUNT' : 'NEXT'}
+      showSkip={step < total - 1}
+    >
+      <div className="relative mx-auto flex min-h-[calc(100vh-112px)] w-full max-w-md flex-col px-6 pb-6 pt-safe lg:max-w-5xl lg:justify-center lg:px-10">
         <AnimatePresence mode="wait">
           <motion.div
             key={slide.visualType}
@@ -107,14 +113,14 @@ export default function Onboarding() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="flex flex-1 flex-col justify-between"
+            className="flex flex-1 flex-col justify-between lg:grid lg:grid-cols-[0.86fr_1fr] lg:items-center lg:gap-12"
           >
             {/* Header Text (matches mockup placement at top) */}
-            <div className="mb-6 pt-4">
+            <div className="mb-6 pt-4 lg:mb-0 lg:pt-0">
               <span className="text-[11px] font-semibold uppercase tracking-[0.4em] text-gold-300">
                 {slide.kicker}
               </span>
-              <h2 className="display-heading mt-2 text-2xl font-semibold leading-tight tracking-[0.1em]">
+              <h2 className="display-heading mt-2 text-2xl font-semibold leading-tight tracking-[0.1em] lg:text-4xl">
                 {slide.title.map((line, i) => (
                   <span key={i} className="block">
                     {line.map((seg, j) =>
@@ -127,11 +133,11 @@ export default function Onboarding() {
                   </span>
                 ))}
               </h2>
-              <p className="mt-3 text-xs leading-relaxed text-white/70">{slide.body}</p>
+              <p className="mt-3 text-xs leading-relaxed text-white/70 lg:max-w-md lg:text-sm">{slide.body}</p>
             </div>
 
             {/* Main Visual Card */}
-            <div className="flex-1 flex items-center justify-center min-h-[340px]">
+            <div className="flex min-h-[340px] flex-1 items-center justify-center lg:min-h-0">
               <SlideVisual type={slide.visualType} />
             </div>
           </motion.div>
@@ -145,7 +151,7 @@ function SlideVisual({ type }: { type: Slide['visualType'] }) {
   // Slide 1: REAL PEOPLE. REAL CONNECTIONS. (Couple with verified badge)
   if (type === 'connections') {
     return (
-      <div className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl border border-gold-400/15 shadow-soft bg-black">
+      <div className="relative aspect-[4/5] w-full max-w-[342px] overflow-hidden rounded-3xl border border-gold-400/15 shadow-soft bg-black lg:max-w-[390px]">
         <img
           src="/onboarding/couple-night.jpg"
           alt="Couple on night city date"
@@ -177,7 +183,7 @@ function SlideVisual({ type }: { type: Slide['visualType'] }) {
   // Slide 2: LIVE. CONNECT. BE SEEN. (Livestream phone frame with interactive chat)
   if (type === 'livestream') {
     return (
-      <div className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl border border-gold-400/15 shadow-soft bg-black">
+      <div className="relative aspect-[4/5] w-full max-w-[342px] overflow-hidden rounded-3xl border border-gold-400/15 shadow-soft bg-black lg:max-w-[390px]">
         <img
           src="/onboarding/livestream-host.jpg"
           alt="Livestream host"
@@ -263,7 +269,7 @@ function SlideVisual({ type }: { type: Slide['visualType'] }) {
       { label: 'VIP ACCESS', icon: '💎' },
     ];
     return (
-      <div className="grid grid-cols-2 gap-4 w-full px-2">
+      <div className="grid w-full max-w-[342px] grid-cols-2 gap-3 px-1 lg:max-w-[390px]">
         {cards.map((c, i) => (
           <motion.div
             key={c.label}
@@ -271,9 +277,9 @@ function SlideVisual({ type }: { type: Slide['visualType'] }) {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: i * 0.1 }}
             whileHover={{ scale: 1.03, borderColor: 'rgba(212, 169, 58, 0.4)' }}
-            className="flex flex-col items-center justify-center rounded-2xl border border-gold-400/10 bg-ink-900/60 p-5 shadow-soft backdrop-blur-sm"
+            className="flex min-h-[92px] flex-col items-center justify-center rounded-2xl border border-gold-400/10 bg-ink-900/60 p-4 shadow-soft backdrop-blur-sm"
           >
-            <span className="text-3xl filter drop-shadow-[0_0_8px_rgba(212,169,58,0.2)]">{c.icon}</span>
+            <span className="text-2xl filter drop-shadow-[0_0_8px_rgba(212,169,58,0.2)]">{c.icon}</span>
             <span className="mt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-gold-300">{c.label}</span>
           </motion.div>
         ))}
@@ -284,7 +290,7 @@ function SlideVisual({ type }: { type: Slide['visualType'] }) {
   // Slide 4: YOUR EXPERIENCE. YOUR RULES. (Confident monochrome portrait of man)
   if (type === 'rules') {
     return (
-      <div className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl border border-gold-400/15 shadow-soft bg-black">
+      <div className="relative aspect-[4/5] w-full max-w-[342px] overflow-hidden rounded-3xl border border-gold-400/15 shadow-soft bg-black lg:max-w-[390px]">
         <img
           src="/onboarding/man-suit.jpg"
           alt="Handsome man in suit portrait"
@@ -321,7 +327,7 @@ function SlideVisual({ type }: { type: Slide['visualType'] }) {
   // Slide 5: SHARE MOMENTS. BUILD MEMORIES. (4-photo collage grid with central + button)
   if (type === 'moments') {
     return (
-      <div className="relative aspect-[4/5] w-full p-1 rounded-3xl border border-gold-400/15 shadow-soft bg-black">
+      <div className="relative aspect-[4/5] w-full max-w-[342px] p-1 rounded-3xl border border-gold-400/15 shadow-soft bg-black lg:max-w-[390px]">
         <div className="grid grid-cols-2 gap-1 h-full animate-fade-in">
           <div className="overflow-hidden rounded-tl-2xl rounded-bl-md">
             <img src="/onboarding/yacht.jpg" alt="Yacht sunset" className="size-full object-cover opacity-85" />
@@ -355,13 +361,16 @@ function SlideVisual({ type }: { type: Slide['visualType'] }) {
   // Slide 6: ACCESS A WORLD BEYOND ORDINARY. (Private jet and luxury jet)
   if (type === 'luxury') {
     return (
-      <div className="relative aspect-[4/5] w-full overflow-hidden rounded-3xl border border-gold-400/15 shadow-soft bg-black">
+      <div className="relative aspect-[4/5] w-full max-w-[342px] overflow-hidden rounded-3xl border border-gold-400/15 shadow-soft bg-black lg:max-w-[390px]">
         <img
           src="/onboarding/jet.jpg"
           alt="Private jet"
           className="absolute inset-0 size-full object-cover opacity-90"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/10" />
+        <div className="absolute left-5 top-5 rounded-full border border-gold-400/35 bg-black/55 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-gold-200 backdrop-blur-md">
+          Members-only access
+        </div>
         
         {/* Floating Card: Exclusive Perks */}
         <motion.div 
@@ -384,7 +393,7 @@ function SlideVisual({ type }: { type: Slide['visualType'] }) {
 
   // Slide 7: JOIN A COMMUNITY THAT REWARDS YOU. (Level progress ring)
   return (
-    <div className="relative aspect-[4/5] w-full flex flex-col justify-between items-center rounded-3xl border border-gold-400/15 p-6 shadow-soft bg-gradient-to-b from-ink-900 to-black">
+    <div className="relative aspect-[4/5] w-full max-w-[342px] flex flex-col justify-between items-center rounded-3xl border border-gold-400/15 p-6 shadow-soft bg-gradient-to-b from-ink-900 to-black lg:max-w-[390px]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(212,169,58,0.1),transparent_50%)] pointer-events-none" />
       
       {/* Glowing Progress Circle */}

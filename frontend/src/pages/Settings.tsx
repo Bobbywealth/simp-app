@@ -219,7 +219,7 @@ export default function Settings() {
               <button type="button" onClick={() => void savePassword()} disabled={busy === 'password' || !currentPassword || !newPassword || !confirmPassword} className="btn-gold w-full py-3 text-xs uppercase tracking-[0.16em] disabled:opacity-30">Update password</button>
             </div>
           </details>
-          <details className="border-t border-white/[0.06] p-4" open>
+          <details className="border-t border-white/[0.06] p-4">
             <summary className="cursor-pointer text-sm font-medium">Active sessions <span className="text-white/35">({sessions.length})</span></summary>
             <div className="mt-3 space-y-2">{sessions.map((session) => {
               const isCurrent = session.current;

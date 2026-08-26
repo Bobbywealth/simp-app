@@ -334,8 +334,17 @@ export default function Conversation() {
               {loadingOlder ? 'Loading…' : 'Load earlier messages'}
             </button>
           )}
+          <div className="mb-6 mx-auto max-w-sm rounded-2xl border border-gold-400/25 bg-gradient-to-br from-gold-400/12 via-white/[0.04] to-transparent p-4 text-center shadow-soft">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-300">You matched</p>
+            <h2 className="display-heading mt-1 text-2xl font-light text-white">
+              Say something only {conversation.otherUser.displayName.split(' ')[0]} would notice.
+            </h2>
+            <p className="mt-2 text-[11px] leading-relaxed text-white/55">
+              Lead with a shared interest or a real question. Avoid generic openers — first messages with a hook are replied to twice as often.
+            </p>
+          </div>
           <p className="mb-6 text-center text-[10px] leading-relaxed text-white/30">
-            You matched. Keep it respectful and never send money or sensitive information.
+            Keep it respectful and never send money or sensitive information.
           </p>
           <div className="space-y-2">
             {messages.map((message, index) => {

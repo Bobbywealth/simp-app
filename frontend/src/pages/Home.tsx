@@ -47,16 +47,27 @@ export default function Home() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.65, ease: 'easeOut' }}
-          className="mb-4 overflow-hidden rounded-[2rem] border border-gold-400/20 bg-gradient-to-br from-gold-400/12 via-white/[0.04] to-transparent p-5 shadow-[0_24px_70px_rgba(0,0,0,0.35)]"
+          className="mb-4 overflow-hidden rounded-[2rem] border border-gold-400/20 bg-gradient-to-br from-gold-400/14 via-white/[0.04] to-transparent p-5 shadow-[0_24px_70px_rgba(0,0,0,0.35)]"
         >
-          <div className="flex items-center gap-4">
-            <SimpLogo size={72} variant="emblem" />
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-gold-300">SIMP elite experience</p>
-              <h2 className="display-heading mt-1 text-2xl">A luxury space built around real chemistry</h2>
+          <div className="relative mb-5 h-44 overflow-hidden rounded-[1.7rem] border border-white/10 bg-black/45">
+            <img src="/onboarding/couple-night.jpg" alt="Curated SIMP connection" className="absolute inset-0 h-full w-full object-cover opacity-55" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-transparent" />
+            <div className="absolute left-4 top-4 rounded-full border border-gold-400/35 bg-black/60 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-gold-200 backdrop-blur-md">
+              Tonight's concierge pick
+            </div>
+            <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-gold-200">Verified chemistry</p>
+                <h2 className="display-heading mt-1 text-3xl leading-none">Meet with intention</h2>
+              </div>
+              <div className="flex -space-x-3">
+                {avatar && <img src={avatar} alt="Your profile" className="h-12 w-12 rounded-full border-2 border-black object-cover" />}
+                <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Profile preview" className="h-12 w-12 rounded-full border-2 border-black object-cover" />
+                <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-black bg-gold-400 text-xs font-bold text-black">+{counts.matches || 1}</span>
+              </div>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-3 gap-2 text-center">
             <StatPill label="Matches" value={counts.matches ? String(counts.matches) : '0'} />
             <StatPill label="Messages" value={counts.messages ? String(counts.messages) : '0'} />
             <StatPill label="Alerts" value={counts.notifications ? String(counts.notifications) : '0'} />

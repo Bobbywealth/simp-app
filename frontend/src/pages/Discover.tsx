@@ -267,6 +267,17 @@ export default function Discover() {
             Try again
           </button>
         </div>
+        <DiscoveryFiltersSheet
+          open={showFilters}
+          filters={filters}
+          onClose={() => setShowFilters(false)}
+          onApply={async (nextFilters) => {
+            const saved = await updateDiscoveryPreferences(nextFilters);
+            setFilters(saved);
+            setShowFilters(false);
+            await loadDeck(true, saved);
+          }}
+        />
       </Scaffold>
     );
   }
@@ -274,34 +285,56 @@ export default function Discover() {
   if (deck === 'empty' || topIndex >= profiles.length) {
     return (
       <Scaffold onBack={() => navigate('/home')} showFilters={() => setShowFilters(true)}>
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 text-center">
-          <SimpLogo size={64} variant="emblem" />
-          <h2 className="display-heading text-2xl font-light text-white">
-            You&apos;ve seen everyone nearby.
+        <div className="flex flex-1 flex-col justify-center px-6 py-8 text-center">
+          <div className="relative mx-auto mb-8 h-48 w-full max-w-xs">
+            <div className="absolute left-4 top-8 h-36 w-28 rotate-[-10deg] overflow-hidden rounded-[1.7rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-transparent opacity-55 shadow-soft" />
+            <div className="absolute right-4 top-8 h-36 w-28 rotate-[10deg] overflow-hidden rounded-[1.7rem] border border-white/10 bg-gradient-to-br from-gold-400/15 to-transparent opacity-60 shadow-soft" />
+            <div className="absolute inset-x-10 top-0 flex h-44 items-center justify-center rounded-[2rem] border border-gold-400/25 bg-black/70 shadow-glow backdrop-blur">
+              <SimpLogo size={74} variant="emblem" />
+            </div>
+            <div className="absolute bottom-0 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-gold-400/25 bg-ink-950/90 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-200 shadow-soft">
+              Concierge is curating
+            </div>
+          </div>
+          <h2 className="display-heading text-3xl font-light text-white">
+            Your next profile is being curated.
           </h2>
-          <p className="text-sm text-white/60 max-w-xs">
-            New curated profiles appear throughout the day. Try one of these to keep going:
+          <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-white/60">
+            You cleared the current deck. Expand your filters or refresh later for verified profiles, shared interests, and better date energy.
           </p>
-          <div className="flex flex-col gap-3 w-full max-w-xs">
-            <button
-              onClick={() => loadDeck(true)}
-              className="btn-gold w-full py-3 text-sm font-medium uppercase tracking-[0.18em]"
-              aria-label="Refresh discovery deck with new profiles"
-            >
-              Refresh
-            </button>
+          <div className="mx-auto mt-7 grid w-full max-w-xs gap-3">
             <button
               onClick={() => setShowFilters(true)}
-              className="btn-gold-outline w-full py-3 text-sm font-medium uppercase tracking-[0.18em]"
+              className="btn-gold w-full py-3 text-sm font-medium uppercase tracking-[0.18em]"
               aria-label="Open filters to expand your discovery radius or age range"
             >
               Expand filters
             </button>
+            <button
+              onClick={() => loadDeck(true)}
+              className="btn-gold-outline w-full py-3 text-sm font-medium uppercase tracking-[0.18em]"
+              aria-label="Refresh discovery deck with new profiles"
+            >
+              Refresh deck
+            </button>
           </div>
-          <p className="mt-2 text-xs text-white/40 max-w-xs">
-            SIMP refreshes new profiles every 30 minutes. Come back soon — your next match could be loading.
-          </p>
+          <div className="mx-auto mt-7 grid w-full max-w-xs grid-cols-3 gap-2 text-left">
+            <MiniSignal label="Verified" value="Human-reviewed" />
+            <MiniSignal label="Timing" value="30 min refresh" />
+            <MiniSignal label="Control" value="Tune filters" />
+          </div>
         </div>
+        <DiscoveryFiltersSheet
+          open={showFilters}
+          filters={filters}
+          onClose={() => setShowFilters(false)}
+          onApply={async (nextFilters) => {
+            const saved = await updateDiscoveryPreferences(nextFilters);
+            setFilters(saved);
+            setShowFilters(false);
+            await loadDeck(true, saved);
+          }}
+        />
       </Scaffold>
     );
   }
@@ -397,10 +430,10 @@ export default function Discover() {
         </div>
       </div>
 
-      <DiscoverFilters
+      <DiscoveryFiltersSheet
         open={showFilters}
+        filters={filters}
         onClose={() => setShowFilters(false)}
-        value={filters}
         onApply={async (nextFilters) => {
           const saved = await updateDiscoveryPreferences(nextFilters);
           setFilters(saved);
@@ -446,6 +479,29 @@ export default function Discover() {
         onBlock={handleBlock}
       />
     </Scaffold>
+  );
+}
+
+function DiscoveryFiltersSheet({
+  open,
+  filters,
+  onClose,
+  onApply,
+}: {
+  open: boolean;
+  filters: DiscoveryPreferences;
+  onClose: () => void;
+  onApply: (value: DiscoveryPreferences) => void | Promise<void>;
+}) {
+  return <DiscoverFilters open={open} onClose={onClose} value={filters} onApply={onApply} />;
+}
+
+function MiniSignal({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] px-3 py-3">
+      <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-gold-300/80">{label}</p>
+      <p className="mt-1 text-[11px] leading-tight text-white/45">{value}</p>
+    </div>
   );
 }
 

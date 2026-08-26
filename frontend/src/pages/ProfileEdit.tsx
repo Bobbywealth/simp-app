@@ -246,24 +246,45 @@ export default function ProfileEdit() {
                 e.target.value = '';
               }}
             />
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="mt-3 space-y-3">
+              {photos.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setReplacePhotoId(null); fileInputRef.current?.click(); }}
+                  className="flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-gold-400/40 bg-gold-400/[0.04] py-10 text-center text-sm text-gold-200"
+                >
+                  <span className="text-2xl">+</span>
+                  <span className="mt-2 text-xs font-semibold uppercase tracking-[0.18em]">Add your first photo</span>
+                </button>
+              )}
               {photos.map((photo, index) => (
-                <div key={photo.id} className="relative aspect-[3/4] overflow-hidden rounded-xl border border-white/10">
-                  <img src={photo.url} alt={`Profile photo ${index + 1}`} className="h-full w-full object-cover" />
-                  <div className="absolute inset-x-1 bottom-1 grid grid-cols-4 gap-1 rounded-lg bg-black/75 p-1 backdrop-blur-sm">
-                    <button type="button" onClick={() => void makePrimary(photo.id)} disabled={index === 0} className="rounded py-1 text-[9px] text-gold-200 disabled:text-white/25" aria-label="Make primary">Primary</button>
-                    <button type="button" onClick={() => void movePhoto(index, -1)} disabled={index === 0} className="rounded py-1 text-xs text-white/70 disabled:text-white/20" aria-label="Move photo left">‹</button>
-                    <button type="button" onClick={() => void movePhoto(index, 1)} disabled={index === photos.length - 1} className="rounded py-1 text-xs text-white/70 disabled:text-white/20" aria-label="Move photo right">›</button>
-                    <button type="button" onClick={() => { setReplacePhotoId(photo.id); fileInputRef.current?.click(); }} className="rounded py-1 text-[9px] text-white/70" aria-label="Replace photo">Replace</button>
+                <div
+                  key={photo.id}
+                  className="flex items-center gap-3 rounded-2xl border border-white/10 bg-ink-900/55 p-3"
+                >
+                  <img src={photo.url} alt={`Profile photo ${index + 1}`} className="h-20 w-16 flex-none rounded-xl object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                      Photo {index + 1}
+                      {index === 0 && <span className="rounded-full bg-gold-400 px-2 py-0.5 text-[9px] font-bold uppercase text-black">Primary</span>}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Drag order changes what others see first.</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => void makePrimary(photo.id)} disabled={index === 0} className="rounded-full border border-gold-400/35 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-gold-200 disabled:opacity-40">Make primary</button>
+                      <button type="button" onClick={() => void movePhoto(index, -1)} disabled={index === 0} className="rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/55 disabled:opacity-30">Move left</button>
+                      <button type="button" onClick={() => void movePhoto(index, 1)} disabled={index === photos.length - 1} className="rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/55 disabled:opacity-30">Move right</button>
+                    </div>
                   </div>
-                  <button type="button" onClick={() => void handleDeletePhoto(photo.id)} className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/75 text-sm text-red-200" aria-label="Delete photo">×</button>
-                  {index === 0 && <span className="absolute left-1 top-1 rounded-full bg-gold-400 px-2 py-1 text-[8px] font-bold uppercase text-black">Primary</span>}
+                  <div className="flex flex-col items-end gap-2">
+                    <button type="button" onClick={() => { setReplacePhotoId(photo.id); fileInputRef.current?.click(); }} className="rounded-full bg-white/[0.06] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70">Replace</button>
+                    <button type="button" onClick={() => void handleDeletePhoto(photo.id)} className="rounded-full border border-red-400/30 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-red-300">Delete</button>
+                  </div>
                 </div>
               ))}
-              {photos.length === 0 && (
-                <div className="col-span-3 flex aspect-[3/1] items-center justify-center rounded-xl border border-dashed border-white/20 text-xs text-white/50">
-                  No photos yet
-                </div>
+              {photos.length > 0 && photos.length < 6 && (
+                <button type="button" onClick={() => { setReplacePhotoId(null); fileInputRef.current?.click(); }} className="flex w-full items-center justify-center rounded-2xl border border-dashed border-white/15 py-3 text-xs uppercase tracking-[0.18em] text-white/45">
+                  + Add another photo
+                </button>
               )}
             </div>
             <p className="mt-2 text-[10px] text-white/40">

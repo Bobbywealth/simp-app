@@ -145,10 +145,11 @@ export default function Live() {
             </div>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-gold-400/30 bg-gradient-to-br from-ink-900 via-ink-800 to-ink-900 p-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
-                <span className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+          <div className="relative overflow-hidden rounded-2xl border border-gold-400/30 bg-gradient-to-br from-ink-900 via-ink-800 to-ink-900 p-6 shadow-soft">
+            <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gold-400/15 blur-3xl" />
+            <div className="relative flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-gold-400/40 bg-ink-950">
+                <span className="h-3 w-3 animate-pulse rounded-full bg-gold-400" />
               </div>
               <div className="flex-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
@@ -163,7 +164,7 @@ export default function Live() {
             </div>
             <button
               onClick={() => setShowGoLive(true)}
-              className="mt-4 w-full rounded-full border-2 border-red-500 bg-red-500 py-3 text-sm font-bold uppercase tracking-[0.2em] text-white transition hover:bg-red-600"
+              className="btn-gold mt-5 w-full py-3 text-sm font-semibold uppercase tracking-[0.2em]"
             >
               ● Start streaming
             </button>

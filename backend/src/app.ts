@@ -61,8 +61,18 @@ export function createApp() {
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-        return callback(new Error('origin_not_allowed'));
+        if (!origin) return callback(null, true);
+        const normalizedOrigin = (() => {
+          try {
+            return new URL(origin).origin;
+          } catch {
+            return origin.replace(/\/$/, '');
+          }
+        })();
+        if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
+        // Do not turn a normal blocked CORS origin into a 500 response.
+        // Browsers will still block the response when no CORS header is emitted.
+        return callback(null, false);
       },
       credentials: true,
       maxAge: 86_400,

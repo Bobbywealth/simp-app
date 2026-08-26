@@ -53,10 +53,13 @@ export default function Messages() {
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
       <div className="pointer-events-none absolute inset-0 bg-ink-radial" />
-      <header className="relative z-10 mx-auto flex w-full max-w-md items-end justify-between px-6 pb-4 pt-safe">
+      <header className="relative z-10 mx-auto flex w-full max-w-md items-end justify-between gap-3 px-6 pb-4 pt-safe">
         <div className="pt-5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-gold-300">Connections</p>
-          <h1 className="display-heading mt-1 text-4xl font-light">Messages</h1>
+          <h1 className="display-heading mt-1 text-4xl font-light leading-none">Messages</h1>
+          <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/55">
+            Real people, no auto-replies. Lead with intention or reply when it counts.
+          </p>
         </div>
         <button
           type="button"

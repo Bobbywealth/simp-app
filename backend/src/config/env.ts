@@ -160,9 +160,34 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
-export const allowedOrigins = env.ALLOWED_ORIGINS.split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+
+const CANONICAL_WEB_ORIGINS = [
+  'https://mysimp.com',
+  'https://www.mysimp.com',
+  'https://simp-web.onrender.com',
+];
+
+const normalizeOrigin = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/$/, '');
+  }
+};
+
+export const allowedOrigins = Array.from(
+  new Set(
+    [
+      ...env.ALLOWED_ORIGINS.split(','),
+      env.FRONTEND_URL,
+      ...CANONICAL_WEB_ORIGINS,
+    ]
+      .map((origin) => normalizeOrigin(origin))
+      .filter((origin): origin is string => Boolean(origin)),
+  ),
+);
 
 export const productionWarnings: string[] = (() => {
   try {

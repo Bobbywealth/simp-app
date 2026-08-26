@@ -7,7 +7,7 @@ export default function Welcome() {
   const navigate = useNavigate();
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-between bg-black text-white">
+    <div className="relative flex min-h-screen overflow-hidden flex-col items-center justify-between bg-black text-white">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="flex h-[200vh] w-full flex-col will-change-transform"
@@ -29,8 +29,8 @@ export default function Welcome() {
           />
         </motion.div>
         <motion.div
-          className="absolute inset-0 will-change-transform"
-          style={{ scale: 1.08, transformOrigin: '60% 40%' }}
+          className="absolute inset-x-[-4%] inset-y-0 will-change-transform sm:inset-0"
+          style={{ scale: 1.02, transformOrigin: '60% 40%' }}
           animate={{ x: ['0%', '-3%', '0%'], y: ['0%', '2%', '0%'] }}
           transition={{ duration: 22, ease: 'easeInOut', repeat: Infinity }}
           aria-hidden
@@ -47,7 +47,7 @@ export default function Welcome() {
         </motion.div>
       </div>
       <div className="absolute inset-0 bg-black/40 pointer-events-none" />
-      <div className="absolute -top-40 left-1/2 -translate-x-1/2 size-[480px] rounded-full bg-gold-400/10 blur-3xl pointer-events-none" />
+      <div className="absolute -top-40 left-1/2 size-[min(480px,110vw)] -translate-x-1/2 rounded-full bg-gold-400/10 blur-3xl pointer-events-none" />
 
       <div className="relative pt-safe" />
 
@@ -60,7 +60,7 @@ export default function Welcome() {
         >
           <motion.div
             aria-hidden
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[320px] rounded-full bg-gold-400/30 blur-3xl pointer-events-none"
+            className="absolute left-1/2 top-1/2 size-[min(320px,82vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gold-400/30 blur-3xl pointer-events-none"
             initial={{ opacity: 0.5, scale: 0.9 }}
             animate={{
               opacity: [0.35, 0.7, 0.35],
@@ -75,7 +75,7 @@ export default function Welcome() {
           />
           <motion.div
             aria-hidden
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[420px] rounded-full bg-gold-300/15 blur-3xl pointer-events-none"
+            className="absolute left-1/2 top-1/2 size-[min(420px,94vw)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gold-300/15 blur-3xl pointer-events-none"
             initial={{ opacity: 0.3, scale: 0.85 }}
             animate={{
               opacity: [0.2, 0.45, 0.2],

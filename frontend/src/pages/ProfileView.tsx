@@ -66,13 +66,34 @@ export default function ProfileView() {
           </div>
         ) : (
           <>
-            <div className="mt-6 flex items-center gap-3">
-              <SimpLogo size={48} variant="emblem" />
-              <div>
-                <h2 className="text-2xl font-light">{profile.displayName}</h2>
-                <p className="text-xs text-white/60">{user?.email}</p>
-              </div>
-            </div>
+            {(() => {
+              const primary = photos[0];
+              const age = profile.birthDate ? new Date().getFullYear() - new Date(profile.birthDate).getFullYear() : null;
+              return (
+                <section className="mt-6 overflow-hidden rounded-[2rem] border border-gold-400/25 bg-black/40 shadow-[0_24px_70px_rgba(0,0,0,0.45)]">
+                  <div className="relative h-64 w-full">
+                    {primary ? (
+                      <img src={primary.url} alt={`${profile.displayName}'s primary photo`} className="absolute inset-0 h-full w-full object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-br from-gold-400/30 via-ink-900 to-black" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-transparent" />
+                    <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-gold-400/40 bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-200 backdrop-blur-md">
+                      {profile.isVerified ? 'Verified profile' : 'Verification pending'}
+                    </div>
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <div className="flex items-baseline gap-2">
+                        <h2 className="display-heading text-4xl font-light text-white drop-shadow">{profile.displayName}</h2>
+                        {age && <span className="text-2xl text-white/75">{age}</span>}
+                      </div>
+                      {(profile.occupation || profile.city) && (
+                        <p className="mt-1 text-sm text-white/70 drop-shadow">{[profile.occupation, profile.city].filter(Boolean).join(' · ')}</p>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
 
             {photos.length === 0 && (
               <div className="mt-6 rounded-xl border border-gold-400/30 bg-gold-400/5 p-4">
@@ -102,11 +123,11 @@ export default function ProfileView() {
             )}
 
             {profile.bio && (
-              <section className="mt-6">
-                <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
+              <section className="mt-6 rounded-2xl border border-white/10 bg-ink-900/55 p-4">
+                <h3 className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-300">
                   About
                 </h3>
-                <p className="mt-2 text-sm text-white/90">{profile.bio}</p>
+                <p className="mt-2 text-sm leading-relaxed text-white/90">{profile.bio}</p>
               </section>
             )}
 
@@ -127,11 +148,9 @@ export default function ProfileView() {
             )}
 
             <div className="mt-6 grid grid-cols-2 gap-2 text-xs text-white/70">
-              <Data label="Age" value={profile.birthDate ? String(new Date().getFullYear() - new Date(profile.birthDate).getFullYear()) : '—'} />
-              <Data label="Gender" value={profile.gender} />
               <Data label="Looking for" value={profile.lookingFor} />
-              <Data label="City" value={profile.city ?? '—'} />
-              <Data label="Occupation" value={profile.occupation ?? '—'} />
+              <Data label="Account" value={user?.email ? user.email.replace(/(.{2}).+(@.+)/, '$1•••$2') : '—'} />
+              <Data label="Verification" value={profile.isVerified ? 'Verified' : (profile.verificationStatus ?? 'Not requested')} />
               {profile.heightCm && <Data label="Height" value={`${profile.heightCm} cm`} />}
             </div>
 

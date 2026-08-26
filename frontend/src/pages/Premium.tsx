@@ -285,28 +285,35 @@ function ProductCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: isElite ? 0.1 : 0 }}
-      className={`relative rounded-2xl border p-5 ${
+      className={`relative overflow-hidden rounded-2xl border p-5 ${
         isElite
-          ? 'border-gold-400/40 bg-gradient-to-br from-gold-500/15 via-gold-400/10 to-transparent'
-          : 'border-white/15 bg-ink-900/40'
+          ? "border-gold-400/45 bg-gradient-to-br from-gold-500/18 via-gold-400/10 to-transparent shadow-glow"
+          : "border-white/15 bg-ink-900/40"
       }`}
     >
       {isElite && (
-        <div className="absolute right-4 top-4 rounded-full bg-gold-400 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-950">
-          Best value
-        </div>
+        <>
+          <div className="absolute right-4 top-4 rounded-full bg-gold-400 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-950">
+            Best value
+          </div>
+          <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full bg-gold-400/15 blur-3xl" />
+        </>
       )}
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-300">
-        {product.displayName}
+        {isElite ? "SIMP ELITE" : "SIMP+"}
       </p>
-      <div className="mt-2 flex items-baseline gap-2">
+      <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-white/45">{product.displayName}</p>
+      <h3 className="display-heading mt-3 text-2xl font-light text-white">
+        {isElite ? "Be the one they meet first." : "Show up more often."}
+      </h3>
+      <div className="mt-4 flex items-baseline gap-2">
         <span className="text-3xl font-light">${product.displayPriceUsd.toFixed(2)}</span>
         <span className="text-sm text-white/60">{product.displayPeriod}</span>
       </div>
       <ul className="mt-4 space-y-1.5">
         {bullets.map((bullet, idx) => (
           <li key={idx} className="flex items-start gap-2 text-sm text-white/80">
-            <span className="mt-1 inline-block h-1 w-1 flex-none rounded-full bg-gold-400" />
+            <span className={`mt-1 inline-block h-1.5 w-1.5 flex-none rounded-full ${isElite ? "bg-gold-300" : "bg-gold-400"}`} />
             <span>{bullet}</span>
           </li>
         ))}
