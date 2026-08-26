@@ -21,6 +21,7 @@ import {
   type AdminVerificationRow,
 } from '../api/admin';
 import type { LiveStream } from '../api/live';
+import { listLiveRecordings, type LiveRecording } from '../api/live-moderation';
 import { useAuth } from '../store/auth';
 
 const STAFF_ROLES = ['MODERATOR', 'ADMIN', 'SUPER_ADMIN'] as const;
@@ -501,19 +502,16 @@ export default function Admin() {
             <Panel title="Live" action={<button type="button" onClick={() => void refreshLive()} className="text-xs uppercase tracking-[0.16em] text-gold-300">Refresh</button>}>
               <div className="space-y-3">
                 {liveStreams.map((stream) => (
-                  <div key={stream.id} className="rounded-3xl border border-white/[0.08] bg-black/30 p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold text-white">{stream.title}</h3>
-                      <Pill>{stream.viewerCount} viewers</Pill>
-                      <Pill>{stream.heartCount} hearts</Pill>
-                    </div>
-                    <p className="mt-2 text-xs text-white/45">Broadcaster: {stream.broadcaster?.displayName ?? 'Unknown'}</p>
-                    <p className="mt-1 text-xs text-white/35">Started {formatDate(stream.startedAt)}</p>
-                    <button type="button" onClick={() => void endStream(stream)} disabled={busy === `stream:${stream.id}`} className="mt-4 rounded-full border border-red-400/30 bg-red-500/10 px-4 py-3 text-xs uppercase tracking-[0.14em] text-red-200 disabled:opacity-30">End stream</button>
-                  </div>
+                  <LiveStreamRow
+                    key={stream.id}
+                    stream={stream}
+                    busy={busy === `stream:${stream.id}`}
+                    onEnd={() => void endStream(stream)}
+                  />
                 ))}
                 {liveStreams.length === 0 && <EmptyState label="No live streams are active." />}
               </div>
+              <RecentRecordings />
             </Panel>
           )}
 
@@ -572,6 +570,135 @@ function MetricCard({ label, value }: { label: string; value: number | string })
     <div className="rounded-3xl border border-white/[0.08] bg-black/30 p-5">
       <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">{label}</p>
       <p className="mt-3 text-3xl font-light text-gold-200">{value}</p>
+    </div>
+  );
+}
+
+function LiveStreamRow({
+  stream,
+  busy,
+  onEnd,
+}: {
+  stream: LiveStream;
+  busy: boolean;
+  onEnd: () => void;
+}) {
+  const [showRecordings, setShowRecordings] = useState(false);
+  return (
+    <div className="rounded-3xl border border-white/[0.08] bg-black/30 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="font-semibold text-white">{stream.title}</h3>
+        <Pill>{stream.viewerCount} viewers</Pill>
+        <Pill>{stream.heartCount} hearts</Pill>
+      </div>
+      <p className="mt-2 text-xs text-white/45">Broadcaster: {stream.broadcaster?.displayName ?? 'Unknown'}</p>
+      <p className="mt-1 text-xs text-white/35">Started {formatDate(stream.startedAt)}</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={onEnd}
+          disabled={busy}
+          className="rounded-full border border-red-400/30 bg-red-500/10 px-4 py-3 text-xs uppercase tracking-[0.14em] text-red-200 disabled:opacity-30"
+        >
+          End stream
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowRecordings((current) => !current)}
+          className="rounded-full border border-white/15 px-4 py-3 text-xs uppercase tracking-[0.14em] text-white/65 hover:border-gold-400/40 hover:text-gold-200"
+        >
+          {showRecordings ? 'Hide recordings' : 'Show recordings'}
+        </button>
+      </div>
+      {showRecordings && <RecordingsList streamId={stream.id} />}
+    </div>
+  );
+}
+
+function RecordingsList({ streamId }: { streamId: string }) {
+  const [recordings, setRecordings] = useState<LiveRecording[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { recordings } = await listLiveRecordings(streamId);
+        if (cancelled) return;
+        setRecordings(recordings);
+      } catch (e) {
+        if (cancelled) return;
+        setError((e as Error).message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [streamId]);
+
+  if (loading) {
+    return <p className="mt-3 text-xs text-white/45">Loading recordings…</p>;
+  }
+  if (error) {
+    return (
+      <p className="mt-3 rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+        {error}
+      </p>
+    );
+  }
+  if (!recordings || recordings.length === 0) {
+    return (
+      <p className="mt-3 text-xs text-white/40">
+        No recordings yet. Recording starts when the broadcaster hits Go Live and LiveKit
+        captures the room. (Requires <code className="text-gold-200">LIVEKIT_RECORDING_ENABLED=true</code>
+        on the backend.)
+      </p>
+    );
+  }
+  return (
+    <ul className="mt-3 space-y-2">
+      {recordings.map((rec) => (
+        <li
+          key={rec.egressId}
+          className="flex items-center justify-between rounded-2xl border border-white/[0.08] bg-black/35 px-3 py-2"
+        >
+          <div>
+            <p className="text-xs text-white/55">
+              Egress <code className="text-gold-200">{rec.egressId.slice(0, 14)}…</code> ·{' '}
+              <span className={rec.status === 'complete' ? 'text-emerald-300' : 'text-red-300'}>
+                {rec.status}
+              </span>
+            </p>
+            {rec.url && (
+              <a
+                href={rec.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 break-all text-xs text-gold-300 underline-offset-2 hover:underline"
+              >
+                {rec.url}
+              </a>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RecentRecordings() {
+  // Read-only summary panel: the LiveKit env vars are the source of truth
+  // for whether recordings are configured; this banner stays informative
+  // without pulling data we don't have permission to list.
+  return (
+    <div className="mt-4 rounded-2xl border border-gold-400/20 bg-gold-400/[0.04] px-4 py-3 text-[11px] text-white/55">
+      Recordings land in LiveKit Cloud storage for moderator review. Per-stream
+      recordings are accessible via the “Show recordings” button on each live card.
     </div>
   );
 }

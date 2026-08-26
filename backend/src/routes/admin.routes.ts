@@ -6,6 +6,7 @@ import { prisma } from '../config/db.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { deleteStoredPhoto } from '../services/photo.service.js';
 import { getFunnelCounts } from '../services/analytics.service.js';
+import { listRecordings as listLiveRecordings } from '../services/livekit.service.js';
 import { AppError } from '../utils/errors.js';
 import { getRealtimeServer } from '../sockets/realtime.js';
 
@@ -242,6 +243,31 @@ adminRouter.patch('/admin/reports/:id', async (req: AuthedRequest, res, next) =>
       },
     });
     res.json(report);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /admin/live/recordings?streamId=...
+ *
+ * Lists LiveKit egress recordings for one stream, newest first. Used by
+ * the moderator review page when a user reports a stream — the moderator
+ * can scrub through the captured MP4 / HLS playlist without leaving
+ * SIMP. Returns the LiveKit `location` URL when present, which is the
+ * signed S3 (or LiveKit Cloud storage) playback URL.
+ */
+adminRouter.get('/admin/live/recordings', async (req: AuthedRequest, res, next) => {
+  try {
+    const { streamId } = z.object({ streamId: z.string().min(1).max(80) }).parse(req.query);
+    const rows = await listLiveRecordings(streamId);
+    res.json({
+      recordings: rows.map((r) => ({
+        egressId: r.egressId,
+        status: r.status,
+        url: r.location ?? null,
+      })),
+    });
   } catch (error) {
     next(error);
   }

@@ -6,6 +6,7 @@ import type { LiveStream } from '../api/live';
 import { useAuth } from '../store/auth';
 import { SimpLogo } from '../components/SimpLogo';
 import { LegalGateModal } from '../components/LegalGateModal';
+import { fetchLivekitConfig } from '../api/livekit';
 
 export default function Live() {
   const navigate = useNavigate();
@@ -21,10 +22,27 @@ export default function Live() {
   // gate, we retry startStream automatically.
   const [legalMissing, setLegalMissing] = useState<Array<'age' | 'tos' | 'privacy'> | null>(null);
 
+  const [livekitReady, setLivekitReady] = useState<boolean | null>(null);
+
   useEffect(() => {
     void loadStreams();
     const intv = setInterval(loadStreams, 15000);
     return () => clearInterval(intv);
+  }, []);
+
+  // Surface a soft warning when LiveKit env vars aren't configured yet.
+  // Streams already in progress will keep running; only new broadcasts
+  // and joins are blocked.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const cfg = await fetchLivekitConfig();
+      if (cancelled) return;
+      setLivekitReady(Boolean(cfg));
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function loadStreams() {
@@ -168,6 +186,19 @@ export default function Live() {
             >
               ● Start streaming
             </button>
+          </div>
+        )}
+
+        {livekitReady === false && (
+          <div className="mt-4 rounded-2xl border border-gold-400/30 bg-gold-400/[0.05] px-4 py-3 text-[11px] text-white/65">
+            <p className="font-semibold uppercase tracking-[0.16em] text-gold-200">
+              Streaming is being upgraded
+            </p>
+            <p className="mt-1 text-white/55">
+              The new LiveKit-backed streaming service is being configured. Until the
+              env vars land on Render, starting a new stream and joining one will fail
+              with “Live streaming is being upgraded.” Existing streams aren’t affected.
+            </p>
           </div>
         )}
 
