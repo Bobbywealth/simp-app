@@ -28,8 +28,8 @@ Why Resend over SendGrid / Postmark / SMTP:
 
 1. Go to https://resend.com/signup
 2. Sign up with the SIMP-owner email (recommend
-   `bobby@wolfpaqmarketing.com` or whatever Bobby wants as the
-   long-term owner).
+   `owner@mysimp.com` or whatever MySimp LLC's current owner contact wants as the
+   long-term sender).
 3. Verify your email; Resend drops you into the dashboard.
 
 ### 1b. Add a sending domain (10 min)

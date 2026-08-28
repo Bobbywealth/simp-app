@@ -62,7 +62,7 @@ QUESTIONS
 If you need anything during review, contact Bobby at appstore@sim-p.app or via App Store Connect's resolution center. We typically reply within 4 hours during weekdays.
 
 Thank you for your time and your review.
-— Bobby, Wolfpaq Marketing LLC
+— Keenan, MySimp LLC
 ```
 
 ## Field-by-field checklist before submitting
