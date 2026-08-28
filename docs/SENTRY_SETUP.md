@@ -22,7 +22,7 @@ Sentry gives per-device, per-session, per-stack-trace context.
 
 1. Sign up at https://sentry.io/signup/ (Google SSO works — `bobbycraig1293@gmail.com`
    is on Bobby's other Bobbywealth apps; if you want a dedicated workspace, use a
-   fresh email like `alerts@simp.app` once that's wired)
+   fresh email like `alerts@mysimp.com` once that's wired)
 2. Create a new project:
    - **Platform**: "Node" → name it `simp-backend`
    - **Platform**: "React" or "Browser JavaScript" → name it `simp-frontend`

@@ -46,12 +46,12 @@ Services ID. This is what Bobby pastes into `APPLE_CLIENT_ID`.
 7. Check **Sign in with Apple** → Configure
 8. Primary App ID: select `app.simp.client` (the one from step 1)
 9. Web Domain configuration:
-   - Domains and Subdomains: `mysimp.app` and `www.mysimp.app`
-     (do NOT include `api.mysimp.app` — Apple doesn't allow
+   - Domains and Subdomains: `mysimp.com` and `www.mysimp.com`
+     (do NOT include `api.mysimp.com` — Apple doesn't allow
      backend domains here)
    - Return URLs:
-     - `https://mysimp.app/auth/apple/callback`
-     - `https://www.mysimp.app/auth/apple/callback`
+     - `https://mysimp.com/auth/apple/callback`
+     - `https://www.mysimp.com/auth/apple/callback`
 10. Save → Continue → Save
 
 **Copy the Services ID** — that's your `APPLE_CLIENT_ID` and
@@ -103,10 +103,10 @@ render env get simp-backend --key APPLE_CLIENT_ID
 ```
 
 In the browser:
-1. Open https://mysimp.app → tap "Continue with Apple"
+1. Open https://mysimp.com → tap "Continue with Apple"
 2. Should open Apple's hosted auth sheet (lightbox with "Sign in" +
    Apple ID + Hide My Email checkbox)
-3. After auth, redirects back to https://mysimp.app/auth/apple/callback
+3. After auth, redirects back to https://mysimp.com/auth/apple/callback
    with `id_token` + (on first auth only) `user` (name blob)
 4. SIMP creates the account or signs you in
 
@@ -115,8 +115,8 @@ step 2's identifier matches `APPLE_CLIENT_ID` exactly.
 
 If Apple says "invalid_request" — the redirect URI doesn't match.
 Re-check step 9's return URLs exactly:
-- `https://mysimp.app/auth/apple/callback`
-- `https://www.mysimp.app/auth/apple/callback`
+- `https://mysimp.com/auth/apple/callback`
+- `https://www.mysimp.com/auth/apple/callback`
 
 If the button is hidden entirely — `VITE_APPLE_CLIENT_ID` env var is
 empty. Add it via dashboard.
@@ -131,7 +131,7 @@ The full test matrix from the Phase 8 spec — re-verify each pass:
 |---|---|
 | Brand-new Apple account | Creates SIMP account, sends verification email |
 | Returning Apple account | Logs in, links to existing SocialIdentity |
-| Hide My Email chosen | Stores `private-relay@privaterelay.appleid.com` on SocialIdentity, generates synthetic `apple-${subject.slice(0,12)}@mysimp.app` for canonical User.email |
+| Hide My Email chosen | Stores `private-relay@privaterelay.appleid.com` on SocialIdentity, generates synthetic `apple-${subject.slice(0,12)}@mysimp.com` for canonical User.email |
 | Returning user with verified email who taps Apple | Triggers merge-token flow — frontend collects merge-token via existing password re-auth, posts back as `linkToUserId` + `linkMergeToken` |
 | Logout then Apple login again | Same behavior as #2 (re-authorization) |
 | Delete Apple-linked account via in-app "Delete account" | Cascade deletes SocialIdentity + User rows |
@@ -141,7 +141,7 @@ checking `GET /auth/me`:
 ```json
 {
   "id": "...",
-  "email": "apple-AbCdEfGh1234@mysimp.app",
+  "email": "apple-AbCdEfGh1234@mysimp.com",
   "emailVerified": true
 }
 ```

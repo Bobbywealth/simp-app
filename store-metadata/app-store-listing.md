@@ -17,10 +17,10 @@
 
 | URL | Purpose |
 | --- | --- |
-| `https://simp.app/legal/privacy` | Privacy Policy (required) |
-| `https://simp.app/legal/tos` | Terms of Service (recommended) |
-| `https://simp.app/legal/support` | Support URL (required) |
-| `https://simp.app/` | Marketing URL (optional) |
+| `https://mysimp.com/legal/privacy` | Privacy Policy (required) |
+| `https://mysimp.com/legal/tos` | Terms of Service (recommended) |
+| `https://mysimp.com/legal/support` | Support URL (required) |
+| `https://mysimp.com/` | Marketing URL (optional) |
 
 ## Description
 
@@ -44,7 +44,7 @@
 >
 > **Privacy & safety first:**
 > Block, report, and moderation are built in. Live streams are
-> monitored. Your data is never sold. See `simp.app/legal/privacy`
+> monitored. Your data is never sold. See `mysimp.com/legal/privacy`
 > for the full story.
 >
 > Download SIMP today — experiences over everything.

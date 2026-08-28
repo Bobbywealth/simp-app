@@ -77,7 +77,7 @@ To the maximum extent permitted by law, SIMP LLC shall not be liable for any ind
 
 Any dispute arising from these Terms or your use of the Service shall be resolved by binding arbitration on an individual basis, not as a class action. You waive your right to a jury trial and to participate in any class, collective, or representative action.
 
-**Opt-out:** You may opt out of this arbitration provision by sending written notice to legal@simp.app within 30 days of accepting these Terms.
+**Opt-out:** You may opt out of this arbitration provision by sending written notice to legal@mysimp.com within 30 days of accepting these Terms.
 
 ## 10. Governing Law
 
@@ -89,7 +89,7 @@ We may update these Terms from time to time. If we make material changes, we wil
 
 ## 12. Contact
 
-Questions about these Terms? Contact us at **legal@simp.app**.
+Questions about these Terms? Contact us at **legal@mysimp.com**.
 `,
   },
   {
@@ -164,7 +164,7 @@ You have the right to:
 - **Withdraw consent** at any time.
 - **Lodge a complaint** with your local data protection authority.
 
-To exercise any of these rights, contact **privacy@simp.app**.
+To exercise any of these rights, contact **privacy@mysimp.com**.
 
 ### 6b. CCPA / CPRA (California Users)
 
@@ -175,11 +175,11 @@ You have the right to:
 - **Opt out** of the sale or sharing of personal information (we do not sell).
 - **Non-discrimination** for exercising your privacy rights.
 
-To exercise these rights, contact **privacy@simp.app** or use the in-app "Download my data" / "Delete my account" controls.
+To exercise these rights, contact **privacy@mysimp.com** or use the in-app "Download my data" / "Delete my account" controls.
 
 ### 6c. All Users
 
-You can update most of your profile information directly in the app. For anything else, email **privacy@simp.app**.
+You can update most of your profile information directly in the app. For anything else, email **privacy@mysimp.com**.
 
 ## 7. Security
 
@@ -191,7 +191,7 @@ We use industry-standard measures to protect your information:
 - Access controls and audit logging.
 - Regular security reviews.
 
-No system is 100% secure. If you believe your account has been compromised, contact **security@simp.app** immediately.
+No system is 100% secure. If you believe your account has been compromised, contact **security@mysimp.com** immediately.
 
 ## 8. Children
 
@@ -207,10 +207,10 @@ We may update this Privacy Policy. If we make material changes, we will notify y
 
 ## 11. Contact
 
-- **Privacy questions:** privacy@simp.app
-- **Data deletion requests:** privacy@simp.app
-- **Security issues:** security@simp.app
-- **General support:** support@simp.app
+- **Privacy questions:** privacy@mysimp.com
+- **Data deletion requests:** privacy@mysimp.com
+- **Security issues:** security@mysimp.com
+- **General support:** support@mysimp.com
 `,
   },
 ];

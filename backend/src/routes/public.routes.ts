@@ -237,7 +237,7 @@ function renderPage(opts: {
   <footer>
     <p>SIMP LLC · Operated with intent.</p>
     <p class="contact">
-      Questions? <a href="mailto:legal@simp.app">legal@simp.app</a> ·
+      Questions? <a href="mailto:legal@mysimp.com">legal@mysimp.com</a> ·
       <a href="/legal/privacy">Privacy Policy</a> ·
       <a href="/legal/tos">Terms of Service</a>
     </p>
@@ -352,19 +352,19 @@ publicRouter.get(['/support', '/legal/support.html'], (_req, res) => {
   <div class="card">
     <h3 style="margin-top:0">Email</h3>
     <p>For account issues, billing, or anything sensitive — we usually reply within 12 hours.</p>
-    <p><a class="btn" href="mailto:support@simp.app">support@simp.app</a></p>
+    <p><a class="btn" href="mailto:support@mysimp.com">support@mysimp.com</a></p>
   </div>
 
   <div class="card">
     <h3 style="margin-top:0">Privacy &amp; data requests</h3>
     <p>GDPR / CCPA data export, deletion, or opt-out requests. Verified within 30 days per regulation.</p>
-    <p><a class="btn" href="mailto:privacy@simp.app">privacy@simp.app</a></p>
+    <p><a class="btn" href="mailto:privacy@mysimp.com">privacy@mysimp.com</a></p>
   </div>
 
   <div class="card">
     <h3 style="margin-top:0">Report abuse or safety concerns</h3>
     <p>For urgent safety issues on a live stream or recent interaction.</p>
-    <p><a class="btn" href="mailto:safety@simp.app">safety@simp.app</a></p>
+    <p><a class="btn" href="mailto:safety@mysimp.com">safety@mysimp.com</a></p>
   </div>
 
   <div class="card">

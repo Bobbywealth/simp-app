@@ -29,7 +29,7 @@ WHAT MAKES SIMP DIFFERENT
 PRIVACY & SAFETY FIRST
 
 Block, report, and moderation are built in. Live streams are
-monitored. Your data is never sold. See simp.app/legal/privacy
+monitored. Your data is never sold. See mysimp.com/legal/privacy
 for the full story.
 
 Download SIMP today — experiences over everything.
@@ -43,9 +43,9 @@ Download SIMP today — experiences over everything.
 
 | URL | Purpose |
 | --- | --- |
-| `https://simp.app/legal/privacy` | Privacy Policy (REQUIRED) |
-| `https://simp.app/legal/tos` | Terms of Service |
-| `https://simp.app/legal/support` | Support URL |
+| `https://mysimp.com/legal/privacy` | Privacy Policy (REQUIRED) |
+| `https://mysimp.com/legal/tos` | Terms of Service |
+| `https://mysimp.com/legal/support` | Support URL |
 
 ## Data safety (Data safety section in Play Console)
 

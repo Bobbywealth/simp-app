@@ -14,9 +14,9 @@ Connect or "Send for review" in Play Console.
 
 ## 2. Legal documents
 
-- [ ] Privacy Policy live at `https://simp.app/legal/privacy`
-- [ ] Terms of Service live at `https://simp.app/legal/tos`
-- [ ] Support page live at `https://simp.app/legal/support`
+- [ ] Privacy Policy live at `https://mysimp.com/legal/privacy`
+- [ ] Terms of Service live at `https://mysimp.com/legal/tos`
+- [ ] Support page live at `https://mysimp.com/legal/support`
 - [ ] All three URLs return 200 and render correctly in Safari
 - [ ] Documents match the app's actual behavior (no dead references
   to features that don't exist)

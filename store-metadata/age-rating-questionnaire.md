@@ -18,7 +18,7 @@ dating apps on the App Store.
 | Alcohol, Tobacco, or Drug Use or References | None | — |
 | Simulated Gambling | None | — |
 | Sexual Content or Nudity | None | Prohibited by ToS; flagged content auto-removed |
-| **Unrestricted Web Access** | **No** | App only loads simp.app, not arbitrary URLs |
+| **Unrestricted Web Access** | **No** | App only loads mysimp.com, not arbitrary URLs |
 | **User-Generated Content** | **Yes** | Live streams, chat, profiles. We moderate via reports + auto-flag |
 | **Gambling** | **No** | — |
 | **Loot Boxes / Random Items** | **No** | — |

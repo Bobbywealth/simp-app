@@ -34,13 +34,13 @@ Why Resend over SendGrid / Postmark / SMTP:
 
 ### 1b. Add a sending domain (10 min)
 
-> If you don't have `simp.app` yet, you can use the staging domain
-> `simp.app.resend.app` for testing (Resend auto-issues one). When you
-> buy a real domain, come back and add it; the migration is just an
-> env-var swap.
+> If you don't have `mysimp.com` wired yet, you can use the staging
+> domain `mysimp.com.resend.app` for testing (Resend auto-issues one).
+> When you wire the real domain, come back and add it; the migration
+> is just an env-var swap.
 
 1. In the Resend dashboard: **Domains → Add Domain**.
-2. Enter `simp.app` (or your final domain).
+2. Enter `mysimp.com` (or your final domain).
 3. Resend shows 3 DNS records you need to add at your registrar:
    - DKIM (TXT)
    - SPF (TXT)
@@ -49,7 +49,7 @@ Why Resend over SendGrid / Postmark / SMTP:
 5. Back in Resend, click **Verify**. Status flips from `Pending` to
    `Verified` within a few minutes (DNS propagation).
 6. (Optional but recommended) **Domains → Domain → DKIM/DMARC**:
-   also add a DMARC record (`v=DMARC1; p=none; rua=mailto:dmarc@simp.app`)
+   also add a DMARC record (`v=DMARC1; p=none; rua=mailto:dmarc@mysimp.com`)
    so mailbox providers trust the domain.
 
 ### 1c. Generate an API key (1 min)
@@ -68,7 +68,7 @@ Render dashboard → `simp-backend` → **Environment** → add or update:
 | Key | Value |
 |---|---|
 | `EMAIL_PROVIDER` | `resend` |
-| `EMAIL_FROM` | `SIMP <hello@simp.app>` |
+| `EMAIL_FROM` | `SIMP <hello@mysimp.com>` |
 | `RESEND_API_KEY` | `re_xxxxxxxx...` (from 1c) |
 | `RESEND_WEBHOOK_SECRET` | _leave blank for now, set in 1e_ |
 

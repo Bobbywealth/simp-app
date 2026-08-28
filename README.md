@@ -167,10 +167,10 @@ required if you wire this through a refresh-on-deploy cron.
 docker run -d --network=host \
   -e TURN_USERNAME=simproducer \
   -e TURN_CREDENTIAL=$(openssl rand -hex 32) \
-  -e TURN_REALM=turn.simp.app \
+  -e TURN_REALM=turn.mysimp.com \
   coturn/coturn \
   -n --logfile=stdout \
-  --realm=turn.simp.app \
+  --realm=turn.mysimp.com \
   --static-auth-secret=simproducer:$(openssl rand -hex 32) \
   --listening-port=3478 \
   --min-port=49152 --max-port=65535 \
@@ -178,7 +178,7 @@ docker run -d --network=host \
   --no-tls --no-dtls
 ```
 
-Then set `TURN_URLS=turn:turn.simp.app:3478?transport=udp`,
+Then set `TURN_URLS=turn:turn.mysimp.com:3478?transport=udp`,
 `TURN_USERNAME`, `TURN_CREDENTIAL` on Render.
 
 ## Next Steps

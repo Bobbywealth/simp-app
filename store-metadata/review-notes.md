@@ -108,7 +108,7 @@ encryption schemes.
 2. **Reactive:** Reports go to our moderation queue (admin dashboard,
    internal). We review within 24 hours.
 3. **Appeals:** Users can appeal a moderation decision by emailing
-   safety@simp.app.
+   safety@mysimp.com.
 4. **Repeat offenders:** Users with 3+ upheld reports are permanently
    banned.
 
@@ -116,4 +116,4 @@ encryption schemes.
 
 ## Questions?
 
-Contact: review@simp.app
+Contact: review@mysimp.com

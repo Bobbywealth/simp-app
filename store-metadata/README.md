@@ -6,8 +6,8 @@ and ready to copy-paste into the store consoles.
 
 **⚠ Required before submission:**
 
-1. **Replace `simp.app` with your actual domain** (we use `simp.app` as
-   the placeholder; buy it or use whatever domain you end up with).
+1. **Replace `mysimp.com` with your actual domain** (we use `mysimp.com` as
+   the canonical domain for SIMP).
 2. **Buy the developer accounts:**
    - Apple Developer Program: $99/year → https://developer.apple.com/programs/
    - Google Play Console: $25 one-time → https://play.google.com/console
