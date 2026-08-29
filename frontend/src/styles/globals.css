@@ -7,6 +7,7 @@
   body,
   #root {
     min-height: 100%;
+    min-height: 100dvh;
     overflow-x: hidden;
   }
 
@@ -16,8 +17,24 @@
       radial-gradient(ellipse 80% 60% at 50% 0%, rgba(212, 169, 58, 0.08) 0%, transparent 60%),
       radial-gradient(ellipse 60% 40% at 50% 100%, rgba(169, 131, 32, 0.06) 0%, transparent 70%),
       #050505;
+    background-attachment: fixed;
     overscroll-behavior: none;
     overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
   }
 
   :root {
@@ -32,18 +49,19 @@
   .btn-gold {
     @apply inline-flex items-center justify-center gap-2 rounded-full bg-gold-gradient
            px-6 py-4 text-sm font-semibold uppercase tracking-[0.22em] text-ink-950
-           shadow-[0_0_24px_rgba(212,169,58,0.35),0_8px_24px_-8px_rgba(212,169,58,0.4)]
+           shadow-[0_0_20px_rgba(212,169,58,0.3),0_6px_20px_-4px_rgba(212,169,58,0.35)]
            transition-all duration-200 active:scale-[0.98]
-           hover:shadow-[0_0_40px_rgba(212,169,58,0.55),0_10px_32px_-8px_rgba(212,169,58,0.55)];
+           hover:shadow-[0_0_32px_rgba(212,169,58,0.5),0_8px_28px_-6px_rgba(212,169,58,0.5)]
+           hover:brightness-110;
   }
   .btn-gold-outline {
     @apply inline-flex items-center justify-center gap-2 rounded-full border border-gold-400/60
            px-6 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-gold-300
-           transition-colors duration-200 hover:bg-gold-400/10;
+           transition-all duration-200 hover:bg-gold-400/10 hover:border-gold-400/80 hover:shadow-[0_0_16px_rgba(212,169,58,0.15)];
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3
-           text-sm font-medium text-white/80 transition-colors hover:text-white;
+           text-sm font-medium text-white/80 transition-all duration-200 hover:text-white hover:bg-white/[0.04];
   }
   .display-heading {
     @apply font-display text-white tracking-tight;
@@ -56,8 +74,8 @@
   }
   .input-luxe {
     @apply w-full rounded-xl border border-white/10 bg-ink-800/60 px-4 py-3.5
-           text-white placeholder-white/30 outline-none transition
-           focus:border-gold-400/60 focus:ring-2 focus:ring-gold-400/20;
+           text-white placeholder-white/30 outline-none transition-all duration-200
+           focus:border-gold-400/80 focus:ring-2 focus:ring-gold-400/30 focus:shadow-[0_0_0_3px_rgba(212,169,58,0.15)];
   }
   .label-luxe {
     @apply mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-gold-300/80;

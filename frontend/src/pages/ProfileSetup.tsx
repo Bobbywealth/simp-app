@@ -33,6 +33,9 @@ const LOOKING_FOR = [
 const INTEREST_OPTIONS = [
   'Dinner', 'Travel', 'Live Music', 'Art', 'Wine', 'Wellness', 'Fashion', 'Fitness',
   'Cooking', 'Photography', 'Books', 'Outdoors', 'Dancing', 'Volunteering', 'Tech', 'Sports',
+  'Sushi', 'Coffee', 'Brunch', 'Hiking', 'Gaming', 'Movies', 'Yoga', 'Meditation',
+  'Beach', 'Camping', 'Language Learning', 'Museums', 'Podcasts', 'Board Games',
+  'Art Galleries', 'Wine Tasting', 'Road Trips', 'Gardening', 'DIY', 'Crafts',
 ];
 const PROMPT_QUESTIONS = [
   'The way to win me over is', 'I geek out over', 'A perfect Sunday looks like',

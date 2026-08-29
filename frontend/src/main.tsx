@@ -13,6 +13,15 @@ initSentry();
 // Initialize Capacitor native bridge before React mounts. No-op on web.
 void initNative();
 
+// Mobile keyboard handling: adjust viewport height when keyboard opens
+if (typeof window !== 'undefined') {
+  const setVh = () => {
+    document.documentElement.style.setProperty('--vh', `${window.visualViewport?.height ?? window.innerHeight}px`);
+  };
+  window.visualViewport?.addEventListener('resize', setVh);
+  setVh();
+}
+
 // PWA: when a new service worker is waiting, dispatch a custom event the app can react to.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

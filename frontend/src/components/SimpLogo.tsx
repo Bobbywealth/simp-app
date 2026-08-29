@@ -25,7 +25,7 @@ export function SimpLogo({ size = 220, className = '', variant = 'full' }: Props
       alt={alt}
       width={size}
       height={size}
-      className={`select-none drop-shadow-[0_0_32px_rgba(212,169,58,0.4)] ${className}`}
+      className={`select-none drop-shadow-[0_0_20px_rgba(212,169,58,0.25)] ${className}`}
       draggable={false}
     />
   );
