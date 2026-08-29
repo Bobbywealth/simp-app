@@ -52,22 +52,23 @@ test.describe('Signup Flow', () => {
   });
 });
 
-test.describe('Signup API Mock Tests (Happy Path)', () => {
+test.describe('Signup API Mock Tests', () => {
   test.use({ baseURL: 'http://localhost:5173' });
 
-  test('should complete signup flow with mocked API', async ({ page }) => {
-    await page.route('**/api/auth/signup', async (route) => {
+  test('should navigate to verify email page after signup with mocked API', async ({ page }) => {
+    await page.route('**/auth/signup', async (route) => {
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
         body: JSON.stringify({
           user: { id: 'test-id', email: 'test@example.com' },
-          token: 'mock-token',
+          accessToken: 'mock-token',
+          refreshToken: 'mock-refresh',
         }),
       });
     });
 
-    await page.route('**/api/auth/me', async (route) => {
+    await page.route('**/auth/me', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
