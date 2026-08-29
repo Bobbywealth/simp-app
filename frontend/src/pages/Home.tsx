@@ -7,12 +7,14 @@ import { getNotificationUnreadCount } from '../api/notifications';
 import { getMyProfile } from '../api/users';
 import { useAuth } from '../store/auth';
 import { SimpLogo } from '../components/SimpLogo';
+import { SafetyMenu } from '../components/SafetyMenu';
 
 export default function Home() {
   const navigate = useNavigate();
   const user = useAuth((state) => state.user);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [completion, setCompletion] = useState(100);
+  const [showSafety, setShowSafety] = useState(false);
   const [counts, setCounts] = useState({ matches: 0, messages: 0, notifications: 0 });
 
   useEffect(() => {
@@ -36,11 +38,18 @@ export default function Home() {
           <p className="text-[10px] uppercase tracking-[0.2em] text-gold-300">Good to see you</p>
           <h1 className="truncate text-lg font-semibold">{user?.profile?.displayName ?? 'SIMP member'}</h1>
         </div>
+        <button type="button" onClick={() => setShowSafety(true)} className="relative mt-5 flex h-11 w-11 items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-400" aria-label="Safety">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+        </button>
         <button type="button" onClick={() => navigate('/notifications')} className="relative mt-5 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/65" aria-label="Notifications">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
           {counts.notifications > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-gold-400 px-1 text-[8px] font-bold text-black">{counts.notifications}</span>}
         </button>
       </header>
+
+      {showSafety && <SafetyMenu onClose={() => setShowSafety(false)} />}
 
       <main className="relative z-10 mx-auto w-full max-w-md px-5">
         <motion.section

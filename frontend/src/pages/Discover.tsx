@@ -9,6 +9,7 @@ import { getDiscoveryPreferences, updateDiscoveryPreferences } from '../api/user
 import { track, trackMilestone } from '../api/analytics';
 import { SimpLogo } from '../components/SimpLogo';
 import { DiscoverFilters } from '../components/DiscoverFilters';
+import { ShareButton } from '../components/ShareButton';
 
 type DeckState = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -317,6 +318,9 @@ export default function Discover() {
             >
               Refresh deck
             </button>
+          </div>
+          <div className="mx-auto mt-5 flex w-full max-w-xs justify-center">
+            <ShareButton text="Join me on SIMP - find someone worth meeting!" />
           </div>
           <div className="mx-auto mt-7 grid w-full max-w-xs grid-cols-3 gap-2 text-left">
             <MiniSignal label="Verified" value="Human-reviewed" />

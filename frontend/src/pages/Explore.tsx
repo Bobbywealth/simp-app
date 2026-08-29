@@ -4,8 +4,8 @@ import { motion } from 'framer-motion';
 import { getExplore, getInterests, type InterestItem } from '../api/discovery';
 import type { DiscoveryProfile } from '../types';
 import { SimpLogo } from '../components/SimpLogo';
+import { ShareButton } from '../components/ShareButton';
 import { createSwipe } from '../api/swipes';
-import { track } from '../api/analytics';
 
 const INTEREST_DISPLAY: Record<string, string> = {
   'dinner': 'Dinner', 'travel': 'Travel', 'live-music': 'Live Music', 'art': 'Art',
@@ -25,9 +25,7 @@ export default function Explore() {
   const [interests, setInterests] = useState<InterestItem[]>([]);
   const [selectedInterest, setSelectedInterest] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<DiscoveryProfile[]>([]);
-  const [loading, setLoading] = useState(true);
   const [loadingProfiles, setLoadingProfiles] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void loadInterests();
@@ -46,14 +44,12 @@ export default function Explore() {
     setSelectedInterest(slug);
     setProfiles([]);
     setLoadingProfiles(true);
-    setLoading(true);
     try {
       const res = await getExplore({ interest: slug ?? undefined, limit: 20 });
       setProfiles(res.profiles);
     } catch (e) {
-      setError((e as Error).message);
+      console.error('Failed to load explore profiles', e);
     } finally {
-      setLoading(false);
       setLoadingProfiles(false);
     }
   }
@@ -127,6 +123,9 @@ export default function Explore() {
             <SimpLogo size={48} variant="emblem" />
             <h3 className="display-heading text-xl font-light">No one with this interest yet</h3>
             <p className="text-sm text-white/60">Check back later or try another interest</p>
+            <div className="mt-4">
+              <ShareButton text="Join me on SIMP - find people who share your interests!" />
+            </div>
           </div>
         )}
 

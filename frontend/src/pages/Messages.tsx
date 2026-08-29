@@ -5,6 +5,7 @@ import { getConversations } from '../api/messages';
 import type { ConversationSummary, Message } from '../types';
 import { getRealtimeSocket } from '../lib/realtime';
 import { SimpLogo } from '../components/SimpLogo';
+import { ShareButton } from '../components/ShareButton';
 import { useAuth } from '../store/auth';
 
 export default function Messages() {
@@ -88,13 +89,16 @@ export default function Messages() {
           </div>
         )}
         {!loading && !error && conversations.length === 0 && (
-          <div className="flex flex-col items-center px-6 py-24 text-center">
+          <div className="flex flex-col items-center px-6 py-16 text-center">
             <SimpLogo size={58} variant="emblem" />
             <h2 className="display-heading mt-5 text-2xl font-light">A conversation starts with a match</h2>
             <p className="mt-2 text-sm leading-relaxed text-white/55">Match with someone and start a conversation.</p>
             <button type="button" onClick={() => navigate('/discover')} className="btn-gold mt-6 px-7 py-3 text-xs font-semibold uppercase tracking-[0.18em]">
               Discover people
             </button>
+            <div className="mt-6">
+              <ShareButton text="Join me on SIMP - let's chat!" />
+            </div>
           </div>
         )}
         {!loading && !error && conversations.length > 0 && (
