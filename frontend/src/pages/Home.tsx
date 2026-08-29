@@ -104,12 +104,6 @@ export default function Home() {
           <DashboardCard label="Live" value="See who is live" onClick={() => navigate('/live')} iconPath="M9 8.5v7l6-3.5-6-3.5ZM5.5 5.5h13v13h-13v-13Z" />
           <DashboardCard label="Explore" value="Browse by interest" onClick={() => navigate('/explore')} iconPath="M21 21l-6-6m2-5a7 7 0 1 0-14 0 7 7 0 0 0 14 0Z" />
         </div>
-
-        {import.meta.env.VITE_BILLING_ENABLED === 'true' && user?.entitlement.tier === 'FREE' && (
-          <button type="button" onClick={() => navigate('/premium')} className="mt-4 flex w-full items-center justify-between rounded-2xl border border-gold-400/15 bg-black/30 p-4 text-left">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-300">SIMP+</p><p className="mt-1 text-sm text-white/55">More control over how you connect.</p></div><span className="text-gold-300">›</span>
-          </button>
-        )}
       </main>
     </div>
   );

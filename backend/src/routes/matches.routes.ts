@@ -127,13 +127,6 @@ matchesRouter.get('/matches/:id', requireAuth, async (req: AuthedRequest, res, n
           photos: { orderBy: { position: 'asc' } },
           prompts: { orderBy: { position: 'asc' } },
           interests: { include: { interest: true } },
-          entitlements: {
-            where: {
-              status: { in: ['ACTIVE', 'GRACE_PERIOD'] },
-              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-            },
-            take: 1,
-          },
         },
       }),
       prisma.swipe.findMany({
@@ -166,7 +159,6 @@ matchesRouter.get('/matches/:id', requireAuth, async (req: AuthedRequest, res, n
         occupation: other.profile.occupation,
         heightCm: other.profile.heightCm,
         isVerified: other.profile.isVerified,
-        isPremium: other.entitlements.length > 0,
         photos: other.photos.map((photo) => ({
           id: photo.id,
           url: photo.url,

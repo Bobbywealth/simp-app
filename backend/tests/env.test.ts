@@ -61,10 +61,6 @@ describe('production environment validation', () => {
       TURN_URLS: 'turn:turn.mysimp.com:3478?transport=udp',
       TURN_USERNAME: 'simp-turn',
       TURN_CREDENTIAL: 'turn-secret',
-      APPLE_IAP_ISSUER_ID: 'issuer',
-      APPLE_IAP_KEY_ID: 'key',
-      APPLE_IAP_PRIVATE_KEY: 'private-key',
-      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: '{"type":"service_account"}',
     });
 
     const mod = await import('../src/config/env.js');

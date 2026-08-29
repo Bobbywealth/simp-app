@@ -72,8 +72,8 @@ demoRouter.post('/demo/seed', async (req, res, next) => {
       update: {
         displayName: input.displayName,
         bio:
-          'Demo account for App Store reviewers. Complete, verified, ' +
-          'premium SIMP profile. Match with me, send me a message, ' +
+          'Demo account for App Store reviewers. Complete, verified ' +
+          'SIMP profile. Match with me, send me a message, ' +
           'browse my photos.',
         birthDate: new Date(input.birthDate),
         gender: 'WOMAN',
@@ -84,14 +84,13 @@ demoRouter.post('/demo/seed', async (req, res, next) => {
         isVerified: true,
         verificationStatus: 'APPROVED',
         profileCompletedAt: new Date(),
-        isPremium: true,
       },
       create: {
         userId: user.id,
         displayName: input.displayName,
         bio:
-          'Demo account for App Store reviewers. Complete, verified, ' +
-          'premium SIMP profile. Match with me, send me a message, ' +
+          'Demo account for App Store reviewers. Complete, verified ' +
+          'SIMP profile. Match with me, send me a message, ' +
           'browse my photos.',
         birthDate: new Date(input.birthDate),
         gender: 'WOMAN',
@@ -102,7 +101,6 @@ demoRouter.post('/demo/seed', async (req, res, next) => {
         isVerified: true,
         verificationStatus: 'APPROVED',
         profileCompletedAt: new Date(),
-        isPremium: true,
       },
     });
 
@@ -129,26 +127,6 @@ demoRouter.post('/demo/seed', async (req, res, next) => {
           mimeType: 'image/png',
         },
       ],
-    });
-
-    // SIMP+ entitlement for one year.
-    await prisma.entitlement.deleteMany({
-      where: { userId: user.id, transactionId: 'demo-account-active-entitlement' },
-    });
-    await prisma.entitlement.create({
-      data: {
-        userId: user.id,
-        tier: 'SIMP_PLUS',
-        status: 'ACTIVE',
-        platform: 'APPLE',
-        productId: 'app.simp.plus.monthly',
-        transactionId: 'demo-account-active-entitlement',
-        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-        autoRenewing: false,
-        environment: 'Production',
-        receiptHash: 'demo-no-receipt',
-        lastVerifiedAt: new Date(),
-      },
     });
 
     res.json({

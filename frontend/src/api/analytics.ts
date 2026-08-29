@@ -10,8 +10,9 @@ import { apiFetch } from './client';
  *   match_*    match created + first-match milestone
  *   message_*  messaging actions + first-message milestone
  *   live_*     live stream broadcast/view/react
- *   premium_*   premium upsell + purchase lifecycle
  *   session_*  session/page auto-trackers
+ *
+ * SIMP is fully free — there are no premium / billing events.
  */
 export type AnalyticsEvent =
   // Signup funnel
@@ -39,14 +40,6 @@ export type AnalyticsEvent =
   | 'live_ended'
   | 'live_viewed'
   | 'live_reacted'
-  // Premium / billing
-  | 'premium_screen_viewed'
-  | 'premium_tier_selected'
-  | 'purchase_started'
-  | 'purchase_completed'
-  | 'purchase_failed'
-  | 'purchase_restored'
-  | 'subscription_cancelled'
   // Session / page auto-tracking
   | 'session_started'
   | 'page_viewed'

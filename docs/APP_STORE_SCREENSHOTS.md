@@ -21,7 +21,7 @@ Apple lets you upload up to **10 screenshots** per device class. Order matters �
 2. **Profile detail**: tapping into one of those profiles — shows the full profile + verification badge + prompt answers
 3. **Live stream**: a live broadcast in progress (broadcast button visible, hearts flying up)
 4. **Messages**: a conversation thread with a match
-5. **Paywall**: SIMP+ upgrade sheet (the system StoreKit sheet, not a custom one)
+5. **Settings → Current plan**: the free-tier Settings row confirming "SIMP Free — no subscriptions, no in-app purchases, no premium tier" (replaces the previous Paywall screenshot)
 6. **Safety center**: the in-app safety resource page (or /safety/ if it's web)
 7. **Settings**: the settings sheet showing Sign in with Apple, account, privacy, support links
 8. **Verification**: the selfie + ID upload flow
@@ -76,7 +76,7 @@ For each screenshot:
 2. "Profile detail — full bio, photos, prompts, and verified badge"
 3. "Live stream — hearts, comments, real presence"
 4. "Messages — match and chat in seconds"
-5. "SIMP+ — premium features, one tap from your settings"
+5. "SIMP is fully free — every feature unlocked, no subscriptions, no IAP"
 6. "Safety Center — 24/7 Trust & Safety, scam playbook, regional helplines"
 7. "Settings — Sign in with Apple, privacy controls, delete account"
 8. "Get verified — selfie + ID, reviewed by humans"

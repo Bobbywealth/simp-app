@@ -28,8 +28,8 @@ healthRouter.get('/ready', async (_req, res) => {
       turn:
         (env.TURN_PROVIDER === 'twilio' && Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN)) ||
         Boolean(env.TURN_URLS && env.TURN_USERNAME && env.TURN_CREDENTIAL),
-      billingApple: Boolean(env.APPLE_IAP_ISSUER_ID && env.APPLE_IAP_KEY_ID && env.APPLE_IAP_PRIVATE_KEY),
-      billingGoogle: Boolean(env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON),
+      // Billing / subscriptions are intentionally absent — SIMP is free.
+      apple: Boolean(env.APPLE_CLIENT_ID),
       livekit: Boolean(env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET),
       sentry: isSentryActive(),
     };

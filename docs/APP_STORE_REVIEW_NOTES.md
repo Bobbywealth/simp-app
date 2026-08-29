@@ -16,7 +16,7 @@ Password: <stored in App Store Connect Notes field only — DO NOT commit>
 This account is fully set up: profile complete, age-verified, 1 verified badge, several messages already in the inbox. Please use it instead of creating a new account so you can see the full app quickly.
 
 APP OVERVIEW
-SIMP is a dating, messaging, and live-streaming app for adults 18+. It is built as a PWA wrapped in a Capacitor native shell so we can ship the same product to iOS, Android, and web. The native shell uses WKWebView (no UIWebView), APNs for push notifications, and Apple's StoreKit for subscriptions. All network calls are TLS 1.2+.
+SIMP is a dating, messaging, and live-streaming app for adults 18+. It is built as a PWA wrapped in a Capacitor native shell so we can ship the same product to iOS, Android, and web. The native shell uses WKWebView (no UIWebView) and APNs for push notifications. All network calls are TLS 1.2+. SIMP is fully free — there are no subscriptions, no in-app purchases, and no StoreKit IAP integration in this build.
 
 AGE GATING
 SIMP enforces 18+ at signup. We collect a date of birth AND a self-attested age confirmation timestamp. Users under 18 cannot proceed. Reviewers can verify by tapping any "Create account" path.
@@ -30,10 +30,8 @@ We have implemented Sign in with Apple as required by guideline 4.8 (any app off
 ACCOUNT DELETION
 Per guideline 5.1.1(v), users can delete their account from Settings → Privacy → Delete account. They must type "DELETE" to confirm. Deletion completes within 30 days. Hard-deletion is performed by the backend; backups rotate within 90 days. We retain anonymized moderation records (no PII) to prevent ban-evasion.
 
-SUBSCRIPTIONS (SIMP+ and SIMP Elite)
-We use Apple's StoreKit for all in-app purchases. The sandbox Apple ID can be used to test:
-1. Settings → SIMP+ → Subscribe — sandbox shows the confirm sheet.
-2. Settings → SIMP+ → Restore purchases — works against sandbox receipts.
+PRICING
+SIMP is fully free. There are no subscriptions, no SIMP+ tier, and no IAP products. The app uses no StoreKit billing code in this build — there is nothing to test or restore in the Apple sandbox for IAP.
 
 REPORTING & BLOCKING
 Every profile has a Report and Block action. Reports go to a human moderator queue and are reviewed within 24 hours. Block prevents the user from seeing your profile, messaging you, or appearing in your discovery.
@@ -47,7 +45,7 @@ DATA COLLECTION
 We do not sell user data. We do not use third-party tracking SDKs. We do not request IDFA (so App Tracking Transparency prompt is not shown). The only data linked to user identity is what App Store Connect's Privacy Nutrition Labels describe. Full inventory in docs/APP_STORE_PRIVACY_NUTRITION_LABELS.md.
 
 LIVE STREAMING
-SIMP supports live streaming via WebRTC. TURN relay uses Twilio's NTS service (Network Traversal Service). Cross-NAT connectivity is handled by TURN; same-network users use STUN. Reviewers can tap the Live tab to view public streams. Broadcasting requires SIMP+ or SIMP Elite.
+SIMP supports live streaming via WebRTC. TURN relay uses Twilio's NTS service (Network Traversal Service). Cross-NAT connectivity is handled by TURN; same-network users use STUN. Reviewers can tap the Live tab to view public streams. Broadcasting is available to all verified users.
 
 NOTIFICATIONS
 Push notifications use APNs. We request permission via a soft-prompt in onboarding. Reviewers should approve notifications to see push messages (or skip — the app works without them).
@@ -90,13 +88,13 @@ Thank you for your time and your review.
 | Guideline 4.8 — Sign in with Apple missing | Implemented and verified; demo account supports Apple login |
 | Guideline 5.1.1(v) — Account deletion missing | Implemented in app + backend; demo confirms |
 | Guideline 2.1 — App completeness | All flows functional; demo account has populated data |
-| Guideline 4.0 — Spam/minimum functionality | SIMP is not a wrapper; has full dating, messaging, live, safety, billing |
+| Guideline 4.0 — Spam/minimum functionality | SIMP is not a wrapper; has full dating, messaging, live, safety |
 | Guideline 1.4.3 — Dating app requires 17+ + reporting/blocking | Both implemented and verified |
 | Guideline 5.1.1 — Privacy policy URL | https://mysimp.com/privacy/ |
 | Guideline 2.3 — Accurate metadata | Names, screenshots, descriptions all real and accurate |
-| Guideline 3.1 — IAP for digital content | All SIMP+ / Elite subscriptions go through StoreKit |
+| Guideline 3.1 — IAP for digital content | N/A — SIMP is fully free, no IAP. The App Store listing price is Free. |
 | Tracking / ATT | We don't track; ATT prompt not shown |
-| App is just a web wrapper | Capacitor + WKWebView + APNs + StoreKit + native biometric login (capability) |
+| App is just a web wrapper | Capacitor + WKWebView + APNs + native biometric login (capability) |
 
 ## Review SLA expectation
 

@@ -15,7 +15,7 @@ We **do not track** for advertising. We **do** link everything below to user ide
 |---|---|---|---|
 | **Contact Info → Email Address** | Linked | No | App Functionality (account creation, login) |
 | **Contact Info → Name** | Linked | No | App Functionality (display name) |
-| **Financial Info → Purchase History** | Linked | No | App Functionality (entitlement to SIMP+ / SIMP Elite) |
+| **Financial Info → Purchase History** | Not collected | — | SIMP is fully free; no purchases or subscriptions occur. |
 | **Health & Fitness → None** | — | — | — |
 | **Location → Coarse Location** | Linked | No | App Functionality (approximate distance to other members) |
 | **Location → Precise Location** | Not collected | — | We only derive coarse location from IP. We do not request GPS. |
@@ -76,7 +76,7 @@ App Store Connect asks for purpose per data type. We use data only for **App Fun
 | Authentication | Hashed passwords, JWT tokens, Apple identity tokens |
 | Service personalization | Age gate, gender, lookingFor, bio, photos, interests |
 | Communications | Direct messages, push notifications, email verification |
-| Purchases | Apple StoreKit receipt validation for SIMP+ / Elite |
+| Purchases | Not applicable — SIMP is fully free, no subscriptions |
 | Customer support | In-app ticket contents, account-action audit logs |
 
 ## App Privacy questionnaire summary

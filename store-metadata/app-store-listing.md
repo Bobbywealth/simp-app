@@ -58,7 +58,7 @@ and curated experiences — dating that feels like the real thing.
 
 ## Keywords (100 chars max, comma-separated)
 
-dating,social,streaming,verified,connections,premium,events,networking,relationships
+dating,social,streaming,verified,connections,events,networking,relationships,free
 
 ## What's New (for updates)
 

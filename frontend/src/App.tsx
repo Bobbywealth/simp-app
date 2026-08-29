@@ -24,7 +24,6 @@ const Live = lazy(() => import('./pages/Live'));
 const ProfileView = lazy(() => import('./pages/ProfileView'));
 const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
 const Settings = lazy(() => import('./pages/Settings'));
-const Premium = lazy(() => import('./pages/Premium'));
 const Discover = lazy(() => import('./pages/Discover'));
 const Explore = lazy(() => import('./pages/Explore'));
 const LiveStream = lazy(() => import('./pages/LiveStream'));
@@ -130,7 +129,6 @@ export default function App() {
               <Route path="/messages" element={<ProtectedRoute requireOnboarding><Messages /></ProtectedRoute>} />
               <Route path="/messages/:id" element={<ProtectedRoute requireOnboarding><Conversation /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute requireOnboarding><Notifications /></ProtectedRoute>} />
-              <Route path="/premium" element={<ProtectedRoute requireOnboarding><Premium /></ProtectedRoute>} />
               <Route path="/licenses" element={<ProtectedRoute requireOnboarding><Licenses /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute allowedRoles={['MODERATOR', 'ADMIN', 'SUPER_ADMIN']}><Admin /></ProtectedRoute>} />
               <Route path="*" element={<ProtectedRoute><NotFound /></ProtectedRoute>} />

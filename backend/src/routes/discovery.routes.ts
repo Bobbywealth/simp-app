@@ -98,7 +98,6 @@ discoveryRouter.get(
           gender: { in: gendersFor(me.profile.lookingFor) },
           lookingFor: { in: lookingForMyGender(me.profile.gender) },
           birthDate: { gte: earliestBirthDate, lte: latestBirthDate },
-          OR: [{ boostedUntil: null }, { boostedUntil: { gt: new Date() } }],
           ...(preferences.verifiedOnly ? { isVerified: true } : {}),
         },
         photos: { some: {} },
@@ -115,19 +114,14 @@ discoveryRouter.get(
           photos: { orderBy: { position: 'asc' } },
           prompts: { orderBy: { position: 'asc' }, take: 3 },
           interests: { include: { interest: true } },
-          entitlements: {
-            where: {
-              status: { in: ['ACTIVE', 'GRACE_PERIOD'] },
-              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-            },
-          },
         },
-        // Order by (boosted desc, premium desc, lastActive desc, id desc).
-        // The boost column is on Profile; we sort on profile.boostedUntil
-        // directly here, then re-sort below with the live decay signal.
-        // The query is bounded by `limit * 3 + 1` so a single page can't
-        // blow up even if boostedUntil is widely scattered.
-        orderBy: [{ profile: { boostedUntil: 'desc' } }, { createdAt: 'desc' }, { id: 'desc' }],
+        orderBy: [
+          // SIMP is free — no boost ranking. Order by the remote's
+          // relevance signal (createdAt desc + id desc) so the cursor
+          // pagination stays stable.
+          { createdAt: 'desc' },
+          { id: 'desc' },
+        ],
         take: Math.min(151, limit * 3 + 1),
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       });
@@ -161,30 +155,14 @@ discoveryRouter.get(
             : distance !== null && distance <= preferences.maxDistanceKm,
         );
 
-      // Live boost decay: 100 at boostedUntil, 0 six hours later.
-      const boostNow = Date.now();
-      const effectiveBoost = (c: typeof withDistance[number]) => {
-        const until = c.candidate.profile?.boostedUntil;
-        if (!until) return 0;
-        const ms = new Date(until).getTime() - boostNow;
-        if (ms <= 0) return 0;
-        const total = 6 * 60 * 60 * 1000; // matches billing-extra.routes.ts
-        return Math.max(0, Math.min(100, (ms / total) * 100));
-      };
-      const premiumUsers = new Set(
-        withDistance
-          .filter(({ candidate }) => (candidate.entitlements?.length ?? 0) > 0)
-          .map(({ candidate }) => candidate.id),
-      );
+      // SIMP is fully free — there is no longer a premium ranking or an
+      // Elite boost decay. Discovery orders by distance + shared-interest
+      // overlap, then by signup time desc for stability.
       const sorted = [...withDistance].sort((a, b) => {
-        const aScore = effectiveBoost(a) + a.distanceScore + a.sharedInterestCount * 5;
-        const bScore = effectiveBoost(b) + b.distanceScore + b.sharedInterestCount * 5;
+        const aScore = a.distanceScore + a.sharedInterestCount * 5;
+        const bScore = b.distanceScore + b.sharedInterestCount * 5;
         const db = bScore - aScore;
         if (db !== 0) return db;
-        // Premium (Elite) > Plus > Free, then lastActiveAt desc.
-        const ap = premiumUsers.has(a.candidate.id) ? 1 : 0;
-        const bp = premiumUsers.has(b.candidate.id) ? 1 : 0;
-        if (ap !== bp) return bp - ap;
         return b.candidate.createdAt.getTime() - a.candidate.createdAt.getTime();
       });
       const selected = sorted.slice(0, limit);
@@ -204,7 +182,6 @@ discoveryRouter.get(
             heightCm: candidate.profile.heightCm,
             isVerified: candidate.profile.isVerified,
             verificationStatus: candidate.profile.verificationStatus,
-            isPremium: premiumUsers.has(candidate.id),
             distanceKm: distance === null ? null : Math.max(1, Math.round(distance)),
             photos: candidate.photos.map((photo) => ({
               id: photo.id,
@@ -294,7 +271,7 @@ discoveryRouter.get(
           prompts: { orderBy: { position: 'asc' }, take: 3 },
           interests: { include: { interest: true } },
         },
-        orderBy: [{ profile: { boostedUntil: 'desc' } }, { createdAt: 'desc' }],
+        orderBy: [{ profile: { birthDate: 'desc' } }, { createdAt: 'desc' }],
         take: limit + 1,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       });

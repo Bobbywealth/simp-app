@@ -57,8 +57,6 @@ The graceful production validator now reports these on `GET /health/ready`. They
 | Email delivery      | `EMAIL_PROVIDER=resend`, `EMAIL_FROM`, `RESEND_API_KEY` (or `EMAIL_PROVIDER=webhook` + `EMAIL_WEBHOOK_URL`) | Verification and password-reset links are logged to stdout, not sent    |
 | Live streaming TURN | `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL`, `TURN_PROVIDER`                                          | Cross-network viewers may see black screens without a TURN relay          |
 | Native push         | `PUSH_PROVIDER=firebase`, `FIREBASE_SERVICE_ACCOUNT_JSON`                                                | iOS/Android push notifications are not delivered                          |
-| Billing (Apple)     | `APPLE_IAP_ISSUER_ID`, `APPLE_IAP_KEY_ID`, `APPLE_IAP_PRIVATE_KEY`                                       | SIMP+ / SIMP Elite receipts cannot be verified                            |
-| Billing (Google)    | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`                                                                        | Play Store receipts cannot be verified                                     |
 
 ## Native projects — what was verified
 

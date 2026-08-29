@@ -74,7 +74,7 @@ We do NOT:
 - Track users across apps
 - Use IDFA / advertising identifiers
 - Share precise location
-- Store payment info directly (StoreKit IAP handles billing)
+- Store payment info — SIMP is fully free; no IAP, no StoreKit billing
 
 ---
 

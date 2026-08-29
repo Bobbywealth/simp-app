@@ -326,7 +326,6 @@ export default function Live() {
                       <p className="line-clamp-2 text-sm font-semibold text-white">{s.title}</p>
                       <p className="mt-0.5 flex items-center gap-2 text-xs text-white/70">
                         <span>{s.broadcaster?.displayName ?? 'Unknown'}</span>
-                        {s.broadcaster?.isPremium && <span className="text-gold-400">★</span>}
                         {s.broadcaster?.isVerified && <span className="text-blue-400">✓</span>}
                       </p>
                     </div>

@@ -16,7 +16,6 @@ forwarded to PostHog / Segment / RudderStack in parallel.
 | Matching | `match_created`, `first_match` |
 | Messaging | `message_sent`, `first_message`, `conversation_opened` |
 | Live streaming | `live_started`, `live_ended`, `live_viewed`, `live_reacted` |
-| Premium / billing | `premium_screen_viewed`, `premium_tier_selected`, `purchase_started`, `purchase_completed`, `purchase_failed`, `purchase_restored`, `subscription_cancelled` |
 | Session (auto) | `session_started`, `page_viewed`, `app_backgrounded`, `app_foregrounded` |
 
 "first_*" milestones dedupe via `localStorage` on the client so they
@@ -26,8 +25,8 @@ fire exactly once per user, per lifetime.
 
 | Event | Side | Why |
 |---|---|---|
-| `signup_completed`, `email_verified`, `match_created`, `message_sent`, `live_started`, `live_ended`, `live_reacted`, `purchase_completed`, `purchase_failed` | **server** | Canonical record of truth; can't be forged by the client |
-| `signup_started`, `premium_screen_viewed`, `purchase_started`, `purchase_completed` (client), `purchase_failed`, `purchase_restored`, `subscription_cancelled` | **client** | User-initiated actions before/after the server roundtrip |
+| `signup_completed`, `email_verified`, `match_created`, `message_sent`, `live_started`, `live_ended`, `live_reacted` | **server** | Canonical record of truth; can't be forged by the client |
+| `signup_started` | **client** | User-initiated action before the server signup roundtrip |
 | `first_swipe`, `first_match`, `first_message` | **client** (trackMilestone) | Lifetime per-user dedupe via localStorage |
 | `session_started`, `page_viewed`, `app_backgrounded`, `app_foregrounded` | **client** (auto) | SPA route change + visibilitychange hooks |
 

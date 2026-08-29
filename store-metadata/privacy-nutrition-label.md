@@ -28,7 +28,7 @@ For each data type, specify: Linked to User? Used for Tracking? Purposes?
 
 | Data type | Linked? | Tracking? | Purposes |
 | --- | --- | --- | --- |
-| Payment Info | No | — | Planned for SIMP Premium via StoreKit IAP |
+| Payment Info | No | — | SIMP is fully free; no StoreKit IAP, no payment info collected |
 | Credit Info | No | — | — |
 | Other Financial Info | No | — | — |
 
@@ -94,7 +94,7 @@ For each data type, specify: Linked to User? Used for Tracking? Purposes?
 
 | Data type | Linked? | Tracking? | Purposes |
 | --- | --- | --- | --- |
-| Purchase History | No | — | Planned for SIMP Premium |
+| Purchase History | No | — | SIMP is fully free; no purchases occur |
 
 ### Usage Data
 

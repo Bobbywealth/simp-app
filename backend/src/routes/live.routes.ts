@@ -58,13 +58,6 @@ liveRouter.get('/live/streams', requireAuth, async (req: AuthedRequest, res, nex
             id: true,
             profile: true,
             photos: { take: 1, orderBy: { position: 'asc' } },
-            entitlements: {
-              where: {
-                status: { in: ['ACTIVE', 'GRACE_PERIOD'] },
-                OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-              },
-              take: 1,
-            },
           },
         },
       },
@@ -91,7 +84,6 @@ liveRouter.get('/live/streams', requireAuth, async (req: AuthedRequest, res, nex
             ),
             photoUrl: stream.broadcaster.photos[0]?.url ?? null,
             isVerified: profile.isVerified,
-            isPremium: stream.broadcaster.entitlements.length > 0,
           },
         },
       ];

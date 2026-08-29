@@ -2,7 +2,10 @@ export type Gender = 'WOMAN' | 'MAN' | 'NONBINARY' | 'PREFER_NOT_TO_SAY';
 export type LookingFor = 'WOMEN' | 'MEN' | 'EVERYONE';
 export type SwipeAction = 'PASS' | 'LIKE' | 'SUPERLIKE';
 export type VerificationStatus = 'NOT_REQUESTED' | 'PENDING' | 'APPROVED' | 'REJECTED';
-export type EntitlementTier = 'FREE' | 'SIMP_PLUS' | 'SIMP_ELITE';
+// SIMP is fully free — there is no tier / entitlement concept in the
+// frontend. The legacy `entitlement` block is gone from AuthUser, and
+// `isPremium` is gone from Profile/DiscoveryProfile/
+// LiveStreamBroadcaster.
 
 export interface AuthTokens {
   accessToken: string;
@@ -19,11 +22,6 @@ export interface UserResponse {
   onboardingStep: number;
   onboardingState: Record<string, unknown> | null;
   onboardingCompletedAt: string | null;
-  entitlement: {
-    tier: EntitlementTier;
-    status: 'ACTIVE' | 'GRACE_PERIOD' | 'EXPIRED' | 'REVOKED';
-    expiresAt: string | null;
-  };
   profile: Profile | null;
 }
 
@@ -50,7 +48,6 @@ export interface Profile {
   isVerified: boolean;
   verificationStatus: VerificationStatus;
   profileCompletedAt: string | null;
-  isPremium: boolean;
   interests: { interest: Interest }[];
   customInterests?: string[];
   completion?: ProfileCompletion;
@@ -98,7 +95,6 @@ export interface DiscoveryProfile {
   heightCm: number | null;
   isVerified: boolean;
   verificationStatus?: VerificationStatus;
-  isPremium: boolean;
   distanceKm?: number | null;
   photos: DiscoveryPhoto[];
   prompts: DiscoveryPrompt[];
@@ -159,7 +155,6 @@ export interface MatchSummary {
     city: string | null;
     occupation: string | null;
     isVerified: boolean;
-    isPremium?: boolean;
     photoUrl: string | null;
     thumbnailUrl?: string | null;
   };

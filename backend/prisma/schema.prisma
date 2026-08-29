@@ -1,6 +1,8 @@
-// Canonical Prisma schema for the SIMP dating, messaging, live, safety,
-// notification, and entitlement platform. Historical migrations remain
-// immutable; release-candidate additions live in later migrations.
+// Canonical Prisma schema for the SIMP dating, messaging, live, and
+// safety platform. SIMP is fully free — there are no entitlements or
+// paid-feature gates at the database layer. Historical migrations
+// remain immutable; release-candidate additions live in later
+// migrations.
 
 generator client {
   provider = "prisma-client-js"
@@ -103,53 +105,6 @@ enum PushPlatform {
   WEB
 }
 
-enum EntitlementTier {
-  FREE
-  SIMP_PLUS
-  SIMP_ELITE
-}
-
-enum EntitlementStatus {
-  ACTIVE
-  GRACE_PERIOD
-  EXPIRED
-  REVOKED
-}
-
-enum BillingPlatform {
-  APPLE
-  GOOGLE
-  WEB
-  PROMOTIONAL
-}
-
-enum EntitlementEventType {
-  PURCHASE
-  RENEWAL
-  UPGRADE
-  DOWNGRADE
-  CANCEL
-  REFUND
-  GRACE_PERIOD
-  RECOVER
-  EXPIRE
-  RESTORE
-  PAUSE
-  UNCANCEL
-}
-
-enum EntitlementEventSource {
-  APPLE_VERIFY
-  APPLE_WEBHOOK
-  APPLE_REFRESH
-  GOOGLE_VERIFY
-  GOOGLE_RTDN
-  GOOGLE_PUBSUB
-  CLIENT_VERIFY
-  CLIENT_RESTORE
-  RECONCILE
-}
-
 enum ModerationActionType {
   WARN
   SUSPEND
@@ -237,8 +192,6 @@ model User {
   pushTokens                PushToken[]
   emailEvents               EmailEvent[]
   analyticsEvents           AnalyticsEvent[]
-  entitlements              Entitlement[]
-  entitlementEvents         EntitlementEvent[]
   dailyUsages               DailyUsage[]
   moderationActionsTaken    ModerationAction[]           @relation("ModeratorActions")
   moderationActionsReceived ModerationAction[]           @relation("TargetActions")
@@ -275,18 +228,6 @@ model Profile {
   verificationStatus VerificationStatus @default(NOT_REQUESTED)
   profileCompletedAt DateTime?
 
-  // Legacy compatibility cache. Entitlement checks always use Entitlement;
-  // no authorization decision may rely on this field.
-  isPremium Boolean @default(false)
-
-  // Elite boost — a decaying score the discover query orders by so
-  // recently boosted profiles surface first. Set by POST /me/boost,
-  // capped at 1 active boost per day per user, and reset to 0 by the
-  // daily reconciliation cron once the boost window expires.
-  boostScore    Float     @default(0)
-  boostedUntil  DateTime?
-  lastBoostedAt DateTime?
-
   // Up to 3 short user-typed interest labels (separate from the
   // curated Interest table). Shown alongside curated interests on
   // the profile and Discover cards. Sanitized client-side; max 24
@@ -298,8 +239,6 @@ model Profile {
 
   @@index([gender, birthDate])
   @@index([verificationStatus])
-  @@index([boostScore])
-  @@index([boostedUntil])
 }
 
 model DiscoveryPreference {
@@ -575,28 +514,28 @@ model ProfileVerificationRequest {
 }
 
 model LivekitUsageSnapshot {
-  id                        String   @id @default(cuid())
-  participantMinutes        Float    @default(0)
-  participantMinutesLimit   Float    @default(0)
-  recordingStorageGb        Float    @default(0)
-  recordingStorageLimitGb   Float    @default(0)
-  egressGb                  Float    @default(0)
-  egressLimitGb             Float    @default(0)
-  planName                  String?
-  createdAt                 DateTime @default(now())
+  id                      String   @id @default(cuid())
+  participantMinutes      Float    @default(0)
+  participantMinutesLimit Float    @default(0)
+  recordingStorageGb      Float    @default(0)
+  recordingStorageLimitGb Float    @default(0)
+  egressGb                Float    @default(0)
+  egressLimitGb           Float    @default(0)
+  planName                String?
+  createdAt               DateTime @default(now())
 
   @@index([createdAt])
 }
 
 model LiveStream {
-  id            String           @id @default(cuid())
-  broadcasterId String
-  title         String
-  status        LiveStreamStatus @default(LIVE)
-  viewerCount   Int              @default(0)
-  heartCount    Int              @default(0)
-  startedAt     DateTime         @default(now())
-  endedAt       DateTime?
+  id                String           @id @default(cuid())
+  broadcasterId     String
+  title             String
+  status            LiveStreamStatus @default(LIVE)
+  viewerCount       Int              @default(0)
+  heartCount        Int              @default(0)
+  startedAt         DateTime         @default(now())
+  endedAt           DateTime?
   // LiveKit egress state for moderator review + App Store / Play Store
   // trust-and-safety compliance. recordingEgressId is the LiveKit handle
   // (stopped when the stream ends); recordingUrl is the resolved S3
@@ -718,55 +657,6 @@ model PushToken {
   @@index([platform, active])
 }
 
-model Entitlement {
-  id                    String             @id @default(cuid())
-  userId                String
-  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tier                  EntitlementTier
-  status                EntitlementStatus  @default(ACTIVE)
-  platform              BillingPlatform
-  productId             String
-  transactionId         String?            @unique
-  originalTransactionId String?
-  expiresAt             DateTime?
-  autoRenewing          Boolean            @default(false)
-  environment           String?
-  receiptHash           String?
-  lastVerifiedAt        DateTime?
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  events                EntitlementEvent[]
-
-  @@index([userId, status, expiresAt])
-  @@index([originalTransactionId])
-}
-
-model EntitlementEvent {
-  id                    String                 @id @default(cuid())
-  entitlementId         String
-  entitlement           Entitlement            @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
-  userId                String
-  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  type                  EntitlementEventType
-  source                EntitlementEventSource
-  tier                  EntitlementTier
-  status                EntitlementStatus
-  platform              BillingPlatform
-  productId             String
-  transactionId         String?
-  originalTransactionId String?
-  externalId            String?
-  environment           String?
-  expiresAt             DateTime?
-  metadata              Json?
-  createdAt             DateTime               @default(now())
-
-  @@unique([externalId])
-  @@index([userId, createdAt])
-  @@index([entitlementId])
-  @@index([type, createdAt])
-}
-
 model DailyUsage {
   id         String   @id @default(cuid())
   userId     String
@@ -775,7 +665,6 @@ model DailyUsage {
   likes      Int      @default(0)
   superLikes Int      @default(0)
   rewinds    Int      @default(0)
-  boosts     Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

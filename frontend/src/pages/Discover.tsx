@@ -367,7 +367,9 @@ export default function Discover() {
   }
 
   const canUndo = swipeHistory.length > 0;
-  const isPremium = user?.entitlement?.tier !== 'FREE';
+  // SIMP is fully free — every member gets the full swipe deck, super
+  // likes, and rewind. No premium gating on the front-end actions.
+  const isPremium = false;
 
   return (
     <Scaffold
@@ -425,9 +427,9 @@ export default function Discover() {
             variant="circle"
             tone="cyan"
             label="Super"
-            title={isPremium ? 'Super Like' : 'Super Like (Premium)'}
+            title="Super Like"
           >
-            {isPremium ? '★' : '🔒'}
+            ★
           </ActionButton>
           <ActionButton
             onClick={() => onSwipeRight(top)}

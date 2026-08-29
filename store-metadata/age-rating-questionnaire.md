@@ -24,7 +24,7 @@ dating apps on the App Store.
 | **Loot Boxes / Random Items** | **No** | — |
 | **Contests** | **No** | — |
 | **Health or Medical Topics** | **No** | — |
-| **In-App Purchases** | **Yes** | SIMP Premium subscription (planned) |
+| **In-App Purchases** | **No** | SIMP is fully free; no subscriptions or IAPs |
 | **Location Sharing** | **Yes** | Approximate, optional, only for matching |
 | **Messaging or Chat** | **Yes** | Live chat on streams, direct messages on matches |
 | **Live Broadcasting** | **Yes** | The core live streaming feature |

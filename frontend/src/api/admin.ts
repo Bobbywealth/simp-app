@@ -80,8 +80,8 @@ export interface AdminHealth {
     email: boolean;
     push: boolean;
     turn: boolean;
-    billingApple: boolean;
-    billingGoogle: boolean;
+    livekit: boolean;
+    apple: boolean;
   };
   degradedFeatures?: string[];
 }

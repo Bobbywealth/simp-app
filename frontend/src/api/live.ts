@@ -6,7 +6,6 @@ export interface LiveStreamBroadcaster {
   age: number | null;
   photoUrl: string | null;
   isVerified: boolean;
-  isPremium: boolean;
 }
 
 export interface LiveStream {

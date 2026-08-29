@@ -4,7 +4,11 @@ The App Store review account is `review@sim-p.app` / `AppleReview2026!`. This is
 
 ## How to seed the demo account
 
-The backend has a one-shot endpoint at `POST /demo/seed` that creates the demo user, completes the profile, verifies the user (blue badge), and grants SIMP+ for one year. The endpoint is **disabled by default** — it returns 404 unless `ENABLE_DEMO_SEED=true` is set in the Render dashboard.
+The backend has a one-shot endpoint at `POST /demo/seed` that creates the demo user, completes the profile, and applies the blue verification badge. The endpoint is **disabled by default** — it returns 404 unless `ENABLE_DEMO_SEED=true` is set in the Render dashboard.
+
+> **Note:** SIMP is fully free — there is no SIMP+ tier to seed for the
+> demo account. The reviewer exercises the app as an ordinary verified
+> free user.
 
 ### Steps (operator / Bobby):
 
@@ -49,20 +53,17 @@ After seeding, the demo account has:
 | Profile | complete: bio, city, occupation, height, gender, lookingFor |
 | Verification | blue badge (approved) |
 | Photos | 2 placeholder brand-asset URLs (visible in profile) |
-| Entitlement | SIMP+ active for 365 days, productId `app.simp.plus.monthly` |
 | Push tokens | none (Apple reviewer can re-enroll on device) |
 
 This is enough for an Apple reviewer to:
 - Sign in immediately (no email verification required)
 - See a complete profile with blue badge
-- Exercise the SIMP+ paywall (entitlement is active)
 - Send / receive messages, browse discovery, view live streams
 - Open Settings → Account → Identity to see Sign in with Apple linked status (if they want to test that flow)
 
 ### What reviewers CAN'T do with the demo account
 
 - See real matches — the demo user is the only fully-populated account
-- Test payments — they have to use their own sandbox Apple ID to subscribe / cancel / restore
 - Test push notifications — they need to enroll their own device token
 
 That's by design. Reviewers are verifying the app works end-to-end, not that it has fake content.

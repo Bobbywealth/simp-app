@@ -53,16 +53,16 @@ async function main() {
         "id", "userId", "displayName", "bio", "birthDate",
         "gender", "lookingFor", "city", "occupation", "heightCm",
         "isVerified", "verificationStatus", "profileCompletedAt",
-        "isPremium", "createdAt", "updatedAt"
+        "createdAt", "updatedAt"
       ) VALUES (
         'prm_demo_' || substr(md5(random()::text), 1, 24), $1,
         'Apple Reviewer',
-        'Demo account for App Store reviewers. Complete, verified, premium SIMP profile. Match with me, send me a message, browse my photos.',
+        'Demo account for App Store reviewers. Complete, verified SIMP profile. Match with me, send me a message, browse my photos.',
         DATE '1995-01-15',
         'WOMAN'::"Gender", 'MEN'::"LookingFor",
         'New York, NY', 'Product designer', 170,
         true, 'APPROVED'::"VerificationStatus", NOW(),
-        true, NOW(), NOW()
+        NOW(), NOW()
       )
       ON CONFLICT ("userId") DO UPDATE
       SET "isVerified" = EXCLUDED."isVerified",
@@ -90,33 +90,11 @@ async function main() {
   );
   console.log('[photos] 2');
 
-  // 5. SIMP+ entitlement for 1 year (so reviewers can exercise paywall).
-  await client.query(
-    `DELETE FROM "Entitlement" WHERE "userId" = $1 AND "transactionId" = 'demo-account-active-entitlement'`,
-    [userId],
-  );
-  await client.query(
-    `INSERT INTO "Entitlement"
-       ("id", "userId", "tier", "status", "platform", "productId",
-        "transactionId", "expiresAt", "autoRenewing", "environment",
-        "receiptHash", "lastVerifiedAt", "createdAt", "updatedAt")
-     VALUES (
-       'ent_demo_' || substr(md5(random()::text), 1, 22), $1,
-       'PLUS'::"EntitlementTier", 'ACTIVE'::"EntitlementStatus",
-       'APPLE'::"BillingPlatform", 'app.simp.plus.monthly',
-       'demo-account-active-entitlement',
-       NOW() + INTERVAL '365 days', false, 'Production',
-       'demo-no-receipt', NOW(), NOW(), NOW()
-     )`,
-    [userId],
-  );
-  console.log('[entitlement] SIMP+ active for 1 year');
-
   console.log('\n✅ Demo account ready for App Store review');
   console.log('   Email:    review@sim-p.app');
   console.log('   Password: AppleReview2026!');
   console.log('   Verified: yes (blue badge)');
-  console.log('   Premium:  SIMP+ active');
+  console.log('   Tier:     SIMP is fully free — no premium tier');
 
   await client.end();
 }

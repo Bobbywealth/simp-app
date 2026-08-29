@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { prisma } from '../config/db.js';
 import { requireAuth, requireVerifiedEmail, type AuthedRequest } from '../middleware/auth.js';
 import { AppError } from '../utils/errors.js';
-import { consumeSwipeAllowance, getEffectiveEntitlement, utcUsageDay } from '../services/entitlement.service.js';
+import { consumeSwipeAllowance, getTodayUsage, utcUsageDay } from '../services/swipe-rate-limit.js';
+import { env } from '../config/env.js';
 import { createNotification, dispatchNotification } from '../services/notification.service.js';
 import { trackAnalytics } from '../services/analytics.service.js';
 
@@ -222,18 +223,16 @@ swipesRouter.post(
 
 swipesRouter.get('/swipes/usage', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
-    const day = utcUsageDay();
-    const [usage, entitlement] = await prisma.$transaction(async (tx) =>
-      Promise.all([
-        tx.dailyUsage.findUnique({ where: { userId_day: { userId: req.userId!, day } } }),
-        getEffectiveEntitlement(tx, req.userId!),
-      ]),
-    );
+    const usage = await getTodayUsage(prisma, req.userId!);
     res.json({
-      day,
-      likesUsed: usage?.likes ?? 0,
-      superLikesUsed: usage?.superLikes ?? 0,
-      tier: entitlement.tier,
+      day: utcUsageDay(),
+      likesUsed: usage.likes,
+      superLikesUsed: usage.superLikes,
+      rewindsUsed: usage.rewinds,
+      limits: {
+        likes: env.FREE_DAILY_LIKES,
+        superLikes: env.FREE_DAILY_SUPER_LIKES,
+      },
     });
   } catch (error) {
     next(error);
@@ -281,10 +280,6 @@ swipesRouter.delete('/swipes/:id', requireAuth, async (req: AuthedRequest, res, 
   try {
     const userId = req.userId!;
     const result = await prisma.$transaction(async (tx) => {
-      const entitlement = await getEffectiveEntitlement(tx, userId);
-      if (!entitlement.premium) {
-        throw new AppError('premium_required', 403, 'Rewind is available with SIMP+.');
-      }
       const latest = await tx.swipe.findFirst({ where: { swiperId: userId }, orderBy: { createdAt: 'desc' } });
       if (!latest || latest.id !== req.params.id) {
         throw new AppError('only_latest_swipe_rewindable', 409, 'Only your latest swipe can be rewound.');

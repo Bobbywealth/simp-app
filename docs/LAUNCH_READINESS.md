@@ -21,11 +21,9 @@ Last audited: snapshot at commit HEAD of main.
 | Filters (age, distance, looking-for, interests) | ✅ done | `discovery.routes.ts` lines 130-200 |
 | Blocked users excluded from deck | ✅ done | `discovery.routes.ts` blocks join at line 80-90 |
 | Already-swiped users excluded from deck | ✅ done | `discovery.routes.ts` swipes join at line 80-87 |
-| Free daily likes (default 25) | ✅ done | `entitlement.service.ts` + `FREE_DAILY_LIKES` env |
-| Free daily super-likes (default 1) | ✅ done | `entitlement.service.ts` + `FREE_DAILY_SUPER_LIKES` env |
-| SIMP+ daily super-likes (5) | ✅ done | `entitlement.service.ts` line 38-42 |
-| SIMP Elite daily super-likes (10) | ✅ done | `entitlement.service.ts` line 40 |
-| Rewind (premium only) | ✅ done | `DELETE /swipes/:id` gated by `entitlement.premium` |
+| Free daily likes (default 25) | ✅ done | `swipe-rate-limit.ts` + `FREE_DAILY_LIKES` env |
+| Free daily super-likes (default 1) | ✅ done | `swipe-rate-limit.ts` + `FREE_DAILY_SUPER_LIKES` env |
+| Rewind (free for everyone) | ✅ done | `DELETE /swipes/:id` (no tier gate) |
 | "You've seen everyone" empty state | ✅ improved (this PR) | Two CTAs: Refresh + Expand filters |
 | Profile notes ("Convince Me") on Like | ✅ done | `note` field in swipe schema |
 | Real-time re-fetch on filter change | ✅ done | `useEffect` on filter state in Discover.tsx |
@@ -110,18 +108,21 @@ Last audited: snapshot at commit HEAD of main.
 | Native APNs push | ❌ blocked | Needs Apple .p8 key + Apple Developer setup |
 | Native FCM push | ❌ blocked | Needs Firebase project + google-services.json |
 
-## Premium / entitlements
+## Free tier (no paid entitlements)
 
 | Feature | Status | Where to verify |
 |---|---|---|
-| Backend-authoritative entitlement check | ✅ done | `entitlement.service.ts` `getEffectiveEntitlement` |
-| SIMP+ tier (daily super-likes = 5) | ✅ done | `FREE_DAILY_SUPER_LIKES=5` for SIMP_PLUS |
-| SIMP Elite tier (daily super-likes = 10) | ✅ done | `FREE_DAILY_SUPER_LIKES=10` for SIMP_ELITE |
-| Premium gates (rewind, see-likes, etc) | ✅ done | Multiple `requirePremium` + `isPremium` checks |
-| Upgrade / downgrade flow | ✅ done | Server auto-creates new entitlement + cancels old on `DID_CHANGE_RENEWAL_PREFERENCE` |
-| Restore purchases | ✅ done | `POST /billing/restore` for both Apple + Google |
-| Real-time `isPremium` flip on `DID_RENEW` webhook | ✅ done | `apple-iap.service.ts` `handleAppStoreServerNotification` |
-| `isPremium` mirrored onto `Profile.isPremium` for legacy code | ✅ done | `billing.service.ts` line 60 |
+| Free daily likes limit (default 25) | ✅ done | `swipe-rate-limit.ts` + `FREE_DAILY_LIKES` env |
+| Free daily super-likes limit (default 1) | ✅ done | `swipe-rate-limit.ts` + `FREE_DAILY_SUPER_LIKES` env |
+| Rewind your last swipe | ✅ done | `DELETE /swipes/:id` |
+| Verified-only filter | ✅ done | `users.routes.ts` PATCH `/me/discovery-preferences` (no tier gate) |
+
+> **Note:** SIMP is fully free. There are no SIMP+ / Elite tiers, no
+> entitlements table, no IAP subscription products, and no StoreKit
+> integration. The free tier offers everything: rewind, advanced
+> filters, all location preferences. Setting `FREE_DAILY_LIKES` /
+> `FREE_DAILY_SUPER_LIKES` to higher values still rate-limits abuse
+> even though every user gets the full feature set.
 
 ## Safety / moderation
 
@@ -199,7 +200,7 @@ Multi-user QA pass on Bobby's Mac with at least 3-5 test accounts:
 - Messaging: realtime, typing, read receipt, persistence after restart
 - Live: 1 broadcaster + 2-3 viewers across Wi-Fi + cellular + VPN
 - Block / report / unmatch enforcement across all surfaces
-- Premium purchase / restore / cancel / refund (via App Store sandbox)
+- Premium purchase / restore / cancel / refund | N/A — SIMP is fully free
 - Account deletion + check the other user's view of the conversation
 
 ## What's still on Bobby's plate (Track B infra)
@@ -207,7 +208,6 @@ Multi-user QA pass on Bobby's Mac with at least 3-5 test accounts:
 | Item | Where covered | Time |
 |---|---|---|
 | Apple Developer setup for SIWA | `docs/APPLE_SIGNIN_PRODUCTION.md` | 15 min |
-| Apple Developer + App Store Connect for IAP | `docs/APPLE_IAP_PRODUCTION.md` | 30 min |
 | Resend API key | `docs/EMAIL_PUSH_PROVIDER_SETUP.md` | 5 min |
 | Firebase project + google-services.json | `docs/PUSH_PROVIDER_SETUP.md` (need to write) | 20 min |
 | Render "Update from render.yaml" click (1-time) | per recent message | 30 sec |

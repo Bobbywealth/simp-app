@@ -240,14 +240,6 @@ authRouter.get('/me', requireAuth, async (req: AuthedRequest, res, next) => {
       include: {
         profile: true,
         interests: { include: { interest: true } },
-        entitlements: {
-          where: {
-            status: { in: ['ACTIVE', 'GRACE_PERIOD'] },
-            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
       },
     });
     if (!user) {
@@ -258,7 +250,6 @@ authRouter.get('/me', requireAuth, async (req: AuthedRequest, res, next) => {
       });
     }
 
-    const entitlement = user.entitlements[0];
     res.json({
       id: user.id,
       email: user.email,
@@ -269,17 +260,9 @@ authRouter.get('/me', requireAuth, async (req: AuthedRequest, res, next) => {
       onboardingStep: user.onboardingStep,
       onboardingState: user.onboardingState,
       onboardingCompletedAt: user.onboardingCompletedAt,
-      entitlement: entitlement
-        ? {
-            tier: entitlement.tier,
-            status: entitlement.status,
-            expiresAt: entitlement.expiresAt,
-          }
-        : { tier: 'FREE', status: 'ACTIVE', expiresAt: null },
       profile: user.profile
         ? {
             ...user.profile,
-            isPremium: Boolean(entitlement),
             interests: user.interests,
           }
         : null,

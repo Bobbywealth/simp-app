@@ -293,9 +293,9 @@ export default function Settings() {
           <button type="button" onClick={() => window.open(`${API_BASE_URL}/terms`, '_blank', 'noopener')} className="settings-row border-t border-white/[0.06]">Terms of Service <span>›</span></button>
         </SettingsSection>
 
-        <SettingsSection title="Subscription">
-          <StaticRow label="Current plan" value={user?.entitlement.tier.replace(/_/g, ' ') ?? 'FREE'} />
-          {import.meta.env.VITE_BILLING_ENABLED === 'true' && <button type="button" onClick={() => navigate('/premium')} className="settings-row border-t border-white/[0.06]">Manage or restore purchases <span>›</span></button>}
+        <SettingsSection title="Plan">
+          <StaticRow label="Current plan" value="SIMP Free" />
+          <p className="px-4 py-3 text-[11px] leading-relaxed text-white/40">SIMP is fully free. No subscriptions, no in-app purchases, no premium tier.</p>
         </SettingsSection>
 
         {isStaff && (

@@ -5,6 +5,8 @@
 # /auth/signup + /profile endpoints the app uses. Idempotent: re-running
 # creates a new account if the email is already in use.
 #
+# SIMP is fully free — there is no entitlement tier to seed.
+#
 # Usage: bash scripts/seed-demo-account.sh
 
 set -euo pipefail
@@ -92,13 +94,13 @@ INSERT INTO "Profile" (
   "id", "userId", "displayName", "bio", "birthDate",
   "gender", "lookingFor", "city", "occupation", "heightCm",
   "isVerified", "verificationStatus", "profileCompletedAt",
-  "isPremium", "createdAt", "updatedAt"
+  "createdAt", "updatedAt"
 )
 SELECT
   'prm_demo_' || substr(md5(random()::text), 1, 24),
   u.id,
   'Apple Reviewer',
-  'Demo account for App Store reviewers. Complete, verified, premium SIMP profile. Match with me, send me a message, browse my photos.',
+  'Demo account for App Store reviewers. Complete, verified SIMP profile. Match with me, send me a message, browse my photos.',
   DATE '1995-01-15',
   'WOMAN'::"Gender",
   'MEN'::"LookingFor",
@@ -108,7 +110,6 @@ SELECT
   true,
   'APPROVED'::"VerificationStatus",
   NOW(),
-  true,
   NOW(),
   NOW()
 FROM "User" u
@@ -121,30 +122,6 @@ SET "isVerified" = EXCLUDED."isVerified",
     "city" = EXCLUDED."city",
     "occupation" = EXCLUDED."occupation",
     "heightCm" = EXCLUDED."heightCm";
-
-INSERT INTO "Entitlement" (
-  "id", "userId", "tier", "status", "platform", "productId",
-  "transactionId", "expiresAt", "autoRenewing", "environment",
-  "receiptHash", "lastVerifiedAt", "createdAt", "updatedAt"
-)
-SELECT
-  'ent_demo_' || substr(md5(random()::text), 1, 24),
-  u.id,
-  'PLUS'::"EntitlementTier",
-  'ACTIVE'::"EntitlementStatus",
-  'APPLE'::"BillingPlatform",
-  'app.simp.plus.monthly',
-  'demo-account-active-entitlement',
-  NOW() + INTERVAL '365 days',
-  false,
-  'Production',
-  'demo-no-receipt',
-  NOW(),
-  NOW(),
-  NOW()
-FROM "User" u
-WHERE u.email = 'review@sim-p.app'
-ON CONFLICT ("transactionId") DO NOTHING;
 SQL
 ok "DB write complete"
 
@@ -153,6 +130,6 @@ echo "✅ Demo account ready for App Store review:"
 echo "   Email:    $DEMO_EMAIL"
 echo "   Password: $DEMO_PASSWORD"
 echo "   Verified: yes (blue badge)"
-echo "   Premium:  SIMP+ active (1 year)"
+echo "   Tier:     SIMP is fully free — no premium tier"
 echo ""
 echo "💡 Add these to App Store Connect → App Review → Notes"

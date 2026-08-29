@@ -12,9 +12,6 @@ import { accountRouter } from './routes/account.routes.js';
 import { adminRouter } from './routes/admin.routes.js';
 import { analyticsRouter } from './routes/analytics.routes.js';
 import { authRouter } from './routes/auth.routes.js';
-import { billingRouter } from './routes/billing.routes.js';
-import { billingExtrasRouter } from './routes/billing-extra.routes.js';
-import { googleRtdnRouter } from './routes/google-rtdn.routes.js';
 import { configRouter } from './routes/config.routes.js';
 import { discoveryRouter } from './routes/discovery.routes.js';
 import { experiencesRouter } from './routes/experiences.routes.js';
@@ -116,10 +113,6 @@ export function createApp() {
   app.use('/auth/login', limiter(15 * 60_000, 10));
   app.use('/auth/apple', limiter(15 * 60_000, 15));
   app.use('/auth/apple/merge-token', limiter(60 * 60_000, 5));
-  app.use('/billing/apple/refresh', limiter(60 * 60_000, 12));
-  app.use('/billing/apple/restore', limiter(60 * 60_000, 6));
-  // No rate limit on /billing/apple/notifications — it's an Apple-to-us
-  // webhook, never user-initiated. Brute-force protection at the firewall.
   app.use('/auth/forgot-password', limiter(60 * 60_000, 5));
   app.use('/auth/resend-verification', limiter(60 * 60_000, 3));
   app.use('/auth/refresh', limiter(5 * 60_000, 30));
@@ -144,9 +137,6 @@ export function createApp() {
   app.use(moderationRouter);
   app.use(liveRouter);
   app.use(notificationsRouter);
-  app.use(billingRouter);
-  app.use(googleRtdnRouter);
-  app.use(billingExtrasRouter);
   app.use(experiencesRouter);
   app.use(analyticsRouter);
   app.use(adminRouter);

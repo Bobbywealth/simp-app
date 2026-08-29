@@ -29,7 +29,6 @@ type SeedProfile = {
   occupation: string;
   heightCm: number;
   isVerified?: boolean;
-  isPremium?: boolean;
   portraitGender: 'women' | 'men';
   portraitIdxs: number[];
   prompts: { question: string; answer: string }[];
@@ -48,7 +47,6 @@ const profiles: SeedProfile[] = [
     occupation: 'Photographer',
     heightCm: 168,
     isVerified: true,
-    isPremium: true,
     portraitGender: 'women',
     portraitIdxs: [44, 65, 33],
     prompts: [
@@ -128,7 +126,6 @@ const profiles: SeedProfile[] = [
     occupation: 'Head Chef',
     heightCm: 172,
     isVerified: true,
-    isPremium: true,
     portraitGender: 'women',
     portraitIdxs: [68, 14, 95],
     prompts: [
@@ -186,7 +183,6 @@ const profiles: SeedProfile[] = [
     occupation: 'Senior Software Engineer',
     heightCm: 182,
     isVerified: true,
-    isPremium: true,
     portraitGender: 'men',
     portraitIdxs: [33, 51, 84],
     prompts: [
@@ -226,7 +222,6 @@ const profiles: SeedProfile[] = [
     occupation: 'Gallery Owner',
     heightCm: 175,
     isVerified: true,
-    isPremium: true,
     portraitGender: 'women',
     portraitIdxs: [2, 17, 91],
     prompts: [
@@ -262,7 +257,6 @@ async function main() {
         occupation: p.occupation,
         heightCm: p.heightCm,
         isVerified: p.isVerified ?? false,
-        isPremium: p.isPremium ?? false,
       },
       create: {
         userId: user.id,
@@ -275,7 +269,6 @@ async function main() {
         occupation: p.occupation,
         heightCm: p.heightCm,
         isVerified: p.isVerified ?? false,
-        isPremium: p.isPremium ?? false,
       },
     });
 
