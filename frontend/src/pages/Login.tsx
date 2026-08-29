@@ -91,8 +91,12 @@ export default function Login() {
   const appleClientIdValue = appleClientId ?? '';
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
+    <div className="relative flex min-h-screen flex-col bg-ink-950 text-white overflow-hidden">
       <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
+      <div
+        className="pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full opacity-70 blur-3xl"
+        style={{ background: 'radial-gradient(circle, rgba(212,169,58,0.22) 0%, rgba(212,169,58,0.06) 45%, transparent 70%)' }}
+      />
       <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -101,16 +105,19 @@ export default function Login() {
           className="flex flex-col py-10"
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="mb-6"
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+            className="mb-8 flex justify-center"
           >
-            <SimpLogo size={88} variant="emblem" />
+            <div className="relative">
+              <div className="absolute inset-0 -m-8 rounded-full bg-gold-400/15 blur-2xl" />
+              <SimpLogo size={112} variant="emblem" className="relative drop-shadow-[0_0_28px_rgba(212,169,58,0.55)]" />
+            </div>
           </motion.div>
-          <h1 className="display-heading text-3xl font-light">Welcome back</h1>
-          <div className="gold-divider mt-4 !mx-0" />
-          <p className="mt-4 text-sm text-white/70">Log in to continue your journey.</p>
+          <h1 className="display-heading text-center text-3xl font-light">Welcome back</h1>
+          <div className="gold-divider mt-5" />
+          <p className="mt-5 text-center text-sm text-white/70">Log in to continue your journey.</p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="mt-10 space-y-5" noValidate>
             <Input
@@ -136,10 +143,10 @@ export default function Login() {
               </p>
             )}
 
-            <div className="text-right">
+            <div className="pt-1 text-right">
               <Link to="/forgot-password" className="text-xs text-gold-300 hover:text-gold-200">Forgot password?</Link>
             </div>
-            <Button type="submit" loading={submitting} className="mt-3">
+            <Button type="submit" loading={submitting} className="mt-4">
               Log in
             </Button>
           </form>

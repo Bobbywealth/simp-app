@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import type { PushPlatform } from '@prisma/client';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
@@ -60,16 +61,31 @@ export async function signup(input: SignupInput, context: SessionContext = {}) {
   }
 
   const passwordHash = await hashPassword(input.password);
-  const user = await prisma.user.create({
-    data: {
-      email: input.email,
-      passwordHash,
-      onboardingState: { displayName: input.displayName },
-      onboardingStep: 1,
-      notificationPreference: { create: {} },
-      discoveryPreference: { create: {} },
-    },
-  });
+  let user;
+  try {
+    user = await prisma.user.create({
+      data: {
+        email: input.email,
+        passwordHash,
+        onboardingState: { displayName: input.displayName },
+        onboardingStep: 1,
+        notificationPreference: { create: {} },
+        discoveryPreference: { create: {} },
+      },
+    });
+  } catch (error) {
+    // Race: another concurrent signup won the unique index. Surface the same
+    // friendly error rather than leaking the raw Prisma exception.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002' &&
+      Array.isArray(error.meta?.target) &&
+      (error.meta.target as string[]).includes('email')
+    ) {
+      throw new AuthError('email_taken', 409, 'Email is already registered.');
+    }
+    throw error;
+  }
 
   const verificationToken = await createAuthActionToken(
     user.id,

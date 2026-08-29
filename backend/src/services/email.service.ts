@@ -27,7 +27,19 @@ export async function sendEmail(message: EmailMessage): Promise<void> {
     if (env.NODE_ENV === 'production') {
       throw new AppError('email_unavailable', 503, 'Email delivery is not configured.');
     }
-    logger.info({ event: 'development_email', to: message.to, subject: message.subject });
+    // In dev, log the full body so the verification/reset URL is copy-pasteable
+    // from the terminal instead of needing an SMTP catcher.
+    const urlMatch = message.text.match(/https?:\/\/\S+/);
+    logger.info(
+      {
+        event: 'development_email',
+        to: message.to,
+        subject: message.subject,
+        url: urlMatch?.[0],
+        text: message.text,
+      },
+      message.text,
+    );
     return;
   }
 

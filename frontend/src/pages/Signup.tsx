@@ -2,21 +2,32 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { NavHeader } from '../components/NavHeader';
+import { PasswordStrengthMeter } from '../components/PasswordStrengthMeter';
 import AppleSignInButton, { type AppleCredential } from '../components/AppleSignInButton';
 import { useSwipeBack } from '../hooks/useSwipeBack';
 import { haptics } from '../lib/haptics';
-import { appleSignIn, signup } from '../api/auth';
+import { appleSignIn, me, signup } from '../api/auth';
 import { useAuth } from '../store/auth';
 import { track } from '../api/analytics';
 
 const schema = z.object({
-  email: z.string().email('Enter a valid email'),
-  password: z.string().min(10, 'At least 10 characters').regex(/[a-z]/, 'Add a lowercase letter').regex(/[A-Z]/, 'Add an uppercase letter').regex(/[0-9]/, 'Add a number'),
-  displayName: z.string().min(2, 'At least 2 characters').max(40, 'Max 40 characters'),
+  email: z.string().trim().email('Enter a valid email'),
+  password: z
+    .string()
+    .min(10, 'At least 10 characters')
+    .regex(/[a-z]/, 'Add a lowercase letter')
+    .regex(/[A-Z]/, 'Add an uppercase letter')
+    .regex(/[0-9]/, 'Add a number'),
+  displayName: z
+    .string()
+    .trim()
+    .min(2, 'At least 2 characters')
+    .max(40, 'Max 40 characters'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -31,29 +42,41 @@ export default function Signup() {
   const {
     register,
     handleSubmit,
+    watch,
+    setError: setFieldError,
     formState: { errors },
-  } = useForm<FormValues>({ defaultValues: { email: '', password: '', displayName: '' } });
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    mode: 'onTouched',
+    defaultValues: { email: '', password: '', displayName: '' },
+  });
+
+  const watchedPassword = watch('password', '');
 
   const onSubmit = async (data: FormValues) => {
     setError(null);
-    const parsed = schema.safeParse(data);
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'Please check your inputs');
-      return;
-    }
     setSubmitting(true);
     void track('signup_started');
     try {
-      await signup(parsed.data);
-      // Force a refresh of the auth user state
-      const me = await (await import('../api/auth')).me();
-      setUser(me);
+      await signup(data);
+      const meData = await me();
+      setUser(meData);
       haptics.success();
       void track('signup_completed');
       navigate('/verify-email-pending', { replace: true });
     } catch (e) {
       haptics.heavy();
-      setError((e as Error).message || 'Sign up failed');
+      const err = e as Error & { fieldErrors?: Record<string, string[]>; code?: string };
+      // Map server-side field errors back to per-input errors when possible
+      if (err.fieldErrors) {
+        for (const [field, messages] of Object.entries(err.fieldErrors)) {
+          if (field in data && messages[0]) {
+            setFieldError(field as keyof FormValues, { type: 'server', message: messages[0] });
+          }
+        }
+      }
+      const firstFieldError = err.fieldErrors ? Object.values(err.fieldErrors).flat()[0] : undefined;
+      setError(firstFieldError ?? err.message ?? 'Sign up failed');
     } finally {
       setSubmitting(false);
     }
@@ -75,14 +98,14 @@ export default function Signup() {
         email: cred.email,
         rawUser: cred.rawUser,
       });
-      const me = await (await import('../api/auth')).me();
-      setUser(me);
+      const meData = await me();
+      setUser(meData);
       haptics.success();
       void track('signup_completed');
       // New Apple users land straight in onboarding; existing users go
       // home (verify-email-pending is irrelevant for Apple since the
       // email comes back as verified from the JWT).
-      if (result.isNewUser || !me.profile || !me.onboardingCompletedAt) {
+      if (result.isNewUser || !meData.profile || !meData.onboardingCompletedAt) {
         navigate('/profile-setup', { replace: true });
       } else {
         navigate('/home', { replace: true });
@@ -141,6 +164,7 @@ export default function Signup() {
               {...register('password')}
               error={errors.password?.message}
             />
+            {watchedPassword && <PasswordStrengthMeter password={watchedPassword} />}
 
             {error && (
               <p className="text-xs text-red-400" role="alert">
@@ -152,8 +176,16 @@ export default function Signup() {
               Create my account
             </Button>
 
-            <p className="text-center text-xs text-white/50">
-              You’ll review and accept the current Terms and Privacy Policy during setup.
+            <p className="text-center text-[11px] text-white/50">
+              By continuing, you agree to our{' '}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-gold-300 hover:text-gold-200 underline">
+                Terms of Service
+              </a>{' '}
+              and{' '}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-gold-300 hover:text-gold-200 underline">
+                Privacy Policy
+              </a>
+              .
             </p>
           </form>
 

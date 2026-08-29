@@ -1,0 +1,9 @@
+- main [ref=f12e13]:
+  - img "SIMP" [ref=f12e14]
+  - paragraph [ref=f12e15]: Secure your account
+  - heading "Verify your email" [level=1] [ref=f12e16]
+  - paragraph [ref=f12e17]: We sent a secure link to uitest2@simp.test.
+  - status [ref=f12e18]: Check your inbox and open the verification link.
+  - generic [ref=f12e19]:
+    - button "I verified my email" [ref=f12e20] [cursor=pointer]
+    - button "Resend email" [ref=f12e21] [cursor=pointer]

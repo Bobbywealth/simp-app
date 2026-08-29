@@ -1,0 +1,6 @@
+- generic [ref=f8e4]:
+  - img "SIMP" [ref=f8e5]
+  - generic [ref=f8e6]:
+    - paragraph [ref=f8e7]: Loading your experience
+    - paragraph [ref=f8e8]: SIMP · EST. 2026
+  - progressbar "Loading" [ref=f8e9]

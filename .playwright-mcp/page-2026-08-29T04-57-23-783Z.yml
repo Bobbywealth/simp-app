@@ -1,0 +1,32 @@
+- generic [ref=f7e5]:
+  - banner [ref=f7e6]:
+    - generic [ref=f7e8]:
+      - button "Back" [ref=f7e10] [cursor=pointer]
+      - generic: Create account
+  - main [ref=f7e13]:
+    - generic [ref=f7e14]:
+      - heading "Create your account" [level=1] [ref=f7e15]
+      - paragraph [ref=f7e17]: Welcome to SIMP. Set up your account to begin your journey.
+      - generic [ref=f7e18]:
+        - generic [ref=f7e19]:
+          - generic [ref=f7e20]: Display name
+          - textbox "Display name" [ref=f7e21]:
+            - /placeholder: How you'll appear
+            - text: UI Test Bobby
+        - generic [ref=f7e22]:
+          - generic [ref=f7e23]: Email
+          - textbox "Email" [ref=f7e24]:
+            - /placeholder: you@example.com
+            - text: uitest@simp.test
+        - generic [ref=f7e25]:
+          - generic [ref=f7e26]: Password
+          - textbox "Password" [ref=f7e27]:
+            - /placeholder: 10+ characters
+            - text: StrongPass1
+        - alert [ref=f7e28]: Too many requests. Please wait and try again.
+        - button "Create my account" [ref=f7e29] [cursor=pointer]
+        - paragraph [ref=f7e30]: You’ll review and accept the current Terms and Privacy Policy during setup.
+    - generic [ref=f7e31]:
+      - text: Already have an account?
+      - link "Log in" [ref=f7e32] [cursor=pointer]:
+        - /url: /login
