@@ -88,6 +88,38 @@ async function applyPendingColumnShims() {
       END IF;
     END $$;
   `);
+
+  // PhotoStatus enum: created in 5eaf7b1 for the photo-moderation
+  // feature. schema.prisma declares it; the DB does not.
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'PhotoStatus') THEN
+        CREATE TYPE "PhotoStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+      END IF;
+    END $$;
+  `);
+
+  // Photo.status: add nullable column if missing, default PENDING.
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'Photo' AND column_name = 'status'
+      ) THEN
+        ALTER TABLE "Photo" ADD COLUMN "status" "PhotoStatus" NOT NULL DEFAULT 'PENDING';
+      END IF;
+    END $$;
+  `);
+  // Backfill any NULL Photo.status rows (shouldn't exist, defensive).
+  await prisma.$executeRawUnsafe(
+    `UPDATE "Photo" SET "status" = 'PENDING' WHERE "status" IS NULL`,
+  );
+  // Add the @@index([status]) declared in schema.prisma if missing.
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "Photo_status_idx" ON "Photo"("status");
+  `);
 }
 
 async function main() {
