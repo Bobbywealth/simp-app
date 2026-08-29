@@ -13,7 +13,7 @@ import { getRealtimeServer } from '../sockets/realtime.js';
 
 export const adminRouter = Router();
 
-adminRouter.use('/admin', requireAuth, requireRole('MODERATOR', 'ADMIN', 'SUPER_ADMIN'));
+adminRouter.use('/admin', requireAuth, requireRole('ADMIN', 'SUPER_ADMIN'));
 
 const fingerprint = (value: string) =>
   crypto

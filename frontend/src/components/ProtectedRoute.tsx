@@ -8,12 +8,14 @@ type ProtectedRouteProps = {
   children: ReactNode;
   requireOnboarding?: boolean;
   allowedRoles?: UserResponse['role'][];
+  requireRole?: UserResponse['role'];
 };
 
 export function ProtectedRoute({
   children,
   requireOnboarding = false,
   allowedRoles,
+  requireRole,
 }: ProtectedRouteProps) {
   const { user, ready } = useAuth();
   const location = useLocation();
@@ -27,6 +29,9 @@ export function ProtectedRoute({
     return <Navigate to="/profile-setup" replace />;
   }
   if (allowedRoles?.length && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/home" replace />;
+  }
+  if (requireRole && user.role !== requireRole) {
     return <Navigate to="/home" replace />;
   }
   return <>{children}</>;

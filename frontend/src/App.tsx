@@ -130,7 +130,7 @@ export default function App() {
               <Route path="/messages/:id" element={<ProtectedRoute requireOnboarding><Conversation /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute requireOnboarding><Notifications /></ProtectedRoute>} />
               <Route path="/licenses" element={<ProtectedRoute requireOnboarding><Licenses /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute allowedRoles={['MODERATOR', 'ADMIN', 'SUPER_ADMIN']}><Admin /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute requireRole="ADMIN"><Admin /></ProtectedRoute>} />
               <Route path="*" element={<ProtectedRoute><NotFound /></ProtectedRoute>} />
             </Routes>
             <BottomTabBar />
