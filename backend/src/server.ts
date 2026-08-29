@@ -37,14 +37,15 @@ async function assertDatabaseReady() {
 // columns to the existing prisma migrations (in 2026083000*) is
 // correct, but preDeployCommand on this Render service is not
 // reliably running prisma migrate deploy, so the migrations never
-// apply. This shim runs the equivalent SQL on every boot — both
-// ALTERs are idempotent (IF NOT EXISTS / DROP IF EXISTS) and the
-// INSERT/UPDATE backfill is no-op once the data is consistent.
+// apply. This shim runs the equivalent SQL on every boot — all
+// statements are idempotent.
 //
 // SAFE TO REMOVE once the deploy pipeline reliably runs
 // `prisma migrate deploy` (the underlying migrations already exist
 // in backend/prisma/migrations/2026083000*).
 async function applyPendingColumnShims() {
+  // User.presence: add column if missing, fill any nulls, enforce
+  // NOT NULL to match schema.prisma's `presence String @default("online")`.
   await prisma.$executeRawUnsafe(`
     DO $$
     BEGIN
@@ -56,7 +57,26 @@ async function applyPendingColumnShims() {
       END IF;
     END $$;
   `);
+  // Existing rows from earlier broken migration runs may be NULL.
+  // Backfill, then enforce NOT NULL.
+  await prisma.$executeRawUnsafe(
+    `UPDATE "User" SET "presence" = 'online' WHERE "presence" IS NULL`,
+  );
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'User' AND column_name = 'presence'
+          AND is_nullable = 'YES'
+      ) THEN
+        ALTER TABLE "User" ALTER COLUMN "presence" SET NOT NULL;
+        ALTER TABLE "User" ALTER COLUMN "presence" SET DEFAULT 'online';
+      END IF;
+    END $$;
+  `);
 
+  // Message.imageUrl: add nullable column if missing.
   await prisma.$executeRawUnsafe(`
     DO $$
     BEGIN
