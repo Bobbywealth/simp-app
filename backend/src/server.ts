@@ -32,8 +32,47 @@ async function assertDatabaseReady() {
   }
 }
 
+// One-time startup shim: the live DB is missing User.presence and
+// Message.imageUrl columns that schema.prisma declares. Adding the
+// columns to the existing prisma migrations (in 2026083000*) is
+// correct, but preDeployCommand on this Render service is not
+// reliably running prisma migrate deploy, so the migrations never
+// apply. This shim runs the equivalent SQL on every boot — both
+// ALTERs are idempotent (IF NOT EXISTS / DROP IF EXISTS) and the
+// INSERT/UPDATE backfill is no-op once the data is consistent.
+//
+// SAFE TO REMOVE once the deploy pipeline reliably runs
+// `prisma migrate deploy` (the underlying migrations already exist
+// in backend/prisma/migrations/2026083000*).
+async function applyPendingColumnShims() {
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'User' AND column_name = 'presence'
+      ) THEN
+        ALTER TABLE "User" ADD COLUMN "presence" TEXT NOT NULL DEFAULT 'online';
+      END IF;
+    END $$;
+  `);
+
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'Message' AND column_name = 'imageUrl'
+      ) THEN
+        ALTER TABLE "Message" ADD COLUMN "imageUrl" TEXT;
+      END IF;
+    END $$;
+  `);
+}
+
 async function main() {
   await assertDatabaseReady();
+  await applyPendingColumnShims();
   await seedLegalDocuments();
 
   const app = createApp();
