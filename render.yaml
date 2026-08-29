@@ -3,8 +3,13 @@ services:
     name: simp-backend
     plan: standard
     runtime: node
-    buildCommand: cd backend && npm ci --include=dev --no-audit --no-fund && npm run typecheck && npm run build
-    preDeployCommand: cd backend && npx prisma migrate deploy
+    # Migrations are folded into the buildCommand itself (per the
+    # durable Render quirk note in MEMORY.md: the preDeployCommand
+    # field does not reliably persist and is silently dropped on
+    # some deploys, so the schema/DB drift was reintroduced silently
+    # for several commits). Running migrate deploy on every build
+    # guarantees the DB schema matches the migrations in this repo.
+    buildCommand: cd backend && npm ci --include=dev --no-audit --no-fund && npx prisma migrate deploy && npm run typecheck && npm run build
     startCommand: cd backend && node dist/server.js
     maxShutdownDelaySeconds: 120
     healthCheckPath: /health/ready
