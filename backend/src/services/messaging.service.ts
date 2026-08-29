@@ -2,6 +2,7 @@ import type { MessageType, Prisma } from '@prisma/client';
 import { prisma } from '../config/db.js';
 import { getRealtimeServer } from '../sockets/realtime.js';
 import { AppError } from '../utils/errors.js';
+import { sanitizeMessage } from '../utils/sanitize.js';
 import { createNotification, dispatchNotification } from './notification.service.js';
 
 export async function authorizeConversation(
@@ -79,7 +80,7 @@ export async function sendMessage(input: SendMessageInput) {
         conversationId: input.conversationId,
         senderId: input.senderId,
         clientId: input.clientId,
-        body: input.body,
+        body: sanitizeMessage(input.body),
         messageType: input.messageType ?? 'TEXT',
       },
     });

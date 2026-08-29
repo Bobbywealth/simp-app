@@ -5,9 +5,11 @@ import { getConversations } from '../api/messages';
 import type { ConversationSummary, Message } from '../types';
 import { getRealtimeSocket } from '../lib/realtime';
 import { SimpLogo } from '../components/SimpLogo';
+import { useAuth } from '../store/auth';
 
 export default function Messages() {
   const navigate = useNavigate();
+  const user = useAuth((state) => state.user);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,9 @@ export default function Messages() {
   useEffect(() => {
     void load();
     const socket = getRealtimeSocket();
-    const onUpdate = (payload: { conversationId: string; message: Message }) => {
+    const onUpdate = (payload: { conversationId: string; message: Message; senderId: string }) => {
+      const currentUserId = user?.id;
+      const isFromOther = payload.senderId !== currentUserId;
       setConversations((current) => {
         const found = current.find((item) => item.id === payload.conversationId);
         if (!found) {
@@ -39,7 +43,7 @@ export default function Messages() {
           ...found,
           latestMessage: payload.message,
           updatedAt: payload.message.createdAt,
-          unreadCount: found.unreadCount + 1,
+          unreadCount: isFromOther ? found.unreadCount + 1 : found.unreadCount,
         };
         return [updated, ...current.filter((item) => item.id !== payload.conversationId)];
       });
@@ -48,7 +52,7 @@ export default function Messages() {
     return () => {
       socket.off('inbox:update', onUpdate);
     };
-  }, []);
+  }, [user?.id]);
 
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">

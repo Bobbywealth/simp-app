@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../config/db.js';
 import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import { AppError } from '../utils/errors.js';
+import { sanitizeBio, sanitizeDisplayName, sanitizeText } from '../utils/sanitize.js';
 import { cloudinaryThumbnailUrl } from '../services/cloudinary.service.js';
 import { getProfileCompletion } from '../services/profile-completion.service.js';
 
@@ -177,24 +178,24 @@ usersRouter.put('/me/profile', requireAuth, async (req: AuthedRequest, res, next
         where: { userId },
         create: {
           userId,
-          displayName: data.displayName,
-          bio: data.bio || null,
+          displayName: sanitizeDisplayName(data.displayName),
+          bio: data.bio ? sanitizeBio(data.bio) : null,
           birthDate,
           gender: data.gender,
           lookingFor: data.lookingFor,
-          city: data.city || null,
-          occupation: data.occupation || null,
+          city: data.city ? sanitizeText(data.city) : null,
+          occupation: data.occupation ? sanitizeText(data.occupation) : null,
           heightCm: data.heightCm ?? null,
           customInterests: data.customInterests ?? [],
         },
         update: {
-          displayName: data.displayName,
-          bio: data.bio || null,
+          displayName: sanitizeDisplayName(data.displayName),
+          bio: data.bio ? sanitizeBio(data.bio) : null,
           birthDate,
           gender: data.gender,
           lookingFor: data.lookingFor,
-          city: data.city || null,
-          occupation: data.occupation || null,
+          city: data.city ? sanitizeText(data.city) : null,
+          occupation: data.occupation ? sanitizeText(data.occupation) : null,
           heightCm: data.heightCm ?? null,
           ...(data.customInterests !== undefined ? { customInterests: data.customInterests } : {}),
         },
@@ -217,13 +218,13 @@ usersRouter.patch('/me/profile', requireAuth, async (req: AuthedRequest, res, ne
     const data = profilePatchSchema.parse(req.body);
     const userId = req.userId!;
     const update: Prisma.ProfileUpdateInput = {};
-    if (data.displayName !== undefined) update.displayName = data.displayName;
-    if (data.bio !== undefined) update.bio = data.bio || null;
+    if (data.displayName !== undefined) update.displayName = sanitizeDisplayName(data.displayName);
+    if (data.bio !== undefined) update.bio = data.bio ? sanitizeBio(data.bio) : null;
     if (data.birthDate !== undefined) update.birthDate = adultBirthDate(data.birthDate);
     if (data.gender !== undefined) update.gender = data.gender;
     if (data.lookingFor !== undefined) update.lookingFor = data.lookingFor;
-    if (data.city !== undefined) update.city = data.city || null;
-    if (data.occupation !== undefined) update.occupation = data.occupation || null;
+    if (data.city !== undefined) update.city = data.city ? sanitizeText(data.city) : null;
+    if (data.occupation !== undefined) update.occupation = data.occupation ? sanitizeText(data.occupation) : null;
     if (data.heightCm !== undefined) update.heightCm = data.heightCm;
     if (data.customInterests !== undefined) update.customInterests = data.customInterests;
 
@@ -431,7 +432,12 @@ usersRouter.post('/me/prompts', requireAuth, async (req: AuthedRequest, res, nex
     const count = await prisma.prompt.count({ where: { userId } });
     if (count >= 3) throw new AppError('max_prompts_reached', 409, 'You can add up to 3 prompts.');
     const prompt = await prisma.prompt.create({
-      data: { userId, ...input, position: input.position ?? count },
+      data: {
+        userId,
+        question: sanitizeText(input.question),
+        answer: sanitizeText(input.answer),
+        position: input.position ?? count,
+      },
     });
     await getProfileCompletion(userId);
     res.status(201).json(prompt);
@@ -447,7 +453,11 @@ usersRouter.patch('/me/prompts/:id', requireAuth, async (req: AuthedRequest, res
     if (!prompt || prompt.userId !== req.userId) {
       throw new AppError('prompt_not_found', 404, 'Prompt not found.');
     }
-    res.json(await prisma.prompt.update({ where: { id: prompt.id }, data: input }));
+    const update: Prisma.PromptUpdateInput = {};
+    if (input.question !== undefined) update.question = sanitizeText(input.question);
+    if (input.answer !== undefined) update.answer = sanitizeText(input.answer);
+    if (input.position !== undefined) update.position = input.position;
+    res.json(await prisma.prompt.update({ where: { id: prompt.id }, data: update }));
   } catch (error) {
     next(error);
   }

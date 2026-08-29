@@ -30,7 +30,7 @@ function setRefreshCookie(res: import('express').Response, refreshToken: string)
   res.cookie(REFRESH_COOKIE, refreshToken, {
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
-    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+    sameSite: 'lax',
     path: '/auth',
     maxAge: refreshTtlMs(),
   });

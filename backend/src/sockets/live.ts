@@ -199,7 +199,7 @@ export function attachLiveSocket(httpServer: HttpServer) {
         if (!payload?.conversationId) return;
         try {
           const result = await markMessagesDelivered(payload.conversationId, userId, payload.throughMessageId);
-          io?.to(`conversation:${payload.conversationId}`).emit('message:delivered', {
+          socket.to(`conversation:${payload.conversationId}`).emit('message:delivered', {
             conversationId: payload.conversationId,
             userId,
             throughMessageId: payload.throughMessageId,
@@ -215,7 +215,7 @@ export function attachLiveSocket(httpServer: HttpServer) {
       if (!payload?.conversationId) return;
       try {
         const result = await markMessagesRead(payload.conversationId, userId, payload.throughMessageId);
-        io?.to(`conversation:${payload.conversationId}`).emit('message:read', {
+        socket.to(`conversation:${payload.conversationId}`).emit('message:read', {
           conversationId: payload.conversationId,
           userId,
           throughMessageId: payload.throughMessageId,

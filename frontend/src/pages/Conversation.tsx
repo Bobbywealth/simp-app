@@ -64,6 +64,8 @@ export default function Conversation() {
   useEffect(() => {
     if (!id || !userId) return;
     let cancelled = false;
+    setTyping(false);
+    setOnline(false);
     const load = async () => {
       setLoading(true);
       try {
@@ -133,7 +135,9 @@ export default function Conversation() {
       if (payload.conversationId === id && payload.userId !== userId) setTyping(false);
     };
     const onPresence = (payload: { userId: string; online: boolean }) => {
-      if (payload.userId === conversation?.otherUser.userId) setOnline(payload.online);
+      if (payload.userId === conversation?.otherUser.userId) {
+        setOnline(payload.online);
+      }
     };
     const onDeleted = (payload: { conversationId: string; messageId: string; deletedAt: string }) => {
       if (payload.conversationId !== id) return;
@@ -441,6 +445,7 @@ export default function Conversation() {
 
 function applyReceipt(messages: Message[], throughId: string | undefined, patch: Partial<Message>) {
   const throughIndex = throughId ? messages.findIndex((message) => message.id === throughId) : messages.length - 1;
+  if (throughIndex === -1) return messages;
   return messages.map((message, index) =>
     index <= throughIndex && !message.id.startsWith('pending:') ? { ...message, ...patch } : message,
   );
