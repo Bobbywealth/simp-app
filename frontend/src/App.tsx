@@ -26,6 +26,7 @@ const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Premium = lazy(() => import('./pages/Premium'));
 const Discover = lazy(() => import('./pages/Discover'));
+const Explore = lazy(() => import('./pages/Explore'));
 const LiveStream = lazy(() => import('./pages/LiveStream'));
 const Matches = lazy(() => import('./pages/Matches'));
 const MatchDetail = lazy(() => import('./pages/MatchDetail'));
@@ -121,6 +122,7 @@ export default function App() {
               <Route path="/profile/edit" element={<ProtectedRoute requireOnboarding><ProfileEdit /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute requireOnboarding><Settings /></ProtectedRoute>} />
               <Route path="/discover" element={<ProtectedRoute requireOnboarding><Discover /></ProtectedRoute>} />
+              <Route path="/explore" element={<ProtectedRoute requireOnboarding><Explore /></ProtectedRoute>} />
               <Route path="/live" element={<ProtectedRoute requireOnboarding><Live /></ProtectedRoute>} />
               <Route path="/live/:id" element={<ProtectedRoute requireOnboarding><LiveStream /></ProtectedRoute>} />
               <Route path="/matches" element={<ProtectedRoute requireOnboarding><Matches /></ProtectedRoute>} />

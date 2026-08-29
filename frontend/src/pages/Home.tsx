@@ -93,7 +93,7 @@ export default function Home() {
           <DashboardCard label="Messages" value={counts.messages ? `${counts.messages} unread` : 'Start a conversation'} onClick={() => navigate('/messages')} iconPath="M4 5.5h16v11H8l-4 3v-14Z" />
           <DashboardCard label="Matches" value={counts.matches ? `${counts.matches} connections` : 'Your connections'} onClick={() => navigate('/matches')} iconPath="M12 20.5 4.7 13.2a4.6 4.6 0 0 1 6.5-6.5L12 7.5l.8-.8a4.6 4.6 0 0 1 6.5 6.5L12 20.5Z" />
           <DashboardCard label="Live" value="See who is live" onClick={() => navigate('/live')} iconPath="M9 8.5v7l6-3.5-6-3.5ZM5.5 5.5h13v13h-13v-13Z" />
-          <DashboardCard label="Your profile" value="Preview and refine" onClick={() => navigate('/profile')} iconPath="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c.8-4 3.1-6 7-6s6.2 2 7 6H5Z" />
+          <DashboardCard label="Explore" value="Browse by interest" onClick={() => navigate('/explore')} iconPath="M21 21l-6-6m2-5a7 7 0 1 0-14 0 7 7 0 0 0 14 0Z" />
         </div>
 
         {import.meta.env.VITE_BILLING_ENABLED === 'true' && user?.entitlement.tier === 'FREE' && (

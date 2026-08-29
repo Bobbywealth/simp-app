@@ -5,6 +5,9 @@ import type { DiscoveryPreferences } from '../types';
 const INTERESTS = [
   'dinner', 'travel', 'live-music', 'art', 'wine', 'wellness', 'fashion', 'fitness',
   'cooking', 'photography', 'books', 'outdoors', 'dancing', 'volunteering', 'tech', 'sports',
+  'sushi', 'coffee', 'brunch', 'hiking', 'gaming', 'movies', 'yoga', 'meditation',
+  'beach', 'camping', 'language-learning', 'museums', 'podcasts', 'board-games',
+  'art-galleries', 'wine-tasting', 'road-trips', 'gardening', 'diy', 'crafts',
 ];
 
 export function DiscoverFilters({

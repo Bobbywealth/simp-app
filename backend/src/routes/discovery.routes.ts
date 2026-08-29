@@ -232,3 +232,138 @@ discoveryRouter.get(
     }
   },
 );
+
+discoveryRouter.get(
+  '/explore',
+  requireAuth,
+  requireVerifiedEmail,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const userId = req.userId!;
+      const interestSlug = typeof req.query.interest === 'string' ? req.query.interest : undefined;
+      const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit ?? '20'), 10) || 20));
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+
+      const me = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { profile: true },
+      });
+      if (!me?.profile) throw new AppError('profile_required', 409, 'Create your profile first.');
+
+      const [swipes, blocks] = await Promise.all([
+        prisma.swipe.findMany({ where: { swiperId: userId }, select: { swipedId: true } }),
+        prisma.block.findMany({
+          where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+          select: { blockerId: true, blockedId: true },
+        }),
+      ]);
+      const excluded = new Set([userId, ...swipes.map((item) => item.swipedId)]);
+      for (const block of blocks) {
+        excluded.add(block.blockerId === userId ? block.blockedId : block.blockerId);
+      }
+
+      const where: Prisma.UserWhereInput = {
+        id: { notIn: [...excluded] },
+        status: 'ACTIVE',
+        emailVerified: true,
+        profile: {
+          profileCompletedAt: { not: null },
+          gender: { in: gendersFor(me.profile.lookingFor) },
+          lookingFor: { in: lookingForMyGender(me.profile.gender) },
+        },
+        photos: { some: {} },
+        ...(interestSlug ? { interests: { some: { interest: { slug: interestSlug } } } } : {}),
+      };
+
+      const raw = await prisma.user.findMany({
+        where,
+        include: {
+          profile: true,
+          photos: { orderBy: { position: 'asc' } },
+          prompts: { orderBy: { position: 'asc' }, take: 3 },
+          interests: { include: { interest: true } },
+        },
+        orderBy: [{ profile: { boostedUntil: 'desc' } }, { createdAt: 'desc' }],
+        take: limit + 1,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
+
+      const hasMore = raw.length > limit;
+      const page = hasMore ? raw.slice(0, limit) : raw;
+
+      const profiles = page.map((candidate) => {
+        if (!candidate.profile) return null;
+        return {
+          profileId: candidate.profile.id,
+          userId: candidate.id,
+          displayName: candidate.profile.displayName,
+          bio: candidate.profile.bio,
+          age: ageFromBirthDate(candidate.profile.birthDate),
+          gender: candidate.profile.gender,
+          city: candidate.profile.city,
+          occupation: candidate.profile.occupation,
+          heightCm: candidate.profile.heightCm,
+          isVerified: candidate.profile.isVerified,
+          verificationStatus: candidate.profile.verificationStatus,
+          distanceKm: null,
+          photos: candidate.photos.map((photo) => ({
+            id: photo.id,
+            url: photo.url,
+            thumbnailUrl: cloudinaryThumbnailUrl(photo.url),
+            position: photo.position,
+          })),
+          prompts: candidate.prompts.map((prompt) => ({
+            id: prompt.id,
+            question: prompt.question,
+            answer: prompt.answer,
+          })),
+          interests: candidate.interests.map((item) => ({
+            slug: item.interest.slug,
+            label: item.interest.label,
+          })),
+        };
+      }).filter(Boolean);
+
+      res.json({
+        profiles,
+        nextCursor: hasMore ? page.at(-1)?.id ?? null : null,
+        hasMore,
+        interest: interestSlug ?? null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+discoveryRouter.get(
+  '/interests',
+  requireAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const userId = req.userId!;
+      const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit ?? '20'), 10) || 20));
+
+      const interests = await prisma.interest.findMany({
+        take: limit,
+        orderBy: { label: 'asc' },
+      });
+
+      const userInterests = await prisma.userInterest.findMany({
+        where: { userId },
+        include: { interest: true },
+      });
+      const userSlugs = new Set(userInterests.map((ui) => ui.interest.slug));
+
+      res.json({
+        interests: interests.map((i) => ({
+          slug: i.slug,
+          label: i.label,
+          userHasIt: userSlugs.has(i.slug),
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
