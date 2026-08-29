@@ -38,7 +38,6 @@ async function serializable<T>(work: (tx: Prisma.TransactionClient) => Promise<T
 swipesRouter.post(
   '/swipes',
   requireAuth,
-  requireVerifiedEmail,
   async (req: AuthedRequest, res, next) => {
     try {
       const swiperId = req.userId!;

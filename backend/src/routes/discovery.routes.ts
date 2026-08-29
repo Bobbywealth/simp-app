@@ -42,7 +42,6 @@ function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
 discoveryRouter.get(
   '/discovery',
   requireAuth,
-  requireVerifiedEmail,
   async (req: AuthedRequest, res, next) => {
     try {
       const userId = req.userId!;
@@ -92,7 +91,6 @@ discoveryRouter.get(
       const where: Prisma.UserWhereInput = {
         id: { notIn: [...excluded] },
         status: 'ACTIVE',
-        emailVerified: true,
         profile: {
           profileCompletedAt: { not: null },
           gender: { in: gendersFor(me.profile.lookingFor) },
@@ -224,7 +222,6 @@ discoveryRouter.get(
 discoveryRouter.get(
   '/explore',
   requireAuth,
-  requireVerifiedEmail,
   async (req: AuthedRequest, res, next) => {
     try {
       const userId = req.userId!;
@@ -253,7 +250,6 @@ discoveryRouter.get(
       const where: Prisma.UserWhereInput = {
         id: { notIn: [...excluded] },
         status: 'ACTIVE',
-        emailVerified: true,
         profile: {
           profileCompletedAt: { not: null },
           gender: { in: gendersFor(me.profile.lookingFor) },

@@ -18,7 +18,7 @@ function ageFromBirthDate(birthDate: Date) {
   return age;
 }
 
-matchesRouter.get('/matches', requireAuth, requireVerifiedEmail, async (req: AuthedRequest, res, next) => {
+matchesRouter.get('/matches', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const userId = req.userId!;
     const limit = Math.min(50, Math.max(1, Number.parseInt(String(req.query.limit ?? '20'), 10) || 20));
