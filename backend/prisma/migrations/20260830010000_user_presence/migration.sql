@@ -5,9 +5,10 @@
 -- /auth/login and /auth/refresh 500'd with "column User.presence
 -- does not exist".
 --
--- The earlier 20260830010000_user_presence attempt only added the
--- column as nullable TEXT; this rewrite drops + recreates with the
--- correct NOT NULL DEFAULT 'online' shape that schema.prisma expects.
+-- ADD COLUMN IF NOT EXISTS keeps the migration idempotent: a fresh
+-- database gets the column; a database that already has it (e.g.
+-- from the startup column shim that ran before this migration was
+-- applied) is left untouched. The shape (NOT NULL DEFAULT 'online')
+-- matches what schema.prisma expects.
 
-ALTER TABLE "User" DROP COLUMN IF EXISTS "presence";
-ALTER TABLE "User" ADD COLUMN "presence" TEXT NOT NULL DEFAULT 'online';
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "presence" TEXT NOT NULL DEFAULT 'online';
