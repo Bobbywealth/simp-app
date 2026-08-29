@@ -158,6 +158,21 @@ usersRouter.get('/me/profile', requireAuth, async (req: AuthedRequest, res, next
   }
 });
 
+usersRouter.patch('/me/presence', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const { status } = z.object({
+      status: z.enum(['online', 'offline']),
+    }).parse(req.body);
+    await prisma.user.update({
+      where: { id: req.userId! },
+      data: { presence: status },
+    });
+    res.json({ presence: status });
+  } catch (error) {
+    next(error);
+  }
+});
+
 usersRouter.put('/me/profile', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const data = profileSchema.parse(req.body);

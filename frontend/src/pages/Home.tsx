@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getMatches } from '../api/matches';
 import { getUnreadMessageCount } from '../api/messages';
-import { getNotificationUnreadCount } from '../api/notifications';
+import { getNotificationPreferences, getNotificationUnreadCount, registerPushToken } from '../api/notifications';
 import { getMyProfile } from '../api/users';
 import { useAuth } from '../store/auth';
 import { SimpLogo } from '../components/SimpLogo';
 import { SafetyMenu } from '../components/SafetyMenu';
+import { getDeviceContext, requestNativePushPermission } from '../capacitor';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ export default function Home() {
   const [completion, setCompletion] = useState(100);
   const [showSafety, setShowSafety] = useState(false);
   const [counts, setCounts] = useState({ matches: 0, messages: 0, notifications: 0 });
+  const [showNotificationBanner, setShowNotificationBanner] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   useEffect(() => {
     void Promise.all([getMyProfile(), getMatches(), getUnreadMessageCount(), getNotificationUnreadCount()])
@@ -26,6 +29,33 @@ export default function Home() {
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!user?.createdAt || bannerDismissed) return;
+    const daysActive = Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    const hasFirstMatch = counts.matches > 0;
+    if (daysActive >= 3 || hasFirstMatch) {
+      getNotificationPreferences()
+        .then((prefs) => {
+          const allDisabled = !prefs.matches && !prefs.messages && !prefs.likes && !prefs.live && !prefs.security;
+          if (allDisabled) setShowNotificationBanner(true);
+        })
+        .catch(() => setShowNotificationBanner(true));
+    }
+  }, [user?.createdAt, counts.matches, bannerDismissed]);
+
+  async function enableNotifications() {
+    const device = await getDeviceContext();
+    const result = await requestNativePushPermission({
+      onToken: async (token) => {
+        await registerPushToken({ token, ...device });
+      },
+      onRoute: (route) => navigate(route),
+    });
+    if (result === 'granted' || result === 'denied') {
+      setShowNotificationBanner(false);
+    }
+  }
 
   return (
     <div className="relative min-h-screen bg-ink-950 pb-28 text-white">
@@ -50,6 +80,35 @@ export default function Home() {
       </header>
 
       {showSafety && <SafetyMenu onClose={() => setShowSafety(false)} />}
+
+      {showNotificationBanner && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mx-4 mb-4 rounded-2xl border border-gold-400/20 bg-gradient-to-br from-gold-400/15 to-transparent p-4"
+        >
+          <p className="text-sm text-white/85">Turn on notifications to know when someone likes you back</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => void enableNotifications()}
+              className="btn-gold flex-1 py-2 text-xs uppercase tracking-[0.16em]"
+            >
+              Enable
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBannerDismissed(true);
+                setShowNotificationBanner(false);
+              }}
+              className="flex-1 py-2 text-xs uppercase tracking-[0.16em] text-white/45"
+            >
+              Not now
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       <main className="relative z-10 mx-auto w-full max-w-md px-5">
         <motion.section

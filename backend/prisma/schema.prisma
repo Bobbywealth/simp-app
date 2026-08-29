@@ -159,6 +159,7 @@ model User {
   deletedAt             DateTime?
   failedLoginAttempts   Int           @default(0)
   lockedUntil           DateTime?
+  presence              String        @default("online")
   onboardingState       Json?
   onboardingStep        Int           @default(0)
   onboardingCompletedAt DateTime?
@@ -258,6 +259,12 @@ model DiscoveryPreference {
   updatedAt           DateTime  @updatedAt
 }
 
+enum PhotoStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model Photo {
   id        String   @id @default(cuid())
   userId    String
@@ -269,10 +276,12 @@ model Photo {
   height    Int?
   bytes     Int?
   mimeType  String?
+  status    PhotoStatus @default(PENDING)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId, position])
+  @@index([status])
 }
 
 model Interest {

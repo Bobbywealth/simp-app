@@ -74,6 +74,7 @@ const schema = z
     GOOGLE_CLIENT_ID: z.string().optional(),
 
     FEATURE_EXPERIENCES: booleanFromString.default('false'),
+    NSFWJS_ENABLED: booleanFromString.default('false'),
     SENTRY_DSN: z.string().url().optional(),
     ANALYTICS_ENDPOINT: z.string().url().optional(),
     ANALYTICS_WRITE_KEY: z.string().optional(),

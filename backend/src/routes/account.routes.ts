@@ -242,15 +242,65 @@ accountRouter.delete('/account/me', requireAuth, async (req: AuthedRequest, res,
           where: { broadcasterId: userId, status: 'LIVE' },
           data: { status: 'ENDED', endedAt: new Date(), viewerCount: 0 },
         }),
+        tx.message.updateMany({
+          where: { senderId: userId },
+          data: { deletedAt: new Date() },
+        }),
+        tx.liveChatMessage.updateMany({
+          where: { senderId: userId },
+          data: { deletedAt: new Date() },
+        }),
+        tx.swipe.deleteMany({ where: { OR: [{ swiperId: userId }, { swipedId: userId }] } }),
+        tx.match.updateMany({
+          where: { OR: [{ userAId: userId }, { userBId: userId }] },
+          data: { isActive: false, deactivatedAt: new Date(), deactivatedById: userId },
+        }),
+        tx.notification.deleteMany({ where: { userId } }),
+        tx.refreshToken.deleteMany({ where: { userId } }),
+        tx.pushToken.deleteMany({ where: { userId } }),
+        tx.photo.deleteMany({ where: { userId } }),
+        tx.prompt.deleteMany({ where: { userId } }),
+        tx.userInterest.deleteMany({ where: { userId } }),
+        tx.tosAcceptance.deleteMany({ where: { userId } }),
+        tx.dailyUsage.deleteMany({ where: { userId } }),
+        tx.analyticsEvent.deleteMany({ where: { userId } }),
+        tx.emailEvent.deleteMany({ where: { userId } }),
+        tx.socialIdentity.deleteMany({ where: { userId } }),
+        tx.authActionToken.deleteMany({ where: { userId } }),
+        tx.accountDeletionReceipt.create({
+          data: {
+            userFingerprint: fingerprint,
+            photoCount: photos.length,
+            metadata: { schemaVersion: 2 },
+          },
+        }),
+        tx.profile.update({
+          where: { userId },
+          data: {
+            displayName: '[Deleted]',
+            bio: null,
+            customInterests: [],
+          },
+        }),
+        tx.user.update({
+          where: { id: userId },
+          data: {
+            status: 'DELETED',
+            deletedAt: new Date(),
+            email: `${fingerprint}@deleted`,
+            emailVerified: false,
+            emailVerifiedAt: null,
+            emailBounceAt: null,
+            emailBounceType: null,
+            passwordHash: crypto.randomBytes(32).toString('hex'),
+            onboardingState: {},
+            onboardingStep: 0,
+            onboardingCompletedAt: null,
+            ageConfirmedAt: null,
+            ageConfirmedIp: null,
+          },
+        }),
       ]);
-      await tx.accountDeletionReceipt.create({
-        data: {
-          userFingerprint: fingerprint,
-          photoCount: photos.length,
-          metadata: { schemaVersion: 2 },
-        },
-      });
-      await tx.user.delete({ where: { id: userId } });
     });
 
     for (const streamId of liveStreamIds) {

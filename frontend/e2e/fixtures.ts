@@ -21,9 +21,9 @@ export const test = base.extend<{
   authenticatedPage: async ({ page, demoUser }, use) => {
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
-    const emailInput = page.getByRole('textbox').filter({ hasText: /email/i }).first();
+    const emailInput = page.locator('input[name="email"], input[type="email"]').first();
     await emailInput.waitFor({ state: 'visible', timeout: 10000 });
-    const passwordInput = page.getByRole('textbox', { name: /password/i });
+    const passwordInput = page.locator('input[name="password"], input[type="password"]').first();
     await passwordInput.waitFor({ state: 'visible', timeout: 10000 });
     await emailInput.fill(demoUser.email);
     await passwordInput.fill(demoUser.password);

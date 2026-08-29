@@ -14,9 +14,7 @@ import {
 import { createPrompt, deletePrompt, type Prompt } from '../api/prompts';
 import { uploadPhoto } from '../api/photos';
 import { getLegalStatus } from '../api/legal';
-import { registerPushToken } from '../api/notifications';
 import { track } from '../api/analytics';
-import { getDeviceContext, requestNativePushPermission } from '../capacitor';
 import { useAuth } from '../store/auth';
 
 const GENDERS = [
@@ -62,7 +60,7 @@ const LOOKING_FOR_PROMPTS = {
 function getPromptQuestions(lookingFor: LookingForValue | ''): readonly string[] {
   return LOOKING_FOR_PROMPTS[lookingFor as LookingForValue] ?? FOR_EVERYONE;
 }
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 6;
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
@@ -92,7 +90,6 @@ export default function ProfileSetup() {
   }, [lookingFor]);
   const [photos, setPhotos] = useState<Array<{ id: string; url: string }>>([]);
   const [uploading, setUploading] = useState(false);
-  const [notificationChoice, setNotificationChoice] = useState<'enabled' | 'later' | null>(null);
   const [legalMissing, setLegalMissing] = useState<Array<'age' | 'tos' | 'privacy'> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,7 +110,6 @@ export default function ProfileSetup() {
         setInterests(profile?.interests.map((item) => item.interest.slug) ?? (state.interestSlugs as string[] | undefined) ?? []);
         setPrompts(profile?.user?.prompts as Prompt[] ?? []);
         setPhotos(profile?.user?.photos.map((photo) => ({ id: photo.id, url: photo.url })) ?? []);
-        setNotificationChoice(state.notificationPromptSeen ? 'later' : null);
         setStep(Math.max(0, Math.min(TOTAL_STEPS - 1, (saved.onboardingStep ?? 1) - 1)));
       })
       .catch((value) => setError((value as Error).message))
@@ -127,7 +123,6 @@ export default function ProfileSetup() {
     displayName: displayName.trim(), birthDate, gender: gender || undefined,
     lookingFor: lookingFor || undefined, city: city.trim(), occupation: occupation.trim(),
     heightCm: heightCm ? Number(heightCm) : undefined, bio: bio.trim(), interestSlugs: interests,
-    notificationPromptSeen: notificationChoice !== null,
   });
 
   async function next() {
@@ -180,7 +175,6 @@ export default function ProfileSetup() {
     if (step === 2 && interests.length < 3) return 'Choose at least 3 interests.';
     if (step === 3 && prompts.length < 1) return 'Add at least one profile prompt.';
     if (step === 4 && photos.length < 1) return 'Add at least one profile photo.';
-    if (step === 5 && !notificationChoice) return 'Choose whether to enable notifications now or later.';
     return null;
   }
 
@@ -229,19 +223,6 @@ export default function ProfileSetup() {
     } finally {
       setUploading(false);
     }
-  }
-
-  async function enableNotifications() {
-    setError(null);
-    const device = await getDeviceContext();
-    const result = await requestNativePushPermission({
-      onToken: async (token) => {
-        await registerPushToken({ token, ...device });
-      },
-      onRoute: (route) => navigate(route),
-    });
-    setNotificationChoice(result === 'granted' ? 'enabled' : 'later');
-    if (result === 'denied') setError('Notifications are off. You can enable them later in system settings.');
   }
 
   async function finish() {
@@ -305,9 +286,6 @@ export default function ProfileSetup() {
             <Step title="Your photos" subtitle="Your first photo is your discovery photo. Add up to 6."><input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void addPhoto(file); event.target.value = ''; }} /><div className="grid grid-cols-3 gap-2">{photos.map((photo, index) => <div key={photo.id} className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/10"><img src={photo.url} alt={`Profile ${index + 1}`} className="h-full w-full object-cover" />{index === 0 && <span className="absolute inset-x-2 bottom-2 rounded-full bg-black/70 py-1 text-center text-[9px] uppercase tracking-[0.12em] text-gold-200">Primary</span>}</div>)}{photos.length < 6 && <button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()} className="flex aspect-[3/4] items-center justify-center rounded-2xl border-2 border-dashed border-white/15 text-3xl font-light text-white/35 hover:border-gold-400/40 hover:text-gold-300">{uploading ? '…' : '+'}</button>}</div></Step>
           )}
           {step === 5 && (
-            <Step title="Stay in the moment" subtitle="Know when a match or message arrives. SIMP only asks after explaining why."><div className="mt-10 rounded-3xl border border-gold-400/15 bg-gradient-to-br from-gold-400/10 to-transparent p-6 text-center"><svg viewBox="0 0 24 24" className="mx-auto h-12 w-12 text-gold-300" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><p className="mt-4 text-sm text-white/65">We send only the categories you choose. Marketing is off by default.</p><button type="button" onClick={() => void enableNotifications()} className="btn-gold mt-6 w-full py-3 text-xs font-semibold uppercase tracking-[0.16em]">Enable notifications</button><button type="button" onClick={() => setNotificationChoice('later')} className="mt-2 min-h-11 w-full text-xs uppercase tracking-[0.16em] text-white/45">Maybe later</button>{notificationChoice && <p className="mt-3 text-xs text-green-200">Choice saved. You can change this in Settings.</p>}</div></Step>
-          )}
-          {step === 6 && (
             <Step title="Ready to be discovered" subtitle="Review your profile, then accept the current safety and privacy terms."><div className="overflow-hidden rounded-3xl border border-gold-400/20 bg-black/30">{photos[0] && <img src={photos[0].url} alt="Profile preview" className="aspect-[4/5] w-full object-cover" />}<div className="p-5"><h2 className="display-heading text-3xl font-light">{displayName || 'Your name'}</h2><p className="mt-1 text-sm text-white/55">{occupation}{occupation && city ? ' · ' : ''}{city}</p><p className="mt-4 text-sm leading-relaxed text-white/75">{bio}</p><div className="mt-4 flex flex-wrap gap-1.5">{interests.slice(0, 5).map((interest) => <span key={interest} className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-white/55">{interest.replace(/-/g, ' ')}</span>)}</div></div></div><p className="mt-4 text-[11px] leading-relaxed text-white/40">Finish opens the current Terms and Privacy Policy if you have not accepted them yet.</p></Step>
           )}
         </motion.section>

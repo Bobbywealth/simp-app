@@ -34,6 +34,7 @@ const Conversation = lazy(() => import('./pages/Conversation'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const Licenses = lazy(() => import('./pages/Licenses'));
 const Admin = lazy(() => import('./pages/Admin'));
+const BlockedUsers = lazy(() => import('./pages/BlockedUsers'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 export default function App() {
@@ -131,6 +132,7 @@ export default function App() {
               <Route path="/notifications" element={<ProtectedRoute requireOnboarding><Notifications /></ProtectedRoute>} />
               <Route path="/licenses" element={<ProtectedRoute requireOnboarding><Licenses /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requireRole="ADMIN"><Admin /></ProtectedRoute>} />
+              <Route path="/settings/blocked" element={<ProtectedRoute requireOnboarding><BlockedUsers /></ProtectedRoute>} />
               <Route path="*" element={<ProtectedRoute><NotFound /></ProtectedRoute>} />
             </Routes>
             <BottomTabBar />

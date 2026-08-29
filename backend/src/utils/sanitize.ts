@@ -25,7 +25,8 @@ const TEXT_OPTIONS: sanitizeHtml.IOptions = {
   },
 };
 
-export function sanitizeMessage(body: string): string {
+export function sanitizeMessage(body: string, isDeleted = false): string {
+  if (isDeleted) return '[Deleted]';
   return sanitizeHtml(body.trim(), MESSAGE_OPTIONS);
 }
 

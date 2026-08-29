@@ -69,6 +69,7 @@
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
     "eslint": "^10.8.1",
+    "loadtest": "^8.2.1",
     "supertest": "^7.2.2",
     "vitest": "^4.1.11"
   }

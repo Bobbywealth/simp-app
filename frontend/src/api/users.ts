@@ -57,3 +57,9 @@ export const requestProfileVerification = (note?: string) =>
     method: 'POST',
     body: JSON.stringify({ note }),
   });
+
+export const updatePresence = (status: 'online' | 'offline') =>
+  apiFetch<{ presence: 'online' | 'offline' }>('/users/me/presence', {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });

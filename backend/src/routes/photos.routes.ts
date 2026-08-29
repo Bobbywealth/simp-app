@@ -2,12 +2,14 @@ import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { prisma } from '../config/db.js';
-import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
+import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { AppError } from '../utils/errors.js';
 import { cloudinaryThumbnailUrl } from '../services/cloudinary.service.js';
 import { deleteStoredPhoto, processAndStorePhoto } from '../services/photo.service.js';
 import { getProfileCompletion } from '../services/profile-completion.service.js';
 import { enqueueAssetDeletion } from '../services/asset-cleanup.service.js';
+import { moderateImage } from '../services/moderation.service.js';
+import { logger } from '../utils/logger.js';
 
 export const photosRouter = Router();
 
@@ -77,11 +79,27 @@ photosRouter.post(
             height: stored!.height,
             bytes: stored!.bytes,
             mimeType: stored!.mimeType,
+            status: 'PENDING',
           },
         });
       });
 
       await getProfileCompletion(userId);
+
+      const storedPhoto = stored;
+      if (storedPhoto?.buffer) {
+        void moderateImage(storedPhoto.buffer).then(async (result) => {
+          if (result.flagged) {
+            await prisma.photo.update({ where: { id: photo.id }, data: { status: 'REJECTED' } }).catch(() => {});
+            await deleteStoredPhoto(storedPhoto).catch(() => {});
+            await enqueueAssetDeletion(storedPhoto).catch(() => {});
+            logger.info({ event: 'photo_auto_rejected', photoId: photo.id, categories: result.categories });
+          } else {
+            await prisma.photo.update({ where: { id: photo.id }, data: { status: 'APPROVED' } }).catch(() => {});
+          }
+        });
+      }
+
       res.status(201).json(serialize(photo));
     } catch (error) {
       if (stored) {
@@ -158,3 +176,27 @@ photosRouter.delete('/photos/:id', requireAuth, async (req: AuthedRequest, res, 
     next(error);
   }
 });
+
+photosRouter.post(
+  '/photos/:id/moderate',
+  requireAuth,
+  requireRole('ADMIN', 'MODERATOR', 'SUPER_ADMIN'),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const { status } = z.object({ status: z.enum(['APPROVED', 'REJECTED']) }).parse(req.body);
+      const photo = await prisma.photo.findUnique({ where: { id: req.params.id } });
+      if (!photo) throw new AppError('photo_not_found', 404, 'Photo not found.');
+
+      await prisma.photo.update({ where: { id: photo.id }, data: { status } });
+
+      if (status === 'REJECTED') {
+        await deleteStoredPhoto(photo).catch(() => {});
+        await enqueueAssetDeletion(photo).catch(() => {});
+      }
+
+      res.json({ ok: true, status });
+    } catch (error) {
+      next(error);
+    }
+  },
+);

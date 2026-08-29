@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { changePassword, listSessions, logoutAll, revokeSession, type Session } from '../api/auth';
 import { deleteMyAccount, exportMyData } from '../api/account';
-import { listBlocks, unblockUser } from '../api/moderation';
+import { listBlocks } from '../api/moderation';
 import {
   getNotificationPreferences,
   registerPushToken,
@@ -15,10 +15,12 @@ import {
   getMyProfile,
   requestProfileVerification,
   updateDiscoveryPreferences,
+  updatePresence,
 } from '../api/users';
 import type { DiscoveryPreferences, Profile } from '../types';
 import { API_BASE_URL } from '../api/client';
 import { getDeviceContext, requestApproximateLocation, requestNativePushPermission } from '../capacitor';
+import { disconnectRealtime } from '../lib/realtime';
 import { useAuth } from '../store/auth';
 
 const DEFAULT_DISCOVERY: DiscoveryPreferences = {
@@ -58,6 +60,7 @@ export default function Settings() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [appearOffline, setAppearOffline] = useState(user?.presence === 'offline');
 
   useEffect(() => {
     Promise.all([
@@ -92,6 +95,20 @@ export default function Settings() {
       setBusy(null);
     }
   };
+
+  async function toggleAppearOffline(checked: boolean) {
+    await run(
+      'presence',
+      async () => {
+        disconnectRealtime();
+        await updatePresence(checked ? 'offline' : 'online');
+        setAppearOffline(checked);
+      },
+      checked ? 'Appear offline enabled.' : 'You are now visible to others.',
+    ).catch(() => {
+      setAppearOffline(!checked);
+    });
+  }
 
   async function savePassword() {
     await run(
@@ -283,11 +300,14 @@ export default function Settings() {
         </SettingsSection>
 
         <SettingsSection title="Safety">
-          <details className="p-4"><summary className="cursor-pointer text-sm font-medium">Blocked people <span className="text-white/35">({blocks.length})</span></summary><div className="mt-3 space-y-2">{blocks.length === 0 ? <p className="text-xs text-white/35">You have not blocked anyone.</p> : blocks.map((blocked) => <div key={blocked.blockedId} className="flex items-center gap-3 rounded-xl bg-white/[0.035] p-3">{blocked.photoUrl && <img src={blocked.photoUrl} alt="" className="h-9 w-9 rounded-full object-cover" />}<span className="min-w-0 flex-1 truncate text-sm">{blocked.displayName}</span><button type="button" onClick={() => void run(`unblock:${blocked.blockedId}`, async () => { await unblockUser(blocked.blockedId); setBlocks((items) => items.filter((item) => item.blockedId !== blocked.blockedId)); }, `${blocked.displayName} was unblocked.`).catch(() => undefined)} className="text-[10px] uppercase text-gold-300">Unblock</button></div>)}</div></details>
+          <button type="button" onClick={() => navigate('/settings/blocked')} className="settings-row">
+            Blocked people <span className="text-white/35">({blocks.length})</span> <span>›</span>
+          </button>
           <button type="button" onClick={() => window.open(`${API_BASE_URL}/support`, '_blank', 'noopener')} className="settings-row border-t border-white/[0.06]">Safety help and support <span>›</span></button>
         </SettingsSection>
 
         <SettingsSection title="Privacy and data">
+          <Toggle label="Appear offline" checked={appearOffline} onChange={(checked) => void toggleAppearOffline(checked)} />
           <button type="button" disabled={busy === 'export'} onClick={() => void exportData()} className="settings-row">{busy === 'export' ? 'Preparing export…' : 'Download my data'} <span>›</span></button>
           <button type="button" onClick={() => window.open(`${API_BASE_URL}/privacy`, '_blank', 'noopener')} className="settings-row border-t border-white/[0.06]">Privacy Policy <span>›</span></button>
           <button type="button" onClick={() => window.open(`${API_BASE_URL}/terms`, '_blank', 'noopener')} className="settings-row border-t border-white/[0.06]">Terms of Service <span>›</span></button>

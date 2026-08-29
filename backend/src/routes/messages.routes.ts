@@ -55,7 +55,7 @@ messagesRouter.get('/conversations', requireAuth, async (req: AuthedRequest, res
             userB: { select: { id: true, profile: true, photos: { take: 1, orderBy: { position: 'asc' } } } },
           },
         },
-        messages: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
+        messages: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1, include: { sender: { select: { status: true, deletedAt: true } } } },
         _count: {
           select: { messages: { where: { senderId: { not: userId }, readAt: null, deletedAt: null } } },
         },
@@ -83,7 +83,16 @@ messagesRouter.get('/conversations', requireAuth, async (req: AuthedRequest, res
             thumbnailUrl: other.photos[0] ? cloudinaryThumbnailUrl(other.photos[0].url) : null,
             isVerified: other.profile?.isVerified ?? false,
           },
-          latestMessage: conversation.messages[0] ?? null,
+          latestMessage: conversation.messages[0]
+            ? {
+                ...conversation.messages[0],
+                body:
+                  conversation.messages[0].sender.status === 'DELETED' ||
+                  conversation.messages[0].sender.deletedAt
+                    ? '[Deleted]'
+                    : conversation.messages[0].body,
+              }
+            : null,
           unreadCount: conversation._count.messages,
         };
       }),
@@ -165,11 +174,15 @@ messagesRouter.get('/conversations/:id/messages', requireAuth, async (req: Authe
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: { sender: { select: { status: true, deletedAt: true } } },
     });
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
     res.json({
-      messages: [...page].reverse(),
+      messages: [...page].reverse().map((msg) => ({
+        ...msg,
+        body: msg.sender.status === 'DELETED' || msg.sender.deletedAt ? '[Deleted]' : msg.body,
+      })),
       nextCursor: hasMore ? page.at(-1)?.id ?? null : null,
       hasMore,
     });

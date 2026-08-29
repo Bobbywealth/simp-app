@@ -29,6 +29,7 @@ export type StoredPhoto = {
   height: number;
   bytes: number;
   mimeType: 'image/webp';
+  buffer?: Buffer;
 };
 
 function hasKnownSignature(buffer: Buffer): boolean {
@@ -93,6 +94,7 @@ export async function processAndStorePhoto(
       height: stored.height,
       bytes: stored.bytes,
       mimeType: 'image/webp',
+      buffer: processed.data,
     };
   }
 
@@ -110,6 +112,7 @@ export async function processAndStorePhoto(
     height: processed.info.height,
     bytes: processed.info.size,
     mimeType: 'image/webp',
+    buffer: processed.data,
   };
 }
 

@@ -23,6 +23,7 @@ export interface UserResponse {
   onboardingState: Record<string, unknown> | null;
   onboardingCompletedAt: string | null;
   profile: Profile | null;
+  presence?: 'online' | 'offline';
 }
 
 export interface ProfileCompletion {

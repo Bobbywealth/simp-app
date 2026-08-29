@@ -135,14 +135,24 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
       (async () => {
         const cache = await caches.open('simp-queue');
         const queued = await cache.keys();
+        const replayedTimestamps: number[] = [];
         for (const req of queued) {
           try {
             const body = await cache.match(req);
             if (!body) continue;
             await fetch(req.clone(), { method: req.method, body: await body.text(), credentials: 'include' });
             await cache.delete(req);
+            const url = new URL(req.url);
+            const timestamp = parseInt(url.searchParams.get('timestamp') || '0', 10);
+            if (timestamp) replayedTimestamps.push(timestamp);
           } catch {
             // leave in queue for next attempt
+          }
+        }
+        if (replayedTimestamps.length > 0) {
+          const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+          for (const client of allClients) {
+            client.postMessage({ type: 'simp:swipes-replayed', timestamps: replayedTimestamps });
           }
         }
       })(),

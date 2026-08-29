@@ -131,11 +131,18 @@ export function attachLiveSocket(httpServer: HttpServer) {
     }
   });
 
-  io.on('connection', (rawSocket) => {
+  io.on('connection', async (rawSocket) => {
     const socket = rawSocket as AuthedSocket;
     const userId = socket.data.userId;
     socket.join(`user:${userId}`);
-    onlineCounts.set(userId, (onlineCounts.get(userId) ?? 0) + 1);
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { presence: true },
+    });
+    if (user?.presence !== 'offline') {
+      onlineCounts.set(userId, (onlineCounts.get(userId) ?? 0) + 1);
+    }
 
     socket.on('conversation:join', async (payload: { conversationId?: string }) => {
       const conversationId = payload?.conversationId;
@@ -156,9 +163,13 @@ export function attachLiveSocket(httpServer: HttpServer) {
           conversationId,
           otherOnline: (onlineCounts.get(other.id) ?? 0) > 0,
         });
+        const presenceUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { presence: true },
+        });
         io?.to(`conversation:${conversationId}`).emit('presence:update', {
           userId,
-          online: true,
+          online: presenceUser?.presence !== 'offline' && (onlineCounts.get(userId) ?? 0) > 0,
         });
       } catch (error) {
         socketError(socket, 'message:error', error);
@@ -394,15 +405,21 @@ export function attachLiveSocket(httpServer: HttpServer) {
       await endStream(streamId, 'broadcaster');
     });
 
-    socket.on('disconnect', () => {
-      const count = Math.max(0, (onlineCounts.get(userId) ?? 1) - 1);
-      if (count === 0) onlineCounts.delete(userId);
-      else onlineCounts.set(userId, count);
-      for (const conversationId of socket.data.authorizedConversations) {
-        socket.to(`conversation:${conversationId}`).emit('presence:update', {
-          userId,
-          online: count > 0,
-        });
+    socket.on('disconnect', async () => {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { presence: true },
+      });
+      if (user?.presence !== 'offline') {
+        const count = Math.max(0, (onlineCounts.get(userId) ?? 1) - 1);
+        if (count === 0) onlineCounts.delete(userId);
+        else onlineCounts.set(userId, count);
+        for (const conversationId of socket.data.authorizedConversations) {
+          socket.to(`conversation:${conversationId}`).emit('presence:update', {
+            userId,
+            online: count > 0,
+          });
+        }
       }
 
       const streamId = socket.data.streamId;

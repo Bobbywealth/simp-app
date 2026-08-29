@@ -108,6 +108,34 @@ moderationRouter.get('/blocks', requireAuth, async (req: AuthedRequest, res, nex
   }
 });
 
+moderationRouter.get('/me/blocked', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const blocks = await prisma.block.findMany({
+      where: { blockerId: req.userId! },
+      include: {
+        blocked: {
+          select: {
+            id: true,
+            profile: { select: { displayName: true } },
+            photos: { take: 1, orderBy: { position: 'asc' } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({
+      blocked: blocks.map((block) => ({
+        id: block.blockedId,
+        displayName: block.blocked.profile?.displayName ?? 'SIMP member',
+        photoUrl: block.blocked.photos[0]?.url ?? null,
+        blockedAt: block.createdAt,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 moderationRouter.get('/reports/reasons', (_req, res) => {
   res.json({ categories: REPORT_CATEGORIES });
 });
