@@ -1,0 +1,11 @@
+-- Clean up a single inert account left over from the QA walkthrough:
+-- `qa-walker-2026-08-29@example.com`. It was created via the public
+-- /auth/signup endpoint during the initial new-user walkthrough
+-- attempt (before the /demo/seed extension was wired up), never had
+-- its email verified, and never had a profile/onboarding completed,
+-- so it could not log in. The row + cascading RefreshToken /
+-- AuthActionToken / NotificationPreference / DiscoveryPreference
+-- are now safe to remove.
+--
+-- Idempotent: no-op if the row was already deleted by a previous run.
+DELETE FROM "User" WHERE email = 'qa-walker-2026-08-29@example.com';
