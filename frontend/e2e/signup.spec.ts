@@ -82,16 +82,20 @@ test.describe('Signup API Mock Tests (Happy Path)', () => {
     });
 
     await page.goto('/signup');
+    await page.waitForLoadState('domcontentloaded');
 
     const email = generateTestEmail();
     const password = generateTestPassword();
     const displayName = generateDisplayName();
 
     const signupPage = new SignupPage(page);
+    await signupPage.displayNameInput.locator.waitFor({ state: 'visible', timeout: 5000 });
+    await signupPage.emailInput.locator.waitFor({ state: 'visible', timeout: 5000 });
+    await signupPage.passwordInput.locator.waitFor({ state: 'visible', timeout: 5000 });
     await signupPage.fillSignupForm({ email, password, displayName });
     await signupPage.submit();
 
-    await page.waitForURL('/verify-email-pending', { timeout: 10000 });
+    await expect(page).toHaveURL(/\/verify-email-pending/, { timeout: 10000 });
 
     const pendingPage = new VerifyEmailPendingPage(page);
     await expect(pendingPage.heading).toBeVisible();
