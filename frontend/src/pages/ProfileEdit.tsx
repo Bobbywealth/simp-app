@@ -21,23 +21,29 @@ import type { Profile } from '../types';
 import { useAuth } from '../store/auth';
 import { Tag } from '../components/Tag';
 
-const PROMPT_QUESTIONS = [
-  'The way to win me over is',
-  'I geek out over',
-  'A perfect Sunday looks like',
-  'My most controversial take',
-  'My love language',
-  'I will fall for you if',
-  'The key to my heart is',
-  'My most prized possession is',
-  'You should know',
-  'I am convinced',
-  'Together we could',
-  'My greenest flag',
-  'Do not bother if',
-  'My weakness is',
-  'I am looking for',
-];
+const FOR_WOMEN = [
+  'The way to win me over is', 'I geek out over', 'A perfect Sunday looks like',
+  'My most controversial take', 'My love language', 'I will fall for you if',
+  'The key to my heart is', 'My most prized possession is',
+] as const;
+const FOR_MEN = [
+  'The way I show I care', 'I geek out over', 'A perfect Sunday looks like',
+  'My most controversial take', 'My love language', 'I will fall for you if',
+  'Where I see this going', 'My vision for us',
+] as const;
+const FOR_EVERYONE = [
+  'The way to win me over is', 'I geek out over', 'A perfect Sunday looks like',
+  'My most controversial take', 'My love language', 'I will fall for you if',
+  'What I\'m looking for', 'My ideal first date',
+] as const;
+const LOOKING_FOR_PROMPTS_EDIT = {
+  WOMEN: FOR_WOMEN,
+  MEN: FOR_MEN,
+  EVERYONE: FOR_EVERYONE,
+} as const;
+function getEditPromptQuestions(lookingFor: string): readonly string[] {
+  return LOOKING_FOR_PROMPTS_EDIT[lookingFor as keyof typeof LOOKING_FOR_PROMPTS_EDIT] ?? FOR_EVERYONE;
+}
 
 const INTEREST_OPTIONS = [
   'Dinner', 'Travel', 'Live Music', 'Art', 'Wine', 'Wellness',
@@ -972,7 +978,11 @@ function PromptsSection({
   saved: boolean;
 }) {
   const [showForm, setShowForm] = useState(false);
-  const [newQuestion, setNewQuestion] = useState(PROMPT_QUESTIONS[0]!);
+  const [newQuestion, setNewQuestion] = useState(getEditPromptQuestions(draft.lookingFor ?? 'EVERYONE')[0]!);
+
+  useEffect(() => {
+    setNewQuestion(getEditPromptQuestions(draft.lookingFor ?? 'EVERYONE')[0]!);
+  }, [draft.lookingFor]);
   const [newAnswer, setNewAnswer] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftAnswer, setDraftAnswer] = useState('');
@@ -1077,7 +1087,7 @@ function PromptsSection({
             onChange={(event) => setNewQuestion(event.target.value)}
             className="input-luxe w-full rounded-xl border border-white/10 bg-ink-900 px-3 py-2 text-sm"
           >
-            {PROMPT_QUESTIONS.map((q) => (
+            {getEditPromptQuestions(draft.lookingFor ?? 'EVERYONE').map((q) => (
               <option key={q} value={q}>{q}</option>
             ))}
           </select>

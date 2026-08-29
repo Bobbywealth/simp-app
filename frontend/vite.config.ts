@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { sentryVitePlugin } from '@sentry/vite-plugin';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,6 +14,11 @@ const APP_DESCRIPTION = 'SIMP — Successful · Intentional · Male · Providers
 export default defineConfig({
   plugins: [
     react(),
+    sentryVitePlugin({
+      org: 'your-org',
+      project: 'simp-frontend',
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+    }),
     VitePWA({
       registerType: 'prompt',
       injectRegister: 'inline',

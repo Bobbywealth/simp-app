@@ -30,6 +30,8 @@ const LOOKING_FOR = [
   { value: 'MEN', label: 'Men' },
   { value: 'EVERYONE', label: 'Everyone' },
 ] as const;
+type GenderValue = (typeof GENDERS)[number]['value'];
+type LookingForValue = (typeof LOOKING_FOR)[number]['value'];
 const INTEREST_OPTIONS = [
   'Dinner', 'Travel', 'Live Music', 'Art', 'Wine', 'Wellness', 'Fashion', 'Fitness',
   'Cooking', 'Photography', 'Books', 'Outdoors', 'Dancing', 'Volunteering', 'Tech', 'Sports',
@@ -37,15 +39,30 @@ const INTEREST_OPTIONS = [
   'Beach', 'Camping', 'Language Learning', 'Museums', 'Podcasts', 'Board Games',
   'Art Galleries', 'Wine Tasting', 'Road Trips', 'Gardening', 'DIY', 'Crafts',
 ];
-const PROMPT_QUESTIONS = [
+const FOR_WOMEN = [
   'The way to win me over is', 'I geek out over', 'A perfect Sunday looks like',
   'My most controversial take', 'My love language', 'I will fall for you if',
   'The key to my heart is', 'My most prized possession is',
-];
+] as const;
+const FOR_MEN = [
+  'The way I show I care', 'I geek out over', 'A perfect Sunday looks like',
+  'My most controversial take', 'My love language', 'I will fall for you if',
+  'Where I see this going', 'My vision for us',
+] as const;
+const FOR_EVERYONE = [
+  'The way to win me over is', 'I geek out over', 'A perfect Sunday looks like',
+  'My most controversial take', 'My love language', 'I will fall for you if',
+  'What I\'m looking for', 'My ideal first date',
+] as const;
+const LOOKING_FOR_PROMPTS = {
+  WOMEN: FOR_WOMEN,
+  MEN: FOR_MEN,
+  EVERYONE: FOR_EVERYONE,
+} as const satisfies Record<LookingForValue, readonly string[]>;
+function getPromptQuestions(lookingFor: LookingForValue | ''): readonly string[] {
+  return LOOKING_FOR_PROMPTS[lookingFor as LookingForValue] ?? FOR_EVERYONE;
+}
 const TOTAL_STEPS = 7;
-
-type GenderValue = (typeof GENDERS)[number]['value'];
-type LookingForValue = (typeof LOOKING_FOR)[number]['value'];
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
@@ -64,8 +81,15 @@ export default function ProfileSetup() {
   const [bio, setBio] = useState('');
   const [interests, setInterests] = useState<string[]>([]);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
-  const [newPromptQuestion, setNewPromptQuestion] = useState(PROMPT_QUESTIONS[0]!);
+  const [newPromptQuestion, setNewPromptQuestion] = useState(getPromptQuestions(lookingFor)[0]!);
   const [newPromptAnswer, setNewPromptAnswer] = useState('');
+
+  useEffect(() => {
+    if (lookingFor) {
+      const opts = getPromptQuestions(lookingFor);
+      setNewPromptQuestion(opts[0]!);
+    }
+  }, [lookingFor]);
   const [photos, setPhotos] = useState<Array<{ id: string; url: string }>>([]);
   const [uploading, setUploading] = useState(false);
   const [notificationChoice, setNotificationChoice] = useState<'enabled' | 'later' | null>(null);
@@ -275,7 +299,7 @@ export default function ProfileSetup() {
             <Step title="Your interests" subtitle="Choose at least 3 and up to 8."><div className="flex flex-wrap gap-2">{INTEREST_OPTIONS.map((label) => { const slug = label.toLowerCase().replace(/\s+/g, '-'); const active = interests.includes(slug); return <button key={label} type="button" onClick={() => toggleInterest(label)} className={`min-h-11 rounded-full border px-4 py-2 text-sm ${active ? 'border-gold-400 bg-gold-400/15 text-gold-100' : 'border-white/10 bg-white/[0.03] text-white/70'}`}>{label}</button>; })}</div></Step>
           )}
           {step === 3 && (
-            <Step title="Profile prompts" subtitle="Add 1 to 3 conversation starters."><div className="space-y-3">{prompts.map((prompt) => <div key={prompt.id} className="relative rounded-2xl border border-gold-400/15 bg-white/[0.035] p-4 pr-11"><p className="text-xs font-semibold text-gold-300">{prompt.question}</p><p className="mt-1 text-sm text-white/85">{prompt.answer}</p><button type="button" onClick={() => void removePrompt(prompt.id)} className="absolute right-3 top-3 h-8 w-8 rounded-full text-white/35 hover:bg-white/5" aria-label="Remove prompt">×</button></div>)}{prompts.length < 3 && <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4"><select value={newPromptQuestion} onChange={(event) => setNewPromptQuestion(event.target.value)} className="input-luxe w-full rounded-xl px-3 py-3 text-sm">{PROMPT_QUESTIONS.map((question) => <option key={question}>{question}</option>)}</select><textarea value={newPromptAnswer} onChange={(event) => setNewPromptAnswer(event.target.value)} maxLength={280} rows={3} className="input-luxe w-full resize-none rounded-xl px-3 py-3 text-sm" placeholder="Your answer" /><button type="button" onClick={() => void addPrompt()} disabled={!newPromptAnswer.trim()} className="btn-gold-outline w-full py-2.5 text-xs uppercase tracking-[0.16em] disabled:opacity-30">Add prompt</button></div>}</div></Step>
+            <Step title="Profile prompts" subtitle="Add 1 to 3 conversation starters."><div className="space-y-3">{prompts.map((prompt) => <div key={prompt.id} className="relative rounded-2xl border border-gold-400/15 bg-white/[0.035] p-4 pr-11"><p className="text-xs font-semibold text-gold-300">{prompt.question}</p><p className="mt-1 text-sm text-white/85">{prompt.answer}</p><button type="button" onClick={() => void removePrompt(prompt.id)} className="absolute right-3 top-3 h-8 w-8 rounded-full text-white/35 hover:bg-white/5" aria-label="Remove prompt">×</button></div>)}{prompts.length < 3 && <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4"><select value={newPromptQuestion} onChange={(event) => setNewPromptQuestion(event.target.value)} className="input-luxe w-full rounded-xl px-3 py-3 text-sm">{getPromptQuestions(lookingFor).map((question) => <option key={question}>{question}</option>)}</select><textarea value={newPromptAnswer} onChange={(event) => setNewPromptAnswer(event.target.value)} maxLength={280} rows={3} className="input-luxe w-full resize-none rounded-xl px-3 py-3 text-sm" placeholder="Your answer" /><button type="button" onClick={() => void addPrompt()} disabled={!newPromptAnswer.trim()} className="btn-gold-outline w-full py-2.5 text-xs uppercase tracking-[0.16em] disabled:opacity-30">Add prompt</button></div>}</div></Step>
           )}
           {step === 4 && (
             <Step title="Your photos" subtitle="Your first photo is your discovery photo. Add up to 6."><input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void addPhoto(file); event.target.value = ''; }} /><div className="grid grid-cols-3 gap-2">{photos.map((photo, index) => <div key={photo.id} className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/10"><img src={photo.url} alt={`Profile ${index + 1}`} className="h-full w-full object-cover" />{index === 0 && <span className="absolute inset-x-2 bottom-2 rounded-full bg-black/70 py-1 text-center text-[9px] uppercase tracking-[0.12em] text-gold-200">Primary</span>}</div>)}{photos.length < 6 && <button type="button" disabled={uploading} onClick={() => fileInputRef.current?.click()} className="flex aspect-[3/4] items-center justify-center rounded-2xl border-2 border-dashed border-white/15 text-3xl font-light text-white/35 hover:border-gold-400/40 hover:text-gold-300">{uploading ? '…' : '+'}</button>}</div></Step>
