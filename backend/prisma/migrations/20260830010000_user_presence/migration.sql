@@ -1,15 +1,8 @@
--- Add nullable presence column to User.
+-- Add User.presence column (NOT NULL with default 'online').
 --
--- The running Prisma client references User.presence in /auth/login and
--- /auth/refresh queries (likely generated from a schema that included
--- the field but was later removed without a clean rebuild of the
--- Prisma client). The production DB does not have the column, so
--- every login attempt fails with PrismaClientKnownRequestError
--- "column User.presence does not exist".
---
--- Adding the column as nullable TEXT lets the stale Prisma query
--- succeed. The application code does not currently read or write
--- User.presence (verified by `grep -r "presence" backend/src` — no
--- matches in service or route code), so the column is dormant and
--- future schema edits can drop it without data loss.
-ALTER TABLE "User" ADD COLUMN "presence" TEXT;
+-- schema.prisma now declares `presence String @default("online")` as
+-- part of the online-presence feature (commit 5eaf7b1, "presence
+-- controls"). The DB was never migrated to match the new schema, so
+-- /auth/login and /auth/refresh 500'd with PrismaClientKnownRequestError
+-- "column User.presence does not exist" for every account.
+ALTER TABLE "User" ADD COLUMN "presence" TEXT NOT NULL DEFAULT 'online';
