@@ -58,6 +58,7 @@ export default defineConfig({
         scope: '/',
         start_url: '/?utm_source=pwa',
         prefer_related_applications: false,
+        handle_links: 'exclusive',
         related_applications: [
           {
             platform: 'itunes',
@@ -162,7 +163,7 @@ export default defineConfig({
           },
         ],
         launch_handler: {
-          client_mode: 'auto',
+          client_mode: 'navigate-existing',
         },
         protocol_handlers: [
           {

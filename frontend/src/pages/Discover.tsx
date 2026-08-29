@@ -10,6 +10,7 @@ import { track, trackMilestone } from '../api/analytics';
 import { SimpLogo } from '../components/SimpLogo';
 import { DiscoverFilters } from '../components/DiscoverFilters';
 import { ShareButton } from '../components/ShareButton';
+import { useAuth } from '../store/auth';
 
 type DeckState = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -20,12 +21,15 @@ interface SwipedRecord {
 
 export default function Discover() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [deck, setDeck] = useState<DeckState>('loading');
   const [profiles, setProfiles] = useState<DiscoveryProfile[]>([]);
   const [topIndex, setTopIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [undoError, setUndoError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const [filters, setFilters] = useState<DiscoveryPreferences>({
     minAge: 18, maxAge: 99, maxDistanceKm: null, verifiedOnly: false, interestSlugs: [],
@@ -92,7 +96,9 @@ export default function Discover() {
 
   async function loadMore() {
     if (!hasMore || loadingRef.current) return;
+    setLoadingMore(true);
     await loadDeck(false);
+    setLoadingMore(false);
   }
 
   function advanceDeck() {
@@ -209,7 +215,8 @@ export default function Discover() {
       setSwipeHistory((prev) => prev.slice(0, -1));
       setTopIndex((i) => Math.max(0, i - 1));
     } catch (e) {
-      console.error('undo failed', e);
+      setUndoError("Couldn't undo. Try again.");
+      window.setTimeout(() => setUndoError(null), 4000);
     }
   }
 
@@ -360,6 +367,7 @@ export default function Discover() {
   }
 
   const canUndo = swipeHistory.length > 0;
+  const isPremium = user?.entitlement?.tier !== 'FREE';
 
   return (
     <Scaffold
@@ -392,6 +400,13 @@ export default function Discover() {
             })}
         </div>
 
+        {loadingMore && (
+          <div className="mt-3 flex items-center justify-center gap-2 text-xs text-white/50">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white/60" />
+            Loading more...
+          </div>
+        )}
+
         <div className="mt-4 flex items-center justify-center gap-4 px-4">
           <ActionButton
             onClick={handleUndo}
@@ -410,9 +425,9 @@ export default function Discover() {
             variant="circle"
             tone="cyan"
             label="Super"
-            title="Super Like"
+            title={isPremium ? 'Super Like' : 'Super Like (Premium)'}
           >
-            ★
+            {isPremium ? '★' : '🔒'}
           </ActionButton>
           <ActionButton
             onClick={() => onSwipeRight(top)}
@@ -473,6 +488,12 @@ export default function Discover() {
       {error && deck === 'ready' && (
         <button type="button" onClick={() => setError(null)} className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-red-400/25 bg-red-950/95 px-4 py-3 text-left text-xs text-red-100 shadow-xl" role="alert">
           {error}
+        </button>
+      )}
+
+      {undoError && (
+        <button type="button" onClick={() => setUndoError(null)} className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-red-400/25 bg-red-950/95 px-4 py-3 text-left text-xs text-red-100 shadow-xl" role="alert">
+          {undoError}
         </button>
       )}
 

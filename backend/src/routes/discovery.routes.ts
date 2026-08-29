@@ -98,6 +98,7 @@ discoveryRouter.get(
           gender: { in: gendersFor(me.profile.lookingFor) },
           lookingFor: { in: lookingForMyGender(me.profile.gender) },
           birthDate: { gte: earliestBirthDate, lte: latestBirthDate },
+          OR: [{ boostedUntil: null }, { boostedUntil: { gt: new Date() } }],
           ...(preferences.verifiedOnly ? { isVerified: true } : {}),
         },
         photos: { some: {} },
@@ -114,6 +115,12 @@ discoveryRouter.get(
           photos: { orderBy: { position: 'asc' } },
           prompts: { orderBy: { position: 'asc' }, take: 3 },
           interests: { include: { interest: true } },
+          entitlements: {
+            where: {
+              status: { in: ['ACTIVE', 'GRACE_PERIOD'] },
+              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+            },
+          },
         },
         // Order by (boosted desc, premium desc, lastActive desc, id desc).
         // The boost column is on Profile; we sort on profile.boostedUntil
@@ -125,6 +132,8 @@ discoveryRouter.get(
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       });
 
+      const candidateSlugs = new Set(preferences.interestSlugs);
+      const maxDist = preferences.maxDistanceKm ?? 100;
       const withDistance = raw
         .map((candidate) => {
           const mine = preferences;
@@ -137,7 +146,14 @@ discoveryRouter.get(
             theirs.locationLng !== null
               ? distanceKm(mine.locationLat, mine.locationLng, theirs.locationLat, theirs.locationLng)
               : null;
-          return { candidate, distance };
+          const sharedInterestCount = candidate.interests.filter((ci) =>
+            candidateSlugs.has(ci.interest.slug),
+          ).length;
+          const distanceScore =
+            distance !== null
+              ? Math.max(0, 1 - distance / maxDist) * 30
+              : 15;
+          return { candidate, distance, sharedInterestCount, distanceScore };
         })
         .filter(({ distance }) =>
           preferences.maxDistanceKm === null
@@ -155,8 +171,15 @@ discoveryRouter.get(
         const total = 6 * 60 * 60 * 1000; // matches billing-extra.routes.ts
         return Math.max(0, Math.min(100, (ms / total) * 100));
       };
+      const premiumUsers = new Set(
+        withDistance
+          .filter(({ candidate }) => (candidate.entitlements?.length ?? 0) > 0)
+          .map(({ candidate }) => candidate.id),
+      );
       const sorted = [...withDistance].sort((a, b) => {
-        const db = effectiveBoost(b) - effectiveBoost(a);
+        const aScore = effectiveBoost(a) + a.distanceScore + a.sharedInterestCount * 5;
+        const bScore = effectiveBoost(b) + b.distanceScore + b.sharedInterestCount * 5;
+        const db = bScore - aScore;
         if (db !== 0) return db;
         // Premium (Elite) > Plus > Free, then lastActiveAt desc.
         const ap = premiumUsers.has(a.candidate.id) ? 1 : 0;
@@ -165,18 +188,6 @@ discoveryRouter.get(
         return b.candidate.createdAt.getTime() - a.candidate.createdAt.getTime();
       });
       const selected = sorted.slice(0, limit);
-      const ids = selected.map(({ candidate }) => candidate.id);
-      const entitlements = ids.length
-        ? await prisma.entitlement.findMany({
-            where: {
-              userId: { in: ids },
-              status: { in: ['ACTIVE', 'GRACE_PERIOD'] },
-              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-            },
-            orderBy: { createdAt: 'desc' },
-          })
-        : [];
-      const premiumUsers = new Set(entitlements.map((item) => item.userId));
 
       const profiles = selected.flatMap(({ candidate, distance }) => {
         if (!candidate.profile) return [];

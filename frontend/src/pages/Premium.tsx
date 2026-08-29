@@ -5,7 +5,7 @@
 // 3.1.2 — every auto-renewable subscription must have a restore
 // button reachable from the paywall / account settings).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '../components/Button';
 import { NavHeader } from '../components/NavHeader';
@@ -142,14 +142,10 @@ export default function Premium() {
     }
   }
 
-  async function handleRefresh() {
-    // Re-validate whatever entitlement is on file against the App Store.
+  const handleRefresh = useCallback(async () => {
     setError(null);
     try {
       const ent = await getMyEntitlement();
-      // We don't have the originalTransactionId in the UI; the
-      // entitlement row has it but our type is loose. Call refresh
-      // via the typed API when we have it.
       if (ent.entitlements && ent.entitlements.length > 0) {
         const id = (ent.entitlements[0] as Record<string, unknown>).originalTransactionId as string | undefined;
         if (id) {
@@ -168,7 +164,7 @@ export default function Premium() {
     } catch (e) {
       setError((e as Error).message ?? 'Refresh failed.');
     }
-  }
+  }, [user, setUser]);
 
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">

@@ -64,7 +64,18 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
       for (const client of allClients) {
         const url = new URL(client.url);
         if (url.origin === self.location.origin) {
-          await client.focus();
+          try {
+            await client.focus();
+          } catch {
+            try {
+              if ('navigate' in client) {
+                await (client as WindowClient).navigate(target);
+              }
+            } catch {
+              await self.clients.openWindow(target);
+              return;
+            }
+          }
           client.postMessage({ type: 'simp:navigate', route: target });
           return;
         }
@@ -79,7 +90,20 @@ self.addEventListener('install', () => {
 });
 
 self.addEventListener('activate', (event: ExtendableEvent) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      if ('periodicSync' in self.registration) {
+        try {
+          await (self.registration as any).periodicSync.register('simp-refresh', {
+            minInterval: 60 * 60 * 1000,
+          });
+        } catch {
+          // periodic sync not supported or permission denied
+        }
+      }
+      await self.clients.claim();
+    })(),
+  );
 });
 
 // Periodic Background Sync — let the browser wake the SW on a schedule

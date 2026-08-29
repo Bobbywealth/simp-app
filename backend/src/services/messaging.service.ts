@@ -49,6 +49,7 @@ export type SendMessageInput = {
   body: string;
   clientId?: string;
   messageType?: MessageType;
+  imageUrl?: string;
 };
 
 export async function sendMessage(input: SendMessageInput) {
@@ -82,6 +83,7 @@ export async function sendMessage(input: SendMessageInput) {
         clientId: input.clientId,
         body: sanitizeMessage(input.body),
         messageType: input.messageType ?? 'TEXT',
+        imageUrl: input.imageUrl,
       },
     });
     await Promise.all([
@@ -185,6 +187,8 @@ export async function markMessagesRead(
         ...(through ? { createdAt: { lte: through.createdAt } } : {}),
       },
       data: { deliveredAt: at, readAt: at },
+      // updateMany is atomic per document, so each message is updated independently.
+      // If the operation partially fails, only some messages get marked as read, which is acceptable.
     });
     return { at, otherUserId: other.id };
   });

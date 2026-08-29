@@ -24,6 +24,7 @@ interface AuthedSocket extends Socket {
 const broadcasters = new Map<string, string>();
 const viewers = new Map<string, Set<string>>();
 const broadcasterEndTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const onlineCounts = new Map<string, number>();
 const connectionAttempts = new Map<string, { count: number; resetAt: number }>();
 const eventWindows = new Map<string, { count: number; resetAt: number }>();
@@ -229,8 +230,22 @@ export function attachLiveSocket(httpServer: HttpServer) {
     const typing = async (event: 'typing:start' | 'typing:stop', payload: { conversationId?: string }) => {
       const conversationId = payload?.conversationId;
       if (!conversationId || !allowedEvent(`typing:${socket.id}`, 20, 10_000)) return;
+      const timerKey = `${conversationId}:${userId}`;
+      if (event === 'typing:stop') {
+        const existing = typingTimers.get(timerKey);
+        if (existing) { clearTimeout(existing); typingTimers.delete(timerKey); }
+      }
       try {
         await prisma.$transaction((tx) => authorizeConversation(tx, conversationId, userId));
+        if (event === 'typing:start') {
+          const existing = typingTimers.get(timerKey);
+          if (existing) clearTimeout(existing);
+          const timer = setTimeout(() => {
+            typingTimers.delete(timerKey);
+            socket.to(`conversation:${conversationId}`).emit('typing:stop', { conversationId, userId });
+          }, 30_000);
+          typingTimers.set(timerKey, timer);
+        }
         socket.to(`conversation:${conversationId}`).emit(event, { conversationId, userId });
       } catch {
         // Authorization failures intentionally do not reveal conversation state.

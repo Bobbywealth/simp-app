@@ -1,12 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { endStream, listLiveStreams, startStream } from '../api/live';
+import { endStream, listLiveStreams, reportStream, startStream } from '../api/live';
 import type { LiveStream } from '../api/live';
 import { useAuth } from '../store/auth';
 import { SimpLogo } from '../components/SimpLogo';
 import { LegalGateModal } from '../components/LegalGateModal';
+import { ShareButton } from '../components/ShareButton';
 import { fetchLivekitConfig } from '../api/livekit';
+
+const STREAM_CATEGORIES = [
+  { id: 'casual', label: 'Casual Chat', emoji: '💬' },
+  { id: 'date-night', label: 'Date Night', emoji: '🌙' },
+  { id: 'qa', label: 'Q&A', emoji: '❓' },
+  { id: 'music', label: 'Music', emoji: '🎵' },
+  { id: 'social', label: 'Social', emoji: '🎉' },
+];
+
+function formatDuration(startedAt: string): string {
+  const diff = Date.now() - new Date(startedAt).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
 
 export default function Live() {
   const navigate = useNavigate();
@@ -16,6 +33,7 @@ export default function Live() {
   const [error, setError] = useState<string | null>(null);
   const [showGoLive, setShowGoLive] = useState(false);
   const [streamTitle, setStreamTitle] = useState('');
+  const [streamCategory, setStreamCategory] = useState('casual');
   const [submitting, setSubmitting] = useState(false);
   // When the backend returns 451 legal_compliance_required from startStream,
   // we open the gate modal with this list. Once the user completes the
@@ -202,6 +220,24 @@ export default function Live() {
           </div>
         )}
 
+        <div className="mt-6 grid grid-cols-3 gap-3">
+          <div className="rounded-xl border border-white/10 bg-ink-900/60 p-3 text-center">
+            <div className="text-lg">💬</div>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/70">Real connections</p>
+            <p className="mt-0.5 text-[9px] text-white/40">Meet people authentically</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-ink-900/60 p-3 text-center">
+            <div className="text-lg">🎯</div>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/70">Grow your circle</p>
+            <p className="mt-0.5 text-[9px] text-white/40">Find like-minded people</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-ink-900/60 p-3 text-center">
+            <div className="text-lg">✨</div>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/70">Show your vibe</p>
+            <p className="mt-0.5 text-[9px] text-white/40">Share your energy live</p>
+          </div>
+        </div>
+
         <div className="mt-8 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-300">
             Live now
@@ -270,8 +306,16 @@ export default function Live() {
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
                       LIVE
                     </div>
-                    <div className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white">
-                      👁 {s.viewerCount}
+                    <div className="absolute right-2 top-2 flex flex-col items-end gap-1">
+                      <div className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white">
+                        👁 {s.viewerCount}
+                      </div>
+                      <div className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white">
+                        ❤️ {s.heartCount}
+                      </div>
+                    </div>
+                    <div className="absolute left-2 top-2 mt-6 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white">
+                      ⏱ {formatDuration(s.startedAt)}
                     </div>
                     {s.id === myLiveStream?.id && (
                       <div className="absolute right-2 bottom-12 rounded-full bg-gold-400 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-950">
@@ -280,10 +324,27 @@ export default function Live() {
                     )}
                     <div className="absolute inset-x-0 bottom-0 p-3">
                       <p className="line-clamp-2 text-sm font-semibold text-white">{s.title}</p>
-                      <p className="mt-0.5 text-xs text-white/70">
-                        {s.broadcaster?.displayName ?? 'Unknown'}
+                      <p className="mt-0.5 flex items-center gap-2 text-xs text-white/70">
+                        <span>{s.broadcaster?.displayName ?? 'Unknown'}</span>
+                        {s.broadcaster?.isPremium && <span className="text-gold-400">★</span>}
+                        {s.broadcaster?.isVerified && <span className="text-blue-400">✓</span>}
                       </p>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const reason = window.prompt('Report this stream? Please provide a reason:');
+                        if (reason) {
+                          void reportStream(s.id, reason);
+                        }
+                      }}
+                      className="absolute bottom-3 right-3 rounded-full bg-black/40 p-1.5 text-white/40 hover:text-red-400 transition"
+                      title="Report stream"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </button>
                   </div>
                 </button>
               </motion.li>
@@ -296,6 +357,8 @@ export default function Live() {
         <GoLiveModal
           title={streamTitle}
           onTitleChange={setStreamTitle}
+          category={streamCategory}
+          onCategoryChange={setStreamCategory}
           onConfirm={() => handleStartStream(false)}
           onReplaceAndStart={() => handleStartStream(true)}
           onClose={() => {
@@ -335,6 +398,8 @@ function LiveSkeleton() {
 interface GoLiveModalProps {
   title: string;
   onTitleChange: (s: string) => void;
+  category: string;
+  onCategoryChange: (s: string) => void;
   onConfirm: () => void;
   onReplaceAndStart: () => void;
   onClose: () => void;
@@ -347,6 +412,8 @@ interface GoLiveModalProps {
 function GoLiveModal({
   title,
   onTitleChange,
+  category,
+  onCategoryChange,
   onConfirm,
   onReplaceAndStart,
   onClose,
@@ -355,9 +422,6 @@ function GoLiveModal({
   existingStream,
   onResumeExisting,
 }: GoLiveModalProps) {
-  // If a 409 came back we may already know about an existing stream from the
-  // page's on-load scan; if not, render a generic recovery prompt that lets
-  // the user either end+replace or cancel and try again.
   const showRecovery = !!error && (!!existingStream || /already.?live/i.test(error));
 
   return (
@@ -376,8 +440,30 @@ function GoLiveModal({
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/20" />
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">Start a stream</p>
         <p className="mt-2 text-sm text-white/70">
-          Give your stream a title. Your camera and mic will turn on next.
+          Give your stream a title and choose a vibe.
         </p>
+
+        {/* Category Selection */}
+        <div className="mt-4">
+          <p className="mb-2 text-[10px] uppercase tracking-wider text-white/50">Stream vibe</p>
+          <div className="flex flex-wrap gap-2">
+            {STREAM_CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => onCategoryChange(cat.id)}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition ${
+                  category === cat.id
+                    ? 'border-gold-400 bg-gold-400/20 text-gold-200'
+                    : 'border-white/20 text-white/60 hover:border-white/40'
+                }`}
+              >
+                <span>{cat.emoji}</span>
+                <span>{cat.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
         <input
           value={title}

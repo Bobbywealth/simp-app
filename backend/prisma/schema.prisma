@@ -64,6 +64,7 @@ enum VerificationStatus {
 
 enum MessageType {
   TEXT
+  IMAGE
   SYSTEM
 }
 
@@ -468,6 +469,7 @@ model Message {
   clientId       String?
   body           String
   messageType    MessageType  @default(TEXT)
+  imageUrl       String?
   metadata       Json?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

@@ -18,8 +18,12 @@ export const messagesRouter = Router();
 const sendSchema = z.object({
   body: z.string().trim().min(1).max(2_000),
   clientId: z.string().trim().min(8).max(100).optional(),
-  messageType: z.enum(['TEXT']).default('TEXT'),
-});
+  messageType: z.enum(['TEXT', 'IMAGE']).default('TEXT'),
+  imageUrl: z.string().url().optional(),
+}).refine(
+  (data) => data.messageType !== 'IMAGE' || (data.imageUrl && data.imageUrl.length > 0),
+  { message: 'imageUrl is required when messageType is IMAGE', path: ['imageUrl'] },
+);
 const receiptSchema = z.object({ throughMessageId: z.string().min(1).optional() });
 
 messagesRouter.get('/conversations', requireAuth, async (req: AuthedRequest, res, next) => {
@@ -230,6 +234,23 @@ messagesRouter.post('/conversations/:id/read', requireAuth, async (req: AuthedRe
       throughMessageId: input.throughMessageId,
     });
     res.json({ ok: true, readAt: result.at });
+  } catch (error) {
+    next(error);
+  }
+});
+
+messagesRouter.get('/messages/:id', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const message = await prisma.message.findUnique({
+      where: { id: req.params.id },
+      include: { conversation: { select: { matchId: true } } },
+    });
+    if (!message) throw new AppError('message_not_found', 404, 'Message not found.');
+    const match = await prisma.match.findUnique({ where: { id: message.conversation.matchId } });
+    if (!match || (match.userAId !== req.userId && match.userBId !== req.userId)) {
+      throw new AppError('message_not_found', 404, 'Message not found.');
+    }
+    res.json(message);
   } catch (error) {
     next(error);
   }

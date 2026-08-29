@@ -498,6 +498,36 @@ usersRouter.put('/me/prompts/reorder', requireAuth, async (req: AuthedRequest, r
   }
 });
 
+usersRouter.put('/me/photos/reorder', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const { photoIds } = z.object({ photoIds: z.array(z.string().cuid()).min(1) }).parse(req.body);
+    const userId = req.userId!;
+
+    const photos = await prisma.photo.findMany({ where: { id: { in: photoIds } } });
+    if (photos.length !== photoIds.length || !photos.every((p) => p.userId === userId)) {
+      throw new AppError('photo_not_found', 404, 'Photo not found.');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+      await Promise.all(
+        photoIds.map((id, index) =>
+          tx.photo.update({ where: { id }, data: { position: index } }),
+        ),
+      );
+    });
+
+    res.json({
+      photos: await prisma.photo.findMany({
+        where: { userId },
+        orderBy: { position: 'asc' },
+      }),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 usersRouter.delete('/me/prompts/:id', requireAuth, async (req: AuthedRequest, res, next) => {
   try {
     const prompt = await prisma.prompt.findUnique({ where: { id: req.params.id } });

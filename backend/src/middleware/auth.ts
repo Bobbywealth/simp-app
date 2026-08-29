@@ -10,6 +10,27 @@ export interface AuthedRequest extends Request {
   sessionFamilyId?: string;
 }
 
+type CachedUser = {
+  id: string;
+  role: UserRole;
+  status: AccountStatus;
+  suspendedUntil: Date | null;
+  cachedAt: number;
+};
+
+const userCache = new Map<string, CachedUser>();
+const CACHE_TTL_MS = 30_000;
+
+function getCachedUser(userId: string): CachedUser | null {
+  const entry = userCache.get(userId);
+  if (!entry) return null;
+  if (Date.now() - entry.cachedAt > CACHE_TTL_MS) {
+    userCache.delete(userId);
+    return null;
+  }
+  return entry;
+}
+
 export async function requireAuth(req: AuthedRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
@@ -33,17 +54,25 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
       });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: claims.sub },
-      select: { id: true, role: true, status: true, suspendedUntil: true },
-    });
+    const cached = getCachedUser(claims.sub);
+    let user = cached
+      ? { id: cached.id, role: cached.role, status: cached.status, suspendedUntil: cached.suspendedUntil }
+      : null;
+
     if (!user) {
-      return res.status(401).json({
-        error: 'invalid_token',
-        message: 'Your session is no longer valid.',
-        fieldErrors: {},
-        requestId: res.locals.requestId,
+      user = await prisma.user.findUnique({
+        where: { id: claims.sub },
+        select: { id: true, role: true, status: true, suspendedUntil: true },
       });
+      if (!user) {
+        return res.status(401).json({
+          error: 'invalid_token',
+          message: 'Your session is no longer valid.',
+          fieldErrors: {},
+          requestId: res.locals.requestId,
+        });
+      }
+      userCache.set(claims.sub, { ...user, cachedAt: Date.now() });
     }
 
     if (user.status === 'SUSPENDED' && user.suspendedUntil && user.suspendedUntil <= new Date()) {
@@ -52,6 +81,7 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
         data: { status: 'ACTIVE', suspendedUntil: null, statusReason: null },
       });
       user.status = 'ACTIVE';
+      userCache.set(claims.sub, { ...user, cachedAt: Date.now() });
     }
 
     if (user.status !== 'ACTIVE') {

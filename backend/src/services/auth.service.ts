@@ -203,6 +203,9 @@ export async function refresh(refreshToken: string, context: SessionContext = {}
   const now = new Date();
 
   await prisma.$transaction(async (tx) => {
+    // Race condition guard: if another request rotated the token first, updateMany
+    // will not match (count !== 1). We detect this and revoke the entire family
+    // to prevent token reuse attacks.
     const revoked = await tx.refreshToken.updateMany({
       where: { id: stored.id, revokedAt: null },
       data: { revokedAt: now, replacedById: nextId, lastUsedAt: now },
