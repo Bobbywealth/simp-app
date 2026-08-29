@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { prisma } from '../config/db.js';
 
 export const demoRouter = Router();
@@ -76,7 +77,6 @@ demoRouter.post('/demo/seed', async (req, res, next) => {
     });
 
     // Now hash the real password and update.
-    const bcrypt = await import('bcryptjs');
     const passwordHash = await bcrypt.hash(input.password, 12);
     await prisma.user.update({
       where: { id: user.id },
