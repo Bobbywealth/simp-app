@@ -159,10 +159,13 @@ export default function Home() {
           className="relative overflow-hidden rounded-[2rem] border border-white/15"
         >
           <div className="aspect-[16/9] w-full">
-            <img
-              src="/editorial/profiles/women-03.jpg"
-              alt=""
-              className="h-full w-full object-cover"
+            <ConciergeCarousel
+              slides={[
+                { src: "/editorial/profiles/women-03.jpg", name: "Nia", age: 30, neighborhood: "Brooklyn" },
+                { src: "/editorial/profiles/women-04.jpg", name: "Ava", age: 28, neighborhood: "Jersey City" },
+                { src: "/editorial/profiles/men-02.jpg", name: "Marcus", age: 33, neighborhood: "Hoboken" },
+                { src: "/editorial/profiles/men-04.jpg", name: "Jordan", age: 31, neighborhood: "Manhattan" },
+              ]}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/40 to-transparent" />
           </div>
@@ -172,7 +175,7 @@ export default function Home() {
                 Tonight&apos;s concierge pick
               </p>
               <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-gold-400 px-2.5 text-[10px] font-bold text-black">
-                +1
+                +{counts.matches + 1}
               </span>
             </div>
             <div>
@@ -185,6 +188,7 @@ export default function Home() {
             </div>
           </div>
         </motion.section>
+        <LiveMessageTicker />
         <div className="mt-3 grid grid-cols-3 gap-2">
           <SmallCounter label="Matches" value={counts.matches} />
           <SmallCounter label="Messages" value={counts.messages} />
@@ -293,6 +297,83 @@ export default function Home() {
     </div>
   );
 }
+function ConciergeCarousel({
+  slides,
+}: {
+  slides: { src: string; name: string; age: number; neighborhood: string }[];
+}) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (slides.length < 2) return;
+    const id = window.setInterval(() => {
+      setIndex((i) => (i + 1) % slides.length);
+    }, 4500);
+    return () => window.clearInterval(id);
+  }, [slides.length]);
+  return (
+    <div className="relative h-full w-full">
+      {slides.map((slide, i) => (
+        <img
+          key={slide.src}
+          src={slide.src}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover transition-opacity duration-700"
+          style={{ opacity: i === index ? 1 : 0 }}
+        />
+      ))}
+      <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1.5">
+        {slides.map((_, i) => (
+          <span
+            key={i}
+            className={`h-1.5 rounded-full transition-all duration-500 ${
+              i === index ? "w-5 bg-gold-300" : "w-1.5 bg-white/55"
+            }`}
+            aria-hidden
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LiveMessageTicker() {
+  const messages: { name: string; text: string; accent: string }[] = [
+    { name: "Maya, 27", text: "Just hopped on. Coffee first?", accent: "Coffee" },
+    { name: "Devin, 32", text: "Looking for a Sunday brunch buddy in Brooklyn.", accent: "Brunch" },
+    { name: "Aria, 29", text: "Live in 5. Bringing good energy only.", accent: "Live" },
+    { name: "Kai, 30", text: "Verified and ready. Who&apos;s out tonight?", accent: "Verified" },
+  ];
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setIndex((i) => (i + 1) % messages.length);
+    }, 3500);
+    return () => window.clearInterval(id);
+  }, [messages.length]);
+  const current: { name: string; text: string; accent: string } =
+    (messages[index] as { name: string; text: string; accent: string } | undefined) ||
+    (messages[0] as { name: string; text: string; accent: string });
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-2xl border border-gold-300/20 bg-gradient-to-r from-ink-900/80 via-black/55 to-ink-900/80 px-4 py-3 backdrop-blur">
+      <span className="relative flex h-2.5 w-2.5 shrink-0">
+        <span className="absolute inset-0 animate-ping rounded-full bg-gold-300/60" />
+        <span className="relative h-2.5 w-2.5 rounded-full bg-gold-300" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-gold-200">
+          Live right now
+        </p>
+        <p className="mt-0.5 truncate text-[13px] font-semibold text-white">
+          {current.name} · {current.text}
+        </p>
+      </div>
+      <span className="rounded-full bg-gold-300/15 px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.18em] text-gold-200">
+        {current.accent}
+      </span>
+    </div>
+  );
+}
+
 function SmallCounter({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center backdrop-blur">
