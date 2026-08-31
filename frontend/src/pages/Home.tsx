@@ -83,7 +83,6 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-black pb-28 text-white">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-gold-500/[0.06] via-black to-black" />
       <header className="relative z-10 mx-auto flex w-full max-w-md items-center gap-3 px-5 pb-4 pt-safe">
         <button
           type="button"
@@ -152,47 +151,63 @@ export default function Home() {
         </button>
       </header>
       {showSafety && <SafetyMenu onClose={() => setShowSafety(false)} />}
-      <main className="relative z-10 mx-auto w-full max-w-md px-5 pt-4">
+      <main className="relative z-10 mx-auto w-full max-w-md px-5 pt-3">
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.65 }}
-          className="relative overflow-hidden rounded-[2rem] border border-gold-400/35 bg-gradient-to-br from-ink-900/85 via-black/55 to-ink-900/75 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_22px_60px_-26px_rgba(0,0,0,0.95)] backdrop-blur-xl"
+          className="relative overflow-hidden rounded-[2rem] border border-white/15"
         >
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gold-300/15 blur-3xl"
-          />
-          <div className="relative flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-gold-200">
-              Tonight's concierge pick
-            </p>
-            <span className="rounded-full border border-gold-300/40 bg-gold-300/10 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.18em] text-gold-100">
-              Verified
-            </span>
+          <div className="aspect-[16/9] w-full">
+            <img
+              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1200&h=675&fit=crop&crop=faces&auto=format&q=80"
+              alt=""
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/40 to-transparent" />
           </div>
-          <h2 className="display-heading mt-3 max-w-xs text-4xl font-light leading-none">
-            Meet with intention.
-          </h2>
-          <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/65">
-            A fresh cut of people who share your pace, interests, and
-            intentions.
-          </p>
-          <div className="mt-5 grid grid-cols-3 gap-2">
-            <StatChip label="Matches" value={counts.matches} />
-            <StatChip label="Messages" value={counts.messages} />
-            <StatChip label="Alerts" value={counts.notifications} />
+          <div className="absolute inset-0 flex flex-col justify-between p-5">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-200">
+                Tonight&apos;s concierge pick
+              </p>
+              <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-gold-400 px-2.5 text-[10px] font-bold text-black">
+                +1
+              </span>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-200">
+                Verified chemistry
+              </p>
+              <h2 className="display-heading mt-2 text-4xl font-light leading-[.95]">
+                Meet with intention
+              </h2>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => navigate("/discover")}
-            className="group relative mt-5 w-full overflow-hidden rounded-2xl bg-gold-gradient py-4 text-base font-semibold text-ink-950 shadow-[0_18px_40px_-18px_rgba(214,172,63,0.6)] transition active:scale-[0.985]"
-          >
-            <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-            <span className="relative">Start discovering</span>
-            <span className="relative ml-2 transition group-hover:translate-x-1">→</span>
-          </button>
         </motion.section>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <SmallCounter label="Matches" value={counts.matches} />
+          <SmallCounter label="Messages" value={counts.messages} />
+          <SmallCounter label="Alerts" value={counts.notifications} />
+        </div>
+        <motion.button
+          type="button"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          onClick={() => navigate("/discover")}
+          className="mt-4 w-full overflow-hidden rounded-2xl bg-gold-gradient p-5 text-left shadow-[0_22px_50px_-22px_rgba(214,172,63,0.55)] transition active:scale-[0.99]"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ink-950/70">
+            Curated for you
+          </p>
+          <p className="mt-3 font-display text-3xl font-medium leading-[1.05] text-ink-950">
+            Discover someone worth meeting
+          </p>
+          <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-950/80">
+            Start discovering →
+          </p>
+        </motion.button>
         {showNotificationBanner && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -247,58 +262,29 @@ export default function Home() {
           </button>
         )}
         <section className="mt-8">
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-200">
-                Quick moves
-              </p>
-              <h2 className="display-heading mt-1 text-2xl font-light">
-                Jump back in
-              </h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate("/explore")}
-              className="group relative inline-flex items-center gap-1 overflow-hidden rounded-full border border-gold-400/40 bg-gradient-to-r from-gold-400/15 via-gold-300/8 to-gold-400/15 px-4 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.2em] text-gold-100 transition duration-300 hover:border-gold-300/70 hover:text-gold-200"
-            >
-              <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-              Find your tribe
-              <span className="text-gold-300 transition group-hover:translate-x-0.5">→</span>
-            </button>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <DashboardCard
-              label="Chats"
-              count={counts.messages}
-              icon="chat"
-              value={
-                counts.messages
-                  ? `${counts.messages} waiting on you`
-                  : "Say something first"
-              }
+          <div className="mt-1 grid grid-cols-2 gap-3">
+            <SmallCard
+              icon="message"
+              label="Messages"
+              value={counts.messages ? `${counts.messages} unread` : "Start a conversation"}
               onClick={() => navigate("/messages")}
             />
-            <DashboardCard
+            <SmallCard
+              icon="heart"
               label="Matches"
-              count={counts.matches}
-              icon="spark"
-              value={
-                counts.matches
-                  ? `${counts.matches} into you`
-                  : "Your type's here"
-              }
+              value={counts.matches ? `${counts.matches} connections` : "Your connections"}
               onClick={() => navigate("/matches")}
             />
-            <DashboardCard
+            <SmallCard
+              icon="live"
               label="Live"
-              icon="wave"
-              value="Hop in someone's stream"
+              value="See who is live"
               onClick={() => navigate("/live")}
             />
-            <DashboardCard
+            <SmallCard
+              icon="explore"
               label="Explore"
-              icon="orbit"
-              value="Find your people"
+              value="Browse by interest"
               onClick={() => navigate("/explore")}
             />
           </div>
@@ -307,31 +293,80 @@ export default function Home() {
     </div>
   );
 }
-function StatChip({ label, value }: { label: string; value: number }) {
-  const hasValue = value > 0;
+function SmallCounter({ label, value }: { label: string; value: number }) {
   return (
-    <div
-      className={`group relative overflow-hidden rounded-2xl border px-3 py-2.5 text-center backdrop-blur-sm transition duration-300 ${
-        hasValue
-          ? "border-gold-400/40 bg-gradient-to-br from-ink-900/80 via-black/40 to-ink-900/70"
-          : "border-white/[0.07] bg-white/[0.04]"
-      }`}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-6 -top-6 h-12 w-12 rounded-full bg-gold-300/10 blur-2xl transition group-hover:bg-gold-300/25"
-      />
-      <p
-        className={`relative text-2xl font-extrabold leading-none ${
-          hasValue ? "text-gold-200" : "text-white/55"
-        }`}
-      >
-        {value}
-      </p>
-      <p className="relative mt-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/55">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center backdrop-blur">
+      <p className="text-2xl font-extrabold text-white">{value}</p>
+      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60">
         {label}
       </p>
     </div>
+  );
+}
+
+function SmallCard({
+  icon,
+  label,
+  value,
+  onClick,
+}: {
+  icon: "message" | "heart" | "live" | "explore";
+  label: string;
+  value: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-left transition active:scale-[0.98]"
+    >
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
+        <SmallCardIcon name={icon} />
+        <p className="mt-3 text-sm font-semibold text-white">{label}</p>
+        <p className="mt-1 text-[11px] text-white/55">{value}</p>
+      </div>
+    </button>
+  );
+}
+
+function SmallCardIcon({ name }: { name: "message" | "heart" | "live" | "explore" }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.7,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: "h-5 w-5 text-gold-300",
+  };
+  if (name === "message") {
+    return (
+      <svg {...common}>
+        <path d="M21 12a8 8 0 0 1-12 7l-5 1 1-5a8 8 0 1 1 16-3Z" />
+      </svg>
+    );
+  }
+  if (name === "heart") {
+    return (
+      <svg {...common}>
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z" />
+      </svg>
+    );
+  }
+  if (name === "live") {
+    return (
+      <svg {...common}>
+        <rect x="3" y="6" width="14" height="12" rx="2" />
+        <path d="m17 9 4-2v10l-4-2" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
   );
 }
 
