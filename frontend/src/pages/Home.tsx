@@ -266,31 +266,86 @@ export default function Home() {
           </button>
         )}
         <section className="mt-8">
-          <div className="mt-1 grid grid-cols-2 gap-3">
-            <SmallCard
-              icon="message"
-              label="Messages"
-              value={counts.messages ? `${counts.messages} unread` : "Start a conversation"}
-              onClick={() => navigate("/messages")}
+          <div className="mt-1 flex items-end justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-200">
+                Your pulse
+              </p>
+              <h2 className="display-heading mt-1 text-2xl font-light">
+                Quick glance
+              </h2>
+            </div>
+          </div>
+          <div className="mt-4 space-y-3">
+            <ProgressBar
+              label="Profile strength"
+              value={completion}
+              onClick={() => navigate("/profile/edit")}
             />
-            <SmallCard
-              icon="heart"
-              label="Matches"
-              value={counts.matches ? `${counts.matches} connections` : "Your connections"}
-              onClick={() => navigate("/matches")}
-            />
-            <SmallCard
-              icon="live"
-              label="Live"
-              value="See who is live"
-              onClick={() => navigate("/live")}
-            />
-            <SmallCard
-              icon="explore"
-              label="Explore"
-              value="Browse by interest"
-              onClick={() => navigate("/explore")}
-            />
+            <div className="rounded-2xl border border-gold-300/25 bg-gradient-to-r from-ink-900/80 via-black/55 to-ink-900/80 p-4 backdrop-blur">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold uppercase tracking-[0.16em] text-gold-200">
+                  Active streaks
+                </span>
+                <span className="rounded-full bg-gold-300/20 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-gold-100">
+                  🔥 3 days
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-7 gap-1.5">
+                {["M","T","W","T","F","S","S"].map((d, i) => (
+                  <div
+                    key={`${d}-${i}`}
+                    className={`h-7 rounded-md ${
+                      i < 5 ? "bg-gold-gradient" : "bg-white/8"
+                    }`}
+                    aria-hidden
+                  />
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-white/50">
+                5 of 7 days active. You're on a roll.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-gold-300/20 bg-white/[0.04] p-4 backdrop-blur">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-200">
+                  Your vibe
+                </p>
+                <p className="mt-2 font-display text-2xl font-medium leading-tight text-white">
+                  Jazz + cooking
+                </p>
+                <p className="mt-1 text-[11px] text-white/55">
+                  Most-matched interests
+                </p>
+              </div>
+              <div className="rounded-2xl border border-gold-300/20 bg-white/[0.04] p-4 backdrop-blur">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-200">
+                  Best time
+                </p>
+                <p className="mt-2 font-display text-2xl font-medium leading-tight text-white">
+                  8–10 PM
+                </p>
+                <p className="mt-1 text-[11px] text-white/55">
+                  Peak activity window
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section className="mt-6 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-200">
+              Quick actions
+            </p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-white/35">
+              Or use the menu below
+            </p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <ChipAction label="New message" onClick={() => navigate("/messages")} />
+            <ChipAction label="Go live" onClick={() => navigate("/live")} />
+            <ChipAction label="Tribe finder" onClick={() => navigate("/explore")} />
+            <ChipAction label="Safety tools" onClick={() => setShowSafety(true)} />
           </div>
         </section>
       </main>
@@ -385,69 +440,52 @@ function SmallCounter({ label, value }: { label: string; value: number }) {
   );
 }
 
-function SmallCard({
-  icon,
+function ProgressBar({
   label,
   value,
   onClick,
 }: {
-  icon: "message" | "heart" | "live" | "explore";
   label: string;
-  value: string;
+  value: number;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="text-left transition active:scale-[0.98]"
+      className="block w-full rounded-2xl border border-gold-300/20 bg-white/[0.04] p-4 text-left backdrop-blur transition active:scale-[0.99]"
     >
-      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur">
-        <SmallCardIcon name={icon} />
-        <p className="mt-3 text-sm font-semibold text-white">{label}</p>
-        <p className="mt-1 text-[11px] text-white/55">{value}</p>
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-semibold uppercase tracking-[0.16em] text-gold-200">
+          {label}
+        </span>
+        <span className="font-extrabold text-gold-100">{value}%</span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div
+          className="h-full bg-gold-gradient transition-all duration-500"
+          style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+        />
       </div>
     </button>
   );
 }
 
-function SmallCardIcon({ name }: { name: "message" | "heart" | "live" | "explore" }) {
-  const common = {
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.7,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    className: "h-5 w-5 text-gold-300",
-  };
-  if (name === "message") {
-    return (
-      <svg {...common}>
-        <path d="M21 12a8 8 0 0 1-12 7l-5 1 1-5a8 8 0 1 1 16-3Z" />
-      </svg>
-    );
-  }
-  if (name === "heart") {
-    return (
-      <svg {...common}>
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z" />
-      </svg>
-    );
-  }
-  if (name === "live") {
-    return (
-      <svg {...common}>
-        <rect x="3" y="6" width="14" height="12" rx="2" />
-        <path d="m17 9 4-2v10l-4-2" />
-      </svg>
-    );
-  }
+function ChipAction({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
   return (
-    <svg {...common}>
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-full border border-gold-300/30 bg-white/[0.04] px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75 transition active:scale-95 hover:border-gold-300/60 hover:bg-gold-300/10 hover:text-gold-100"
+    >
+      {label}
+    </button>
   );
 }
 
