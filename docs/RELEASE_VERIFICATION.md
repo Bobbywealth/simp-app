@@ -5,7 +5,7 @@ Branch: `release/simp-app-rc-2026-08-18`
 Verified commit: `4c0c855` ("Allow graceful prod boot with degraded features")
 Backend service ID: `srv-d9pni7u417fc73bvgrv0`
 Frontend service ID: `srv-d9pln6u7bikc739jmt5g`
-Database service ID: `dpg-d9pnemr9ik0c73c9hg5g-a`
+Database service ID: `dpg-daai2epf2nfc73adhdpg-a` (simp-db-new; old `simp-db` dpg-d9pnemr9ik0c73c9hg5g-a was replaced on 2026-08-31 to shrink from 15 GB → 1 GB disk allocation, ~$4.20/mo savings)
 
 ## What was verified end-to-end
 

@@ -10,7 +10,13 @@
 set -euo pipefail
 
 BASE_URL="${SMOKE_BASE_URL:-https://simp-backend-b8nz.onrender.com}"
-DB_URL="${SMOKE_DATABASE_URL:-postgresql://simp_user:UgMMICMFI9Ta6WV6F2MKjUCowggzxr31@dpg-d9pnemr9ik0c73c9hg5g-a:5432/simp_app_33gb}"
+DB_URL="${SMOKE_DATABASE_URL:-}"
+if [ -z "$DB_URL" ]; then
+  echo "  \033[31mFAIL\033[0m — SMOKE_DATABASE_URL is not set."
+  echo "  Get the current connection string from the Render dashboard for simp-db-new"
+  echo "  (Dashboard → simp-db-new → Info → Internal Database URL)."
+  exit 1
+fi
 RUN_ID="$(date +%s)_$$"
 ALICE_EMAIL="alice+smoke+${RUN_ID}@simp.test"
 BOB_EMAIL="bob+smoke+${RUN_ID}@simp.test"

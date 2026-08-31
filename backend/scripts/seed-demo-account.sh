@@ -7,7 +7,11 @@
 #
 # SIMP is fully free — there is no entitlement tier to seed.
 #
-# Usage: bash scripts/seed-demo-account.sh
+# Usage: SMOKE_DATABASE_URL='postgresql://user:pass@host/db' bash scripts/seed-demo-account.sh
+#
+# SMOKE_DATABASE_URL must be set (no hardcoded fallback — passwords
+# shouldn't live in source control). Get the current URL from the Render
+# dashboard for simp-db-new.
 
 set -euo pipefail
 
@@ -77,7 +81,14 @@ curl -sS -X POST "$BASE_URL/auth/verify-email" \
 ok "verify attempted (may have failed if token-based; we'll force-set via DB below)"
 
 step "Force-verify via DB write"
-DATABASE_URL="${SMOKE_DATABASE_URL:-postgresql://simp_user:UgMMICMFI9Ta6WV6F2MKjUCowggzxr31@dpg-d9pnemr9ik0c73c9hg5g-a:5432/simp_app_33gb}"
+if [ -z "${SMOKE_DATABASE_URL:-}" ]; then
+  echo "  \033[31mFAIL\033[0m — SMOKE_DATABASE_URL is not set."
+  echo "  Get the current connection string from the Render dashboard for simp-db-new"
+  echo "  (Dashboard → simp-db-new → Info → Internal Database URL)."
+  echo "  Format: postgresql://simp_user:<password>@dpg-daai2epf2nfc73adhdpg-a/simp_app_33gb_pr9i"
+  exit 1
+fi
+DATABASE_URL="$SMOKE_DATABASE_URL"
 PGPASSWORD=$(echo "$DATABASE_URL" | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|') \
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL' >/dev/null || true
 UPDATE "User"

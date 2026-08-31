@@ -6,10 +6,17 @@
 
 import { Client } from 'pg';
 
-const DATABASE_URL =
-  process.env.SMOKE_DATABASE_URL ??
-  process.env.DATABASE_URL ??
-  'postgresql://simp_user:UgMMICMFI9Ta6WV6F2MKjUCowggzxr31@dpg-d9pnemr9ik0c73c9hg5g-a:5432/simp_app_33gb';
+const SMOKE_DATABASE_URL = process.env.SMOKE_DATABASE_URL ?? process.env.DATABASE_URL;
+
+if (!SMOKE_DATABASE_URL) {
+  throw new Error(
+    'SMOKE_DATABASE_URL (or DATABASE_URL) must be set. ' +
+    'Get the current connection string from the Render dashboard for simp-db-new ' +
+    '(Dashboard → simp-db-new → Info → Internal Database URL).'
+  );
+}
+
+const DATABASE_URL = SMOKE_DATABASE_URL;
 
 const DEMO_EMAIL = 'review@sim-p.app';
 
