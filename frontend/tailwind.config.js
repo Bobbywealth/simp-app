@@ -41,6 +41,9 @@ export default {
         'fade-in': 'fadeIn 0.55s ease-out both',
         'fade-up': 'fadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both',
         'line-drift': 'lineDrift 2.8s ease-in-out infinite',
+        'pulse-soft': 'pulseSoft 2.4s ease-in-out infinite',
+        'sweep': 'sweep 3.4s ease-in-out infinite',
+        'ring-rotate': 'ringRotate 9s linear infinite',
       },
       keyframes: {
         fadeIn: {
@@ -54,6 +57,18 @@ export default {
         lineDrift: {
           '0%, 100%': { transform: 'scaleX(0.45)', opacity: '0.35' },
           '50%': { transform: 'scaleX(1)', opacity: '0.9' },
+        },
+        pulseSoft: {
+          '0%, 100%': { transform: 'scale(1)', opacity: '0.55' },
+          '50%': { transform: 'scale(1.45)', opacity: '0' },
+        },
+        sweep: {
+          '0%': { transform: 'translateX(-110%)' },
+          '100%': { transform: 'translateX(110%)' },
+        },
+        ringRotate: {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
         },
       },
     },

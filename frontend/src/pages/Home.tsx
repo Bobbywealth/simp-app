@@ -242,7 +242,7 @@ export default function Home() {
         <section className="mt-8">
           <div className="flex items-end justify-between">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-200">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-200">
                 Your lineup
               </p>
               <h2 className="display-heading mt-1 text-2xl font-light">
@@ -252,14 +252,18 @@ export default function Home() {
             <button
               type="button"
               onClick={() => navigate("/explore")}
-              className="text-xs text-gold-200"
+              className="group relative inline-flex items-center gap-1 overflow-hidden rounded-full border border-gold-400/40 bg-gradient-to-r from-gold-400/15 via-gold-300/8 to-gold-400/15 px-4 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.2em] text-gold-100 transition duration-300 hover:border-gold-300/70 hover:text-gold-200"
             >
+              <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
               Find your tribe
+              <span className="text-gold-300 transition group-hover:translate-x-0.5">→</span>
             </button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <DashboardCard
               label="Chats"
+              count={counts.messages}
+              icon="chat"
               value={
                 counts.messages
                   ? `${counts.messages} waiting on you`
@@ -269,6 +273,8 @@ export default function Home() {
             />
             <DashboardCard
               label="Matches"
+              count={counts.matches}
+              icon="spark"
               value={
                 counts.matches
                   ? `${counts.matches} into you`
@@ -278,11 +284,13 @@ export default function Home() {
             />
             <DashboardCard
               label="Live"
+              icon="wave"
               value="Hop in someone's stream"
               onClick={() => navigate("/live")}
             />
             <DashboardCard
               label="Explore"
+              icon="orbit"
               value="Find your people"
               onClick={() => navigate("/explore")}
             />
@@ -296,48 +304,124 @@ function DashboardCard({
   label,
   value,
   onClick,
+  count,
+  icon,
 }: {
   label: string;
   value: string;
   onClick: () => void;
+  count?: number;
+  icon: "chat" | "spark" | "wave" | "orbit";
 }) {
   return (
     <motion.button
       type="button"
-      whileTap={{ scale: 0.98 }}
+      whileTap={{ scale: 0.97 }}
+      whileHover={{ y: -2 }}
       onClick={onClick}
-      className="group relative min-h-32 overflow-hidden rounded-2xl border border-gold-400/35 bg-gradient-to-br from-ink-900/85 via-black/35 to-ink-900/70 p-4 text-left backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_18px_40px_-26px_rgba(0,0,0,0.9)] transition duration-300 hover:border-gold-300/65 hover:from-ink-900/95 hover:to-ink-900/75"
+      className="group relative min-h-32 overflow-hidden rounded-2xl border border-gold-400/35 bg-gradient-to-br from-ink-900/90 via-black/30 to-ink-900/80 p-4 text-left backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-1px_0_rgba(0,0,0,0.6),0_18px_40px_-26px_rgba(0,0,0,0.9)] transition duration-300 hover:border-gold-300/70"
     >
       <span
-        className="pointer-events-none absolute inset-y-3 left-0 w-[2px] bg-gradient-to-b from-transparent via-gold-300/80 to-transparent"
         aria-hidden
+        className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        style={{
+          background:
+            "linear-gradient(120deg, transparent 35%, rgba(255,221,135,0.18) 50%, transparent 65%)",
+        }}
       />
       <span
-        className="pointer-events-none absolute -right-12 -top-12 h-28 w-28 rounded-full bg-gold-300/10 blur-2xl transition group-hover:bg-gold-300/20"
         aria-hidden
+        className="pointer-events-none absolute -right-16 -top-16 h-36 w-36 rounded-full bg-gold-300/15 blur-3xl transition duration-500 group-hover:bg-gold-300/35"
       />
-      <p className="bg-gold-gradient bg-clip-text text-[9px] font-extrabold uppercase tracking-[0.26em] text-transparent">
-        {label}
-      </p>
-      <p className="mt-6 text-sm font-medium leading-relaxed text-white/85">
-        {value}
-      </p>
-      <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-200 transition group-hover:gap-2">
-        Open
-        <svg
-          viewBox="0 0 24 24"
-          className="h-3 w-3"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-        >
-          <path
-            d="M5 12h14M13 5l7 7-7 7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-3 left-0 w-[2px] rounded-full bg-gradient-to-b from-transparent via-gold-300/80 to-transparent transition group-hover:via-gold-200"
+      />
+      <div className="relative flex items-center justify-between">
+        <p className="bg-gold-gradient bg-clip-text text-[9px] font-extrabold uppercase tracking-[0.28em] text-transparent">
+          {label}
+        </p>
+        {typeof count === "number" && count > 0 && (
+          <span className="relative flex h-6 min-w-6 items-center justify-center rounded-full bg-gold-gradient px-2 text-[11px] font-black text-ink-950 shadow-[0_0_0_3px_rgba(214,172,63,0.18)]">
+            <span className="absolute inset-0 animate-[pulse_2.4s_ease-in-out_infinite] rounded-full bg-gold-300/40" />
+            <span className="relative">{count}</span>
+          </span>
+        )}
+      </div>
+      <div className="relative mt-3 flex items-center gap-2">
+        <DashboardIcon name={icon} />
+        <p className="text-sm font-semibold leading-relaxed text-white/90">
+          {value}
+        </p>
+      </div>
+      <div className="relative mt-4 flex items-center justify-between">
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-200 transition group-hover:gap-2">
+          Open
+          <svg
+            viewBox="0 0 24 24"
+            className="h-3 w-3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <path
+              d="M5 12h14M13 5l7 7-7 7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <span className="text-[9px] uppercase tracking-[0.22em] text-white/35">
+          Tap
+        </span>
+      </div>
     </motion.button>
+  );
+}
+
+function DashboardIcon({ name }: { name: "chat" | "spark" | "wave" | "orbit" }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    className: "h-4 w-4 text-gold-200 transition group-hover:text-gold-100",
+  };
+  if (name === "chat") {
+    return (
+      <svg {...common}>
+        <path d="M21 12a8 8 0 0 1-12 7l-5 1 1-5a8 8 0 1 1 16-3Z" />
+      </svg>
+    );
+  }
+  if (name === "spark") {
+    return (
+      <svg {...common}>
+        <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.5 5.5l2.8 2.8M15.7 15.7l2.8 2.8M5.5 18.5l2.8-2.8M15.7 8.3l2.8-2.8" />
+      </svg>
+    );
+  }
+  if (name === "wave") {
+    return (
+      <svg {...common}>
+        <path d="M3 12c2 0 2-3 4-3s2 6 4 6 2-9 4-9 2 6 4 6 2-3 2-3" />
+        <circle cx="20" cy="9" r="1.3" fill="currentColor" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <circle cx="12" cy="12" r="3" />
+      <ellipse cx="12" cy="12" rx="9" ry="3.5" />
+      <ellipse
+        cx="12"
+        cy="12"
+        rx="3.5"
+        ry="9"
+        className="opacity-70"
+      />
+    </svg>
   );
 }
