@@ -162,35 +162,47 @@ export default function Home() {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.65 }}
-          className="rounded-[2rem] border border-white/15 bg-black/50 p-5 shadow-2xl backdrop-blur-xl"
+          className="relative overflow-hidden rounded-[2rem] border border-gold-400/35 bg-gradient-to-br from-ink-900/85 via-black/55 to-ink-900/75 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_22px_60px_-26px_rgba(0,0,0,0.95)] backdrop-blur-xl"
         >
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-200">
-            Your concierge
-          </p>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gold-300/15 blur-3xl"
+          />
+          <div className="relative flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-gold-200">
+              Tonight's concierge pick
+            </p>
+            <span className="rounded-full border border-gold-300/40 bg-gold-300/10 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.18em] text-gold-100">
+              Verified
+            </span>
+          </div>
           <h2 className="display-heading mt-3 max-w-xs text-4xl font-light leading-none">
-            Find your next vibe.
+            Meet with intention.
           </h2>
-          <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/70">
-            Real people, real plans, zero ick. Pull up a fresh cut of who's
-            actually on tonight.
+          <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/65">
+            A fresh cut of people who share your pace, interests, and
+            intentions.
           </p>
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            <StatChip label="Matches" value={counts.matches} />
+            <StatChip label="Messages" value={counts.messages} />
+            <StatChip label="Alerts" value={counts.notifications} />
+          </div>
           <button
             type="button"
             onClick={() => navigate("/discover")}
-            className="btn-gold mt-6 w-full"
+            className="group relative mt-5 w-full overflow-hidden rounded-2xl bg-gold-gradient py-4 text-base font-semibold text-ink-950 shadow-[0_18px_40px_-18px_rgba(214,172,63,0.6)] transition active:scale-[0.985]"
           >
-            See who's out
+            <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+            <span className="relative">Start discovering</span>
+            <span className="relative ml-2 transition group-hover:translate-x-1">→</span>
           </button>
-          <div className="mt-4 flex items-center gap-2 text-[10px] text-white/50">
-            <span className="h-1.5 w-1.5 rounded-full bg-gold-300" /> Verified
-            humans, no bots, no fakes
-          </div>
         </motion.section>
         {showNotificationBanner && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-4 rounded-2xl border border-gold-400/20 bg-gold-400/[0.08] p-4"
+            className="mt-4 rounded-2xl border border-gold-400/25 bg-gold-400/[0.08] p-4"
           >
             <p className="text-sm text-white/85">
               Know when a conversation is waiting for you.
@@ -243,10 +255,10 @@ export default function Home() {
           <div className="flex items-end justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-200">
-                Your lineup
+                Quick moves
               </p>
               <h2 className="display-heading mt-1 text-2xl font-light">
-                The vibe rn
+                Jump back in
               </h2>
             </div>
             <button
@@ -300,6 +312,34 @@ export default function Home() {
     </div>
   );
 }
+function StatChip({ label, value }: { label: string; value: number }) {
+  const hasValue = value > 0;
+  return (
+    <div
+      className={`group relative overflow-hidden rounded-2xl border px-3 py-2.5 text-center backdrop-blur-sm transition duration-300 ${
+        hasValue
+          ? "border-gold-400/40 bg-gradient-to-br from-ink-900/80 via-black/40 to-ink-900/70"
+          : "border-white/[0.07] bg-white/[0.04]"
+      }`}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-6 -top-6 h-12 w-12 rounded-full bg-gold-300/10 blur-2xl transition group-hover:bg-gold-300/25"
+      />
+      <p
+        className={`relative text-2xl font-extrabold leading-none ${
+          hasValue ? "text-gold-200" : "text-white/55"
+        }`}
+      >
+        {value}
+      </p>
+      <p className="relative mt-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/55">
+        {label}
+      </p>
+    </div>
+  );
+}
+
 function DashboardCard({
   label,
   value,
