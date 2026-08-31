@@ -108,7 +108,7 @@ export default function Home() {
         </button>
         <div className="mt-5 min-w-0 flex-1">
           <p className="text-[9px] font-semibold uppercase tracking-[0.24em] text-gold-200">
-            Tonight&apos;s edit
+            Heyy 👋
           </p>
           <h1 className="truncate text-base font-medium">
             {user?.profile?.displayName ?? "SIMP member"}
@@ -165,25 +165,25 @@ export default function Home() {
           className="rounded-[2rem] border border-white/15 bg-black/50 p-5 shadow-2xl backdrop-blur-xl"
         >
           <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-200">
-            Your concierge has a thought
+            Your concierge
           </p>
           <h2 className="display-heading mt-3 max-w-xs text-4xl font-light leading-none">
-            Make room for a good story.
+            Find your next vibe.
           </h2>
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/70">
-            A fresh edit of people who share your pace, interests, and
-            intentions.
+            Real people, real plans, zero ick. Pull up a fresh cut of who's
+            actually on tonight.
           </p>
           <button
             type="button"
             onClick={() => navigate("/discover")}
             className="btn-gold mt-6 w-full"
           >
-            Open tonight&apos;s edit
+            See who's out
           </button>
           <div className="mt-4 flex items-center gap-2 text-[10px] text-white/50">
-            <span className="h-1.5 w-1.5 rounded-full bg-gold-300" /> Quietly
-            verified people, on your terms
+            <span className="h-1.5 w-1.5 rounded-full bg-gold-300" /> Verified
+            humans, no bots, no fakes
           </div>
         </motion.section>
         {showNotificationBanner && (
@@ -243,10 +243,10 @@ export default function Home() {
           <div className="flex items-end justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-200">
-                At a glance
+                Your lineup
               </p>
               <h2 className="display-heading mt-1 text-2xl font-light">
-                Your room
+                The vibe rn
               </h2>
             </div>
             <button
@@ -254,16 +254,16 @@ export default function Home() {
               onClick={() => navigate("/explore")}
               className="text-xs text-gold-200"
             >
-              Explore interests
+              Find your tribe
             </button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <DashboardCard
-              label="Messages"
+              label="Chats"
               value={
                 counts.messages
-                  ? `${counts.messages} unread`
-                  : "Start a conversation"
+                  ? `${counts.messages} waiting on you`
+                  : "Say something first"
               }
               onClick={() => navigate("/messages")}
             />
@@ -271,19 +271,19 @@ export default function Home() {
               label="Matches"
               value={
                 counts.matches
-                  ? `${counts.matches} connections`
-                  : "Your connections"
+                  ? `${counts.matches} into you`
+                  : "Your type's here"
               }
               onClick={() => navigate("/matches")}
             />
             <DashboardCard
               label="Live"
-              value="See who is live"
+              value="Hop in someone's stream"
               onClick={() => navigate("/live")}
             />
             <DashboardCard
               label="Explore"
-              value="Browse by interest"
+              value="Find your people"
               onClick={() => navigate("/explore")}
             />
           </div>
