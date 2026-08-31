@@ -160,7 +160,7 @@ export default function Home() {
         >
           <div className="aspect-[16/9] w-full">
             <img
-              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1200&h=675&fit=crop&crop=faces&auto=format&q=80"
+              src="/editorial/profiles/women-03.jpg"
               alt=""
               className="h-full w-full object-cover"
             />
