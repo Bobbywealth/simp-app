@@ -83,13 +83,8 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-black pb-28 text-white">
-      <img
-        src="/editorial/home.jpg"
-        alt=""
-        className="absolute inset-x-0 top-0 h-[38rem] w-full object-cover opacity-65"
-      />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[42rem] bg-gradient-to-b from-black/15 via-black/20 to-black" />
-      <header className="relative z-10 mx-auto flex w-full max-w-md items-center gap-3 px-5 pb-5 pt-safe">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-gold-500/[0.06] via-black to-black" />
+      <header className="relative z-10 mx-auto flex w-full max-w-md items-center gap-3 px-5 pb-4 pt-safe">
         <button
           type="button"
           onClick={() => navigate("/profile")}
@@ -157,7 +152,7 @@ export default function Home() {
         </button>
       </header>
       {showSafety && <SafetyMenu onClose={() => setShowSafety(false)} />}
-      <main className="relative z-10 mx-auto w-full max-w-md px-5 pt-52">
+      <main className="relative z-10 mx-auto w-full max-w-md px-5 pt-4">
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
