@@ -113,52 +113,34 @@ export default function MatchDetail() {
   }
 
   const u = match.otherUser;
-  const primaryPhoto = u.photos[0]?.url;
+  const primaryPhoto = u.photos[0]?.url ?? '/editorial/profiles/women-01.jpg';
   const remainingPhotos = u.photos.slice(1);
 
   return (
     <Scaffold onBack={() => navigate('/matches')}>
       <div className="flex-1 overflow-y-auto pb-24">
         {primaryPhoto && (
-          <div className="relative">
-            <img src={primaryPhoto} alt={u.displayName} className="aspect-[3/4] w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-transparent to-transparent" />
+          <div className="relative mx-5 mt-3 overflow-hidden rounded-[2rem] border border-white/10 sm:mx-6">
+            <img src={primaryPhoto} alt={u.displayName} className="aspect-[4/5] w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/10 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-6">
-              <h1 className="display-heading flex items-baseline gap-2 text-3xl font-light text-white">
-                {u.displayName}
-                <span className="text-2xl text-white/70">{u.age}</span>
-                {u.isVerified && (
-                  <span className="ml-1 rounded-full border border-gold-400/40 bg-gold-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold-200">
-                    Verified
-                  </span>
-                )}
-              </h1>
-              <p className="mt-1 text-sm text-white/70">
-                {u.occupation}
-                {u.occupation && u.city ? ' · ' : ''}
-                {u.city}
-              </p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gold-300">A mutual invitation</p>
+              <h1 className="display-heading mt-2 flex items-baseline gap-2 text-4xl font-light text-white">{u.displayName}<span className="text-2xl text-white/70">{u.age}</span></h1>
+              <p className="mt-1 text-sm text-white/70">{u.occupation}{u.occupation && u.city ? ' · ' : ''}{u.city}</p>
             </div>
           </div>
         )}
 
-        <div className="px-6 pt-2">
-          <div className="rounded-xl border border-gold-400/20 bg-gold-400/5 p-3 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
-              Photos Unlocked
-            </p>
-            <p className="mt-1 text-[10px] text-white/50">You matched — full access granted.</p>
-          </div>
-        </div>
+        <div className="px-6 pt-5"><div className="flex items-center justify-between border-y border-white/10 py-3 text-[10px] uppercase tracking-[0.17em] text-white/45"><span>{u.isVerified ? '✓ Verified profile' : 'Profile connection'}</span><span>Photos unlocked</span></div></div>
 
         {(match.myNote || match.theirNote) && (
-          <section className="mt-6 px-6">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
+          <section className="mt-8 px-6">
+            <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gold-300">
               The Convince Notes
             </h2>
             <div className="mt-3 space-y-3">
               {match.theirNote && (
-                <div className="rounded-xl border border-gold-400/20 bg-ink-900/60 p-4">
+                <div className="border-l border-gold-400/45 pl-4 py-1">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-gold-300">
                     {u.displayName}&apos;s note to you
                   </p>
@@ -166,7 +148,7 @@ export default function MatchDetail() {
                 </div>
               )}
               {match.myNote && (
-                <div className="rounded-xl border border-white/10 bg-ink-900/60 p-4">
+                <div className="border-l border-white/25 pl-4 py-1">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">
                     Your note to {u.displayName}
                   </p>
@@ -178,18 +160,18 @@ export default function MatchDetail() {
         )}
 
         {u.bio && (
-          <section className="mt-6 px-6">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">About</h2>
+          <section className="mt-8 px-6">
+            <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gold-300">About</h2>
             <p className="mt-2 text-sm text-white/90">{u.bio}</p>
           </section>
         )}
 
         {u.prompts.length > 0 && (
-          <section className="mt-6 px-6">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">Prompts</h2>
+          <section className="mt-8 px-6">
+            <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gold-300">Prompts</h2>
             <div className="mt-3 space-y-3">
               {u.prompts.map((p) => (
-                <div key={p.id} className="rounded-xl border border-gold-400/20 bg-ink-900/60 p-4">
+                <div key={p.id} className="border-l border-gold-400/45 pl-4 py-1">
                   <p className="text-xs font-medium text-gold-300">{p.question}</p>
                   <p className="mt-1 text-sm text-white/90">{p.answer}</p>
                 </div>
@@ -199,8 +181,8 @@ export default function MatchDetail() {
         )}
 
         {remainingPhotos.length > 0 && (
-          <section className="mt-6 px-6">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">More photos</h2>
+          <section className="mt-8 px-6">
+            <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gold-300">More photos</h2>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {remainingPhotos.map((p) => (
                 <motion.img
@@ -217,8 +199,8 @@ export default function MatchDetail() {
         )}
 
         {u.interests.length > 0 && (
-          <section className="mt-6 px-6">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">Interests</h2>
+          <section className="mt-8 px-6">
+            <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gold-300">Interests</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               {u.interests.map((i) => (
                 <span
@@ -234,7 +216,7 @@ export default function MatchDetail() {
 
         <section className="mt-8 px-6 space-y-3">
           <button
-            className="btn-gold w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]"
+            className="btn-gold w-full py-4 text-sm font-semibold uppercase tracking-[0.18em]"
             onClick={() => void handleMessage()}
           >
             Send a message
@@ -298,7 +280,7 @@ export default function MatchDetail() {
             className="w-full max-w-md rounded-t-3xl border-t border-gold-400/30 bg-ink-950 p-6 pb-safe"
           >
             <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-white/20" />
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold-300">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gold-300">
               Report or block {u.displayName}
             </p>
             <p className="mt-2 text-sm text-white/70">

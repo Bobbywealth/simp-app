@@ -2,64 +2,21 @@ import type { CSSProperties } from 'react';
 
 interface TagProps {
   label: string;
-  /** Selected / active variant (used in edit mode). */
   active?: boolean;
-  /** Dismissible variant. */
   onRemove?: () => void;
-  /** Custom click handler. */
   onClick?: () => void;
-  /** Tailwind size preset. */
   size?: 'sm' | 'md';
   className?: string;
   style?: CSSProperties;
 }
 
-export function Tag({
-  label,
-  active,
-  onRemove,
-  onClick,
-  size = 'md',
-  className = '',
-  style,
-}: TagProps) {
-  const sizing =
-    size === 'sm'
-      ? 'px-2.5 py-0.5 text-[10px]'
-      : 'px-3 py-1 text-xs';
-  const tone = active
-    ? 'border-gold-400/55 bg-gold-400/15 text-gold-100'
-    : 'border-white/12 bg-white/[0.045] text-white/75';
+export function Tag({ label, active, onRemove, onClick, size = 'md', className = '', style }: TagProps) {
+  const sizing = size === 'sm' ? 'px-2.5 py-1 text-[10px]' : 'px-3.5 py-1.5 text-xs';
+  const tone = active ? 'border-gold-300/45 bg-gold-200/[0.11] text-gold-50' : 'border-white/[0.1] bg-black/20 text-white/72';
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      onKeyDown={(event) => {
-        if (event.key === 'Backspace' || event.key === 'Delete') {
-          if (onRemove) {
-            event.preventDefault();
-            onRemove();
-          }
-        }
-      }}
-      className={`inline-flex items-center gap-1.5 rounded-full border ${sizing} font-medium tracking-wide transition hover:border-gold-400/45 hover:text-gold-100 ${tone} ${className}`}
-      style={style}
-    >
+    <button type="button" onClick={onClick} onKeyDown={(event) => { if ((event.key === 'Backspace' || event.key === 'Delete') && onRemove) { event.preventDefault(); onRemove(); } }} className={`inline-flex items-center gap-1.5 rounded-full border ${sizing} font-medium tracking-wide transition duration-300 hover:border-gold-300/45 hover:text-gold-50 ${tone} ${className}`} style={style}>
       <span>{label}</span>
-      {onRemove && (
-        <span
-          role="button"
-          tabIndex={-1}
-          onClick={(event) => {
-            event.stopPropagation();
-            onRemove();
-          }}
-          className="-mr-1 ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[10px] hover:bg-white/20"
-          aria-label={`Remove ${label}`}
-        >
-          ×
-        </span>
-      )}
+      {onRemove && <span onClick={(event) => { event.stopPropagation(); onRemove(); }} className="-mr-1 ml-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[13px] leading-none text-current/70 hover:bg-white/10 hover:text-white" aria-label={`Remove ${label}`} role="button" tabIndex={-1}>×</span>}
     </button>
   );
 }

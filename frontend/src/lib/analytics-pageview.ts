@@ -14,7 +14,7 @@ import { track } from '../api/analytics';
 export function usePageViewTracker(): void {
   const location = useLocation();
   useEffect(() => {
-    let raf = requestAnimationFrame(() => {
+    const raf = requestAnimationFrame(() => {
       track('page_viewed', {
         path: location.pathname,
         // No query string — auth tokens live in URL params (reset/verify),

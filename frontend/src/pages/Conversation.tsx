@@ -301,20 +301,20 @@ export default function Conversation() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-ink-950 text-white">
-      <header className="relative z-20 border-b border-white/[0.08] bg-black/70 px-3 pt-safe backdrop-blur-xl">
+      <header className="relative z-20 border-b border-white/[0.08] bg-ink-950/90 px-3 pt-safe backdrop-blur-xl">
         <div className="mx-auto flex h-16 w-full max-w-md items-center gap-3">
           <button type="button" onClick={() => navigate('/messages')} className="flex h-11 w-11 items-center justify-center rounded-full text-white/70 hover:bg-white/5" aria-label="Back to messages">
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m15 18-6-6 6-6" /></svg>
           </button>
           <button type="button" onClick={() => navigate(`/matches/${conversation.matchId}`)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-gold-400/30 bg-ink-800">
+            <div className="h-12 w-10 shrink-0 overflow-hidden rounded-[.9rem] border border-gold-400/30 bg-ink-800">
               {conversation.otherUser.thumbnailUrl || conversation.otherUser.photoUrl ? (
                 <img src={conversation.otherUser.thumbnailUrl ?? conversation.otherUser.photoUrl ?? ''} alt={conversation.otherUser.displayName} className="h-full w-full object-cover" />
               ) : null}
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold">{conversation.otherUser.displayName}</h1>
-              <p className={`text-[10px] ${online ? 'text-green-300' : 'text-white/35'}`}>{typing ? 'Typing…' : online ? 'Online' : 'SIMP connection'}</p>
+              <h1 className="truncate font-serif text-lg">{conversation.otherUser.displayName}</h1>
+              <p className={`text-[10px] ${online ? 'text-green-300' : 'text-white/35'}`}>{typing ? 'Typing…' : online ? 'Here now' : 'Your connection'}</p>
             </div>
           </button>
           <button type="button" onClick={() => setShowActions(true)} className="flex h-11 w-11 items-center justify-center rounded-full text-white/65 hover:bg-white/5" aria-label="Conversation actions">
@@ -332,23 +332,23 @@ export default function Conversation() {
         }}
         className="flex-1 overflow-y-auto overscroll-contain"
       >
-        <div className="mx-auto flex min-h-full w-full max-w-md flex-col justify-end px-4 py-5">
+        <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-end px-5 py-8 sm:px-6">
           {hasMore && (
             <button type="button" onClick={() => void loadOlder()} disabled={loadingOlder} className="mx-auto mb-5 text-[10px] uppercase tracking-[0.2em] text-gold-300 disabled:opacity-40">
               {loadingOlder ? 'Loading…' : 'Load earlier messages'}
             </button>
           )}
-          <div className="mb-6 mx-auto max-w-sm rounded-2xl border border-gold-400/25 bg-gradient-to-br from-gold-400/12 via-white/[0.04] to-transparent p-4 text-center shadow-soft">
+          <div className="mb-8 mx-auto max-w-md border-y border-gold-400/25 py-5 text-center">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-300">You matched</p>
             <h2 className="display-heading mt-1 text-2xl font-light text-white">
               Say something only {conversation.otherUser.displayName.split(' ')[0]} would notice.
             </h2>
             <p className="mt-2 text-[11px] leading-relaxed text-white/55">
-              Lead with a shared interest or a real question. Avoid generic openers — first messages with a hook are replied to twice as often.
+              A shared yes brought you here. Notice something specific, ask a real question, and leave room for a reply.
             </p>
           </div>
           <p className="mb-6 text-center text-[10px] leading-relaxed text-white/30">
-            Keep it respectful and never send money or sensitive information.
+            Keep it kind. Never send money or sensitive information.
           </p>
           <div className="space-y-2">
             {messages.map((message, index) => {
@@ -358,7 +358,7 @@ export default function Conversation() {
                 <div key={message.id}>
                   {showDate && <p className="my-4 text-center text-[10px] uppercase tracking-[0.16em] text-white/25">{formatDate(message.createdAt)}</p>}
                   <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[82%] rounded-2xl px-4 py-2.5 ${mine ? 'rounded-br-md bg-gradient-to-br from-gold-300 to-gold-500 text-black' : 'rounded-bl-md border border-white/[0.08] bg-white/[0.07] text-white'}`}>
+                    <div className={`max-w-[82%] rounded-[1.25rem] px-4 py-3 ${mine ? 'rounded-br-sm bg-gradient-to-br from-gold-300 to-gold-500 text-black' : 'rounded-bl-sm bg-white/[0.08] text-white'}`}>
                       <p className={`whitespace-pre-wrap break-words text-[15px] leading-snug ${message.deletedAt ? 'italic opacity-55' : ''}`}>
                         {message.deletedAt ? 'Message removed' : message.body}
                       </p>
@@ -386,7 +386,7 @@ export default function Conversation() {
           <div role="status" className="rounded-xl border border-green-400/25 bg-green-500/10 px-3 py-2 text-xs text-green-100">{actionStatus}</div>
         </div>
       )}
-      <form onSubmit={handleSend} className="border-t border-white/[0.08] bg-black/80 px-3 pb-safe backdrop-blur-xl">
+      <form onSubmit={handleSend} className="border-t border-white/[0.08] bg-ink-950/95 px-3 pb-safe backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-md items-end gap-2 py-2">
           <textarea
             value={composer}
@@ -401,7 +401,7 @@ export default function Conversation() {
             maxLength={2_000}
             placeholder="Write a message…"
             aria-label="Message"
-            className="max-h-32 min-h-11 flex-1 resize-none rounded-3xl border border-white/10 bg-white/[0.06] px-4 py-3 text-[15px] text-white placeholder:text-white/30 focus:border-gold-400/50 focus:outline-none"
+            className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-[15px] text-white placeholder:text-white/30 focus:border-gold-400/50 focus:outline-none"
           />
           <button type="submit" disabled={!composer.trim() || sending} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gold-400 text-black transition active:scale-95 disabled:opacity-30" aria-label="Send message">
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2"><path d="m5 12 14-7-5 14-2-5-7-2Z"/></svg>

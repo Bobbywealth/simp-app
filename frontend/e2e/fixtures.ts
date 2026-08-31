@@ -13,12 +13,12 @@ const DEMO_USER = {
 };
 
 export const test = base.extend<{
-  authenticatedPage: Page;
+  authedPage: Page;
   demoUser: TestUser;
 }>({
   demoUser: DEMO_USER,
 
-  authenticatedPage: async ({ page, demoUser }, use) => {
+  authedPage: async ({ page, demoUser }, use) => { // eslint-disable-line react-hooks/rules-of-hooks
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
     const emailInput = page.locator('input[name="email"], input[type="email"]').first();

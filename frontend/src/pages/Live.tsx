@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { endStream, listLiveStreams, reportStream, startStream } from '../api/live';
 import type { LiveStream } from '../api/live';
 import { useAuth } from '../store/auth';
-import { SimpLogo } from '../components/SimpLogo';
 import { LegalGateModal } from '../components/LegalGateModal';
 import { ShareButton } from '../components/ShareButton';
 import { fetchLivekitConfig } from '../api/livekit';
@@ -181,7 +180,9 @@ export default function Live() {
             </div>
           </div>
         ) : (
-          <div className="relative overflow-hidden rounded-2xl border border-gold-400/30 bg-gradient-to-br from-ink-900 via-ink-800 to-ink-900 p-6 shadow-soft">
+          <div className="relative isolate overflow-hidden rounded-[2rem] border border-gold-400/25 bg-ink-900 p-6 shadow-soft">
+            <img src="/editorial/live.jpg" alt="" className="absolute inset-0 -z-10 h-full w-full object-cover opacity-35" />
+            <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black via-black/70 to-black/25" />
             <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gold-400/15 blur-3xl" />
             <div className="relative flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full border border-gold-400/40 bg-ink-950">
@@ -220,23 +221,15 @@ export default function Live() {
           </div>
         )}
 
-        <div className="mt-6 grid grid-cols-3 gap-3">
-          <div className="rounded-xl border border-white/10 bg-ink-900/60 p-3 text-center">
-            <div className="text-lg">💬</div>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/70">Real connections</p>
-            <p className="mt-0.5 text-[9px] text-white/40">Meet people authentically</p>
+        {streams.length === 0 && !loading && (
+          <div className="mt-5 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 backdrop-blur-xl">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-300">Coming up</p>
+              <p className="mt-1 font-serif text-sm text-white/80">Tonight&apos;s room is waiting for its first story.</p>
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">Recent soon</span>
           </div>
-          <div className="rounded-xl border border-white/10 bg-ink-900/60 p-3 text-center">
-            <div className="text-lg">🎯</div>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/70">Grow your circle</p>
-            <p className="mt-0.5 text-[9px] text-white/40">Find like-minded people</p>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-ink-900/60 p-3 text-center">
-            <div className="text-lg">✨</div>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-white/70">Show your vibe</p>
-            <p className="mt-0.5 text-[9px] text-white/40">Share your energy live</p>
-          </div>
-        </div>
+        )}
 
         <div className="mt-8 flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-300">
@@ -264,13 +257,18 @@ export default function Live() {
         )}
 
         {!loading && !error && streams.length === 0 && (
-          <div className="mt-12 flex flex-col items-center gap-4 text-center">
-            <SimpLogo size={64} variant="emblem" />
-            <h2 className="display-heading text-2xl font-light">Nobody&apos;s live right now</h2>
-            <p className="max-w-xs text-sm text-white/60">
-              Be the first to go live. Show your energy, answer questions, and meet people in real time.
+          <section className="relative mt-6 isolate overflow-hidden rounded-[2rem] border border-white/10 bg-ink-900/70 px-6 py-12 text-center shadow-soft">
+            <img src="/editorial/live.jpg" alt="" className="absolute inset-0 -z-10 h-full w-full object-cover opacity-30" />
+            <div className="absolute inset-0 -z-10 bg-gradient-to-t from-ink-950 via-ink-950/70 to-black/25" />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-gold-300">The live edit</p>
+            <h2 className="display-heading mt-3 text-3xl font-light leading-tight">The next room<br />starts with you.</h2>
+            <p className="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-white/65">
+              Share a thought, host a late-night check-in, or make the first introduction of the evening.
             </p>
-          </div>
+            <button onClick={() => setShowGoLive(true)} className="mt-7 rounded-full border border-gold-400/55 bg-gold-400/15 px-6 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-gold-100 backdrop-blur transition hover:bg-gold-400/25">
+              Go live
+            </button>
+          </section>
         )}
 
         {!loading && streams.length > 0 && (

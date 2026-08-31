@@ -8,6 +8,8 @@ import { SimpLogo } from '../components/SimpLogo';
 import { ShareButton } from '../components/ShareButton';
 import { useAuth } from '../store/auth';
 
+const editorialProfiles = ['/editorial/profiles/women-02.jpg', '/editorial/profiles/men-03.jpg', '/editorial/profiles/women-05.jpg', '/editorial/profiles/men-07.jpg'];
+
 export default function Messages() {
   const navigate = useNavigate();
   const user = useAuth((state) => state.user);
@@ -58,12 +60,12 @@ export default function Messages() {
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
       <div className="pointer-events-none absolute inset-0 bg-ink-radial" />
-      <header className="relative z-10 mx-auto flex w-full max-w-md items-end justify-between gap-3 px-6 pb-4 pt-safe">
+      <header className="relative z-10 mx-auto flex w-full max-w-2xl items-end justify-between gap-3 px-6 pb-6 pt-safe">
         <div className="pt-5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-gold-300">Connections</p>
-          <h1 className="display-heading mt-1 text-4xl font-light leading-none">Messages</h1>
+          <h1 className="display-heading mt-1 text-4xl font-light leading-none">Correspondence</h1>
           <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/55">
-            Real people, no auto-replies. Lead with intention or reply when it counts.
+            A quieter place for the people you chose. Write back when you have something real to say.
           </p>
         </div>
         <button
@@ -78,7 +80,7 @@ export default function Messages() {
         </button>
       </header>
 
-      <main className="relative z-10 mx-auto w-full max-w-md flex-1 px-4 pb-28">
+      <main className="relative z-10 mx-auto w-full max-w-2xl flex-1 px-5 pb-28 sm:px-6">
         {loading && <InboxSkeleton />}
         {!loading && error && (
           <div className="mx-2 mt-16 rounded-2xl border border-red-400/20 bg-red-500/5 p-6 text-center">
@@ -102,7 +104,7 @@ export default function Messages() {
           </div>
         )}
         {!loading && !error && conversations.length > 0 && (
-          <ul className="divide-y divide-white/[0.07] overflow-hidden rounded-3xl border border-white/[0.08] bg-black/20 backdrop-blur-sm">
+          <ul className="divide-y divide-white/[0.08]">
             {conversations.map((conversation, index) => (
               <motion.li
                 key={conversation.id}
@@ -113,12 +115,12 @@ export default function Messages() {
                 <button
                   type="button"
                   onClick={() => navigate(`/messages/${conversation.id}`)}
-                  className="flex w-full items-center gap-3 px-4 py-4 text-left transition hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold-400"
+                  className="flex w-full items-center gap-5 px-1 py-5 text-left transition hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold-400"
                 >
-                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-gold-400/25 bg-ink-800">
+                  <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-[1.15rem] border border-white/15 bg-ink-800">
                     {conversation.otherUser.thumbnailUrl || conversation.otherUser.photoUrl ? (
                       <img
-                        src={conversation.otherUser.thumbnailUrl ?? conversation.otherUser.photoUrl ?? ''}
+                        src={conversation.otherUser.thumbnailUrl ?? conversation.otherUser.photoUrl ?? editorialProfiles[index % editorialProfiles.length]}
                         alt={conversation.otherUser.displayName}
                         className="h-full w-full object-cover"
                         loading="lazy"
@@ -131,7 +133,7 @@ export default function Messages() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <h2 className="truncate text-[15px] font-semibold text-white">{conversation.otherUser.displayName}</h2>
+                      <h2 className="truncate font-serif text-lg text-white">{conversation.otherUser.displayName}</h2>
                       {conversation.otherUser.isVerified && (
                         <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gold-400 text-[9px] font-bold text-black" aria-label="Verified profile">✓</span>
                       )}
@@ -139,7 +141,7 @@ export default function Messages() {
                         {formatTime(conversation.latestMessage?.createdAt ?? conversation.updatedAt)}
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-2">
                       <p className={`min-w-0 flex-1 truncate text-sm ${conversation.unreadCount ? 'font-medium text-white/90' : 'text-white/45'}`}>
                         {conversation.latestMessage
                           ? conversation.latestMessage.deletedAt

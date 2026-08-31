@@ -434,8 +434,8 @@ export default function LiveStreamPage() {
   const showTapToWatch = !isBroadcaster && connectionState === 'connecting' && !connectInitiated;
 
   return (
-    <div className="relative flex h-screen min-h-screen flex-col bg-black text-white">
-      <header className="relative z-20 flex items-center justify-between px-4 pt-safe pb-3">
+    <div className="relative flex h-screen min-h-screen flex-col overflow-hidden bg-black text-white">
+      <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 pt-safe pb-8">
         <button
           type="button"
           onClick={() => navigate(-1)}
@@ -475,7 +475,9 @@ export default function LiveStreamPage() {
       </header>
 
       <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col">
-        <section className="relative aspect-[3/4] w-full overflow-hidden bg-ink-950">
+        <section className="relative min-h-[58vh] flex-1 overflow-hidden bg-ink-950">
+          <img src="/editorial/live.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-45" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/30" />
           {isBroadcaster ? (
             <video
               ref={localVideoElRef}
@@ -563,7 +565,7 @@ export default function LiveStreamPage() {
           </AnimatePresence>
 
           {/* Header strip */}
-          <div className="absolute inset-x-0 top-0 flex items-end justify-between bg-gradient-to-b from-black/60 to-transparent p-4">
+          <div className="absolute inset-x-0 top-0 flex items-end justify-between bg-gradient-to-b from-black/70 to-transparent px-4 pb-6 pt-20">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold drop-shadow">{stream?.title ?? 'Live'}</p>
               {stream?.broadcaster && (
@@ -648,7 +650,7 @@ export default function LiveStreamPage() {
           )}
         </section>
 
-        <section className="flex min-h-0 flex-1 flex-col border-t border-white/[0.06] bg-black/45 backdrop-blur-md">
+        <section className="relative z-20 flex max-h-[36vh] min-h-0 flex-1 flex-col border-t border-white/[0.12] bg-black/55 backdrop-blur-xl">
           <div
             ref={chatScrollRef}
             className="flex-1 space-y-2 overflow-y-auto px-4 py-3 text-sm"

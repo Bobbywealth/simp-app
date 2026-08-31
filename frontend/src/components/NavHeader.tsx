@@ -20,11 +20,7 @@ interface Props {
   className?: string;
 }
 
-/**
- * iOS-style large title that collapses to 17pt on scroll.
- * The large title lives in the content area; the small sticky bar floats on
- * top with a frosted backdrop blur.
- */
+/** iOS-style large title that resolves into a restrained editorial masthead on scroll. */
 export function NavHeader({
   title,
   alwaysCompact,
@@ -37,7 +33,6 @@ export function NavHeader({
 }: Props) {
   const navigate = useNavigate();
   const { scrollY } = useScroll();
-  // Sticky small title fades in once we've scrolled past the large title
   const stickyOpacity = useTransform(scrollY, [0, 32, 56], [0, 0, 1]);
 
   const onBack = () => {
@@ -47,42 +42,28 @@ export function NavHeader({
 
   return (
     <header className={`relative z-20 w-full ${className}`}>
-      {/* Sticky small-title bar */}
-      <div
-        className={`sticky top-0 z-30 ${
-          safeTop ? 'safe-top' : ''
-        } ${noBlur ? '' : 'backdrop-blur-xl bg-black/40 border-b border-white/5'}`}
-      >
-        <div className="relative flex h-11 items-center justify-between px-3">
+      <div className={`sticky top-0 z-30 ${safeTop ? 'safe-top' : ''} ${noBlur ? '' : 'bg-ink-950/45 backdrop-blur-2xl'}`}>
+        {!noBlur && <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" aria-hidden />}
+        <div className="relative flex h-11 items-center justify-between px-4">
           <div className="flex w-16 items-center justify-start">
             {showBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                aria-label="Back"
-                className="-ml-2 flex size-9 items-center justify-center rounded-full text-white/80 transition hover:bg-white/5 hover:text-white active:scale-95"
-              >
-                <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
+              <button type="button" onClick={onBack} aria-label="Back" className="-ml-2 flex size-9 items-center justify-center rounded-full text-white/75 transition duration-300 hover:bg-white/[0.06] hover:text-white active:scale-95">
+                <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
               </button>
             )}
           </div>
-          <motion.div
-            style={{ opacity: stickyOpacity }}
-            className="pointer-events-none absolute inset-x-0 mx-auto text-center text-[15px] font-semibold text-white"
-          >
+          <motion.div style={{ opacity: alwaysCompact ? 1 : stickyOpacity }} className="pointer-events-none absolute inset-x-0 mx-auto text-center font-display text-[19px] font-semibold tracking-[-0.02em] text-white">
             {title}
           </motion.div>
           <div className="flex w-16 items-center justify-end">{rightSlot}</div>
         </div>
       </div>
 
-      {/* Large title (rendered in-flow so it scrolls with the page) */}
       {!alwaysCompact && (
-        <div className="px-6 pt-2 pb-4">
-          <h1 className="text-[34px] font-bold tracking-tight text-white leading-[1.1]">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-white/60">{subtitle}</p>}
+        <div className="px-6 pb-7 pt-5">
+          <div className="mb-4 h-px w-10 bg-gold-300/70" aria-hidden />
+          <h1 className="font-display text-[42px] font-medium leading-[0.92] tracking-[-0.045em] text-white">{title}</h1>
+          {subtitle && <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/58">{subtitle}</p>}
         </div>
       )}
     </header>

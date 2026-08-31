@@ -14,9 +14,9 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-// Real portrait URLs — randomuser.me serves 100 deterministic faces per gender
+// High-resolution editorial portraits served from the frontend's canonical public assets.
 const portraitUrl = (gender: 'women' | 'men', idx: number) =>
-  `https://randomuser.me/api/portraits/${gender}/${idx}.jpg`;
+  `https://mysimp.com/editorial/profiles/${gender}-${String(idx).padStart(2, '0')}.jpg`;
 
 type SeedProfile = {
   email: string;
@@ -48,7 +48,7 @@ const profiles: SeedProfile[] = [
     heightCm: 168,
     isVerified: true,
     portraitGender: 'women',
-    portraitIdxs: [44, 65, 33],
+    portraitIdxs: [1, 4, 7],
     prompts: [
       { question: 'The way to win me over is', answer: 'A reservation somewhere you cannot pronounce — and a backup plan you actually checked.' },
       { question: 'I geek out over', answer: 'Golden hour, second-press zines, and the perfect espresso-to-milk ratio.' },
@@ -68,7 +68,7 @@ const profiles: SeedProfile[] = [
     heightCm: 174,
     isVerified: true,
     portraitGender: 'women',
-    portraitIdxs: [47, 25, 88],
+    portraitIdxs: [2, 5, 1],
     prompts: [
       { question: 'You should message me if', answer: 'You have a strong opinion about whether cilantro is a sin or a gift.' },
       { question: 'My most controversial take', answer: 'Cereal is a perfectly acceptable dinner — and I will die on that hill.' },
@@ -87,9 +87,8 @@ const profiles: SeedProfile[] = [
     occupation: 'Marketing Director',
     heightCm: 170,
     isVerified: true,
-    isPremium: true,
     portraitGender: 'women',
-    portraitIdxs: [11, 90, 60],
+    portraitIdxs: [3, 6, 2],
     prompts: [
       { question: 'Together we could', answer: 'Take a pottery class and laugh at the disasters we make.' },
       { question: 'Do not bother if', answer: 'You have never read a book you did not finish.' },
@@ -108,7 +107,7 @@ const profiles: SeedProfile[] = [
     occupation: 'Fashion Buyer',
     heightCm: 165,
     portraitGender: 'women',
-    portraitIdxs: [5, 23, 79],
+    portraitIdxs: [4, 7, 3],
     prompts: [
       { question: 'The way to my heart', answer: 'Show up on time, dressed intentionally, with a plan you did not say out loud yet.' },
       { question: 'I want someone who', answer: "Knows the difference between a spritz and a bellini, and isn't afraid to correct me." },
@@ -127,7 +126,7 @@ const profiles: SeedProfile[] = [
     heightCm: 172,
     isVerified: true,
     portraitGender: 'women',
-    portraitIdxs: [68, 14, 95],
+    portraitIdxs: [5, 1, 4],
     prompts: [
       { question: 'My love language', answer: 'A spotless kitchen and a meal I did not have to order.' },
       { question: 'First date I would plan', answer: 'A walk through the farmers market, then back to mine to see what looked good.' },
@@ -146,7 +145,7 @@ const profiles: SeedProfile[] = [
     occupation: 'PhD Student',
     heightCm: 163,
     portraitGender: 'women',
-    portraitIdxs: [37, 56, 80],
+    portraitIdxs: [6, 2, 5],
     prompts: [
       { question: 'A shower thought I had', answer: 'If we are all just stories telling stories, would you be my epilogue?' },
       { question: 'I want to read more', answer: 'Anything you cannot stop quoting. I will borrow it and probably dog-ear it.' },
@@ -165,7 +164,7 @@ const profiles: SeedProfile[] = [
     heightCm: 169,
     isVerified: true,
     portraitGender: 'women',
-    portraitIdxs: [76, 39, 81],
+    portraitIdxs: [7, 3, 6],
     prompts: [
       { question: 'I will fall for you if', answer: 'You can laugh at yourself and mean it.' },
       { question: 'My weekend ritual', answer: 'Long reformer class, green juice, then absolutely nothing else.' },
@@ -184,7 +183,7 @@ const profiles: SeedProfile[] = [
     heightCm: 182,
     isVerified: true,
     portraitGender: 'men',
-    portraitIdxs: [33, 51, 84],
+    portraitIdxs: [1, 4, 7],
     prompts: [
       { question: 'My weakness is', answer: 'Anyone who can name three of their favorite dishes without thinking.' },
       { question: 'I am looking for', answer: 'A reason to put the laptop down before midnight.' },
@@ -204,7 +203,7 @@ const profiles: SeedProfile[] = [
     heightCm: 167,
     isVerified: true,
     portraitGender: 'women',
-    portraitIdxs: [26, 49, 71],
+    portraitIdxs: [2, 5, 1],
     prompts: [
       { question: 'My love language', answer: 'Snacks that show up without announcement.' },
       { question: 'I will outlast you at', answer: '24-hour diners, jazz clubs, and very long walks.' },
@@ -223,7 +222,7 @@ const profiles: SeedProfile[] = [
     heightCm: 175,
     isVerified: true,
     portraitGender: 'women',
-    portraitIdxs: [2, 17, 91],
+    portraitIdxs: [3, 6, 2],
     prompts: [
       { question: 'My most prized possession', answer: 'A Rothko print I bought at an estate sale for forty dollars.' },
       { question: 'I geek out over', answer: 'Curatorial copy, deep dives on emerging artists, and very clean lines.' },

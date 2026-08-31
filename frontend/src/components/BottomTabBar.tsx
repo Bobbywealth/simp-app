@@ -9,7 +9,7 @@ const TABS = [
   { to: '/matches', label: 'Matches', path: 'M12 20.5 4.7 13.2a4.6 4.6 0 0 1 6.5-6.5L12 7.5l.8-.8a4.6 4.6 0 0 1 6.5 6.5L12 20.5Z' },
   { to: '/messages', label: 'Messages', path: 'M4 5.5h16v11H8l-4 3v-14Z' },
   { to: '/live', label: 'Live', path: 'M9 8.5v7l6-3.5-6-3.5ZM5.5 5.5h13v13h-13v-13Z' },
-  { to: '/profile', label: 'Profile', path: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c.8-4 3.1-6 7-6s6.2 2 7 6H5Z' },
+  { to: '/profile', label: 'Profile', path: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 8Zm-7 8c.8-4 3.1-6 7-6s6.2 2 7 6H5Z' },
 ] as const;
 
 const PRIMARY_PATHS = new Set(['/home', '/discover', '/matches', '/messages', '/live', '/profile']);
@@ -35,9 +35,7 @@ export function BottomTabBar() {
     const socket = getRealtimeSocket();
     const onInbox = () => setMessageCount((count) => count + 1);
     const onNotification = (notification: { type?: string }) => {
-      if (notification.type === 'MATCH' || notification.type === 'LIKE') {
-        setMatchCount((count) => count + 1);
-      }
+      if (notification.type === 'MATCH' || notification.type === 'LIKE') setMatchCount((count) => count + 1);
     };
     socket.on('inbox:update', onInbox);
     socket.on('notification:new', onNotification);
@@ -50,7 +48,8 @@ export function BottomTabBar() {
   if (!visible) return null;
 
   return (
-    <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-black/80 backdrop-blur-xl">
+    <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 bg-ink-950/72 backdrop-blur-2xl">
+      <div className="mx-auto h-px max-w-md bg-gradient-to-r from-transparent via-white/15 to-transparent" aria-hidden />
       <div className="mx-auto grid max-w-md grid-cols-5" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}>
         {TABS.map((tab) => {
           const badge = tab.to === '/messages' ? messageCount : tab.to === '/matches' ? matchCount : 0;
@@ -60,18 +59,17 @@ export function BottomTabBar() {
               to={tab.to}
               aria-label={`${tab.label}${badge ? `, ${badge} unread` : ''}`}
               className={({ isActive }) =>
-                `relative flex min-h-[60px] flex-col items-center justify-center gap-1 text-[9px] font-semibold uppercase tracking-[0.12em] transition active:scale-95 ${isActive ? 'text-gold-300' : 'text-white/40 hover:text-white/75'}`
+                `relative flex min-h-[62px] flex-col items-center justify-center gap-1 text-[9px] font-semibold uppercase tracking-[0.14em] transition duration-300 active:scale-95 ${isActive ? 'text-gold-200' : 'text-white/42 hover:text-white/80'}`
               }
             >
               {({ isActive }) => (
                 <>
                   <span className="relative">
-                    <svg viewBox="0 0 24 24" className="h-6 w-6" fill={isActive ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={tab.path} /></svg>
-                    {badge > 0 && (
-                      <span className="absolute -right-2.5 -top-2 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-gold-400 px-1 text-[8px] font-bold text-black">{badge > 99 ? '99+' : badge}</span>
-                    )}
+                    <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill={isActive ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round"><path d={tab.path} /></svg>
+                    {badge > 0 && <span className="absolute -right-2.5 -top-2 flex min-h-4 min-w-4 items-center justify-center rounded-full bg-gold-300 px-1 text-[8px] font-bold text-ink-950">{badge > 99 ? '99+' : badge}</span>}
                   </span>
                   <span>{tab.label}</span>
+                  {isActive && <span className="absolute bottom-1 h-px w-4 bg-gold-200" aria-hidden />}
                 </>
               )}
             </NavLink>
