@@ -306,10 +306,17 @@ function DashboardCard({
       type="button"
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="group relative min-h-32 overflow-hidden rounded-2xl border border-gold-400/30 bg-gradient-to-br from-ink-900/80 via-black/40 to-ink-900/60 p-4 text-left backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_18px_40px_-28px_rgba(0,0,0,0.9)] transition duration-300 hover:border-gold-300/55 hover:from-ink-900/90 hover:to-ink-900/70"
+      className="group relative min-h-32 overflow-hidden rounded-2xl border border-gold-400/35 bg-gradient-to-br from-ink-900/85 via-black/35 to-ink-900/70 p-4 text-left backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_18px_40px_-26px_rgba(0,0,0,0.9)] transition duration-300 hover:border-gold-300/65 hover:from-ink-900/95 hover:to-ink-900/75"
     >
-      <span className="pointer-events-none absolute inset-y-3 left-0 w-[2px] bg-gradient-to-b from-transparent via-gold-300/70 to-transparent" aria-hidden />
-      <p className="bg-gold-gradient bg-clip-text text-[9px] font-extrabold uppercase tracking-[0.24em] text-transparent">
+      <span
+        className="pointer-events-none absolute inset-y-3 left-0 w-[2px] bg-gradient-to-b from-transparent via-gold-300/80 to-transparent"
+        aria-hidden
+      />
+      <span
+        className="pointer-events-none absolute -right-12 -top-12 h-28 w-28 rounded-full bg-gold-300/10 blur-2xl transition group-hover:bg-gold-300/20"
+        aria-hidden
+      />
+      <p className="bg-gold-gradient bg-clip-text text-[9px] font-extrabold uppercase tracking-[0.26em] text-transparent">
         {label}
       </p>
       <p className="mt-6 text-sm font-medium leading-relaxed text-white/85">
@@ -317,8 +324,18 @@ function DashboardCard({
       </p>
       <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-200 transition group-hover:gap-2">
         Open
-        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+        <svg
+          viewBox="0 0 24 24"
+          className="h-3 w-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        >
+          <path
+            d="M5 12h14M13 5l7 7-7 7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </span>
     </motion.button>
