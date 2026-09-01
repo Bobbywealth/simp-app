@@ -33,4 +33,17 @@ end
 
 post_install do |installer|
   assertDeploymentTarget(installer)
+  # Capacitor's CocoaPods are static libraries / frameworks. They don't get
+  # signed for distribution — only the App target does. Without this override,
+  # every Pod errors with "does not support provisioning profiles" because
+  # the workspace-level PROVISIONING_PROFILE_SPECIFIER propagates down.
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = ''
+      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+      # Also force the same iOS deployment target the App uses (from project.pbxproj)
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
+    end
+  end
 end

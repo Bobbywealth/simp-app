@@ -156,19 +156,6 @@ jobs:
           KEYCHAIN_PASSWORD: ci-keychain-temp-password
         run: |
           security find-identity -v -p codesigning $RUNNER_TEMP/build.keychain-db
-          echo ""
-          echo "=== Installed provisioning profiles ==="
-          for p in ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision; do
-            name=$(/usr/libexec/PlistBuddy -c "Print :Name" "$p" 2>/dev/null)
-            uuid=$(basename "$p" .mobileprovision)
-            bundleid=$(/usr/libexec/PlistBuddy -c "Print :AppIDName" "$p" 2>/dev/null)
-            echo "  $uuid  |  name=$name  |  AppIDName=$bundleid"
-            echo "    entitlements:"
-            security cms -D -i "$p" -o /tmp/p.plist 2>/dev/null && \
-              /usr/libexec/PlistBuddy -c "Print :Entitlements" /tmp/p.plist 2>/dev/null | sed 's/^/      /' || \
-              echo "    (could not extract entitlements)"
-            rm -f /tmp/p.plist
-          done
 
       - name: Generate ExportOptions.plist
         working-directory: frontend/ios/App
@@ -212,11 +199,9 @@ jobs:
           # Capture full output to log file; tail it to the job log so failures
           # are visible without re-running locally.
           LOG=$RUNNER_TEMP/xcodebuild-archive.log
-          # NOTE: do NOT pass PROVISIONING_PROFILE_SPECIFIER on the command line —
-          # it would propagate to every Pod target, and Pods (libraries/frameworks)
-          # don't support provisioning profiles. xcodebuild will auto-match the
-          # profile for the App target from the bundle ID + team + installed
-          # profiles in ~/Library/MobileDevice/Provisioning Profiles/.
+          # Pass PROVISIONING_PROFILE_SPECIFIER on the command line so the App
+          # target can find its profile. The Podfile post_install hook clears
+          # it for every Pod target so they don't error out.
           xcodebuild \
             -workspace ${{ env.WORKSPACE }} \
             -scheme ${{ env.SCHEME }} \
@@ -225,6 +210,7 @@ jobs:
             -archivePath $RUNNER_TEMP/App.xcarchive \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="SIMP App Store" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             archive 2>&1 | tee "$LOG" | xcpretty || {
               echo "❌ archive failed. Last 80 lines of xcodebuild output:"
