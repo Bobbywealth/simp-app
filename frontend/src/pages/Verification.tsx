@@ -9,7 +9,7 @@ import {
   type VerificationPose,
   type VerificationStatus,
 } from '../api/verification';
-import NavHeader from '../components/NavHeader';
+import { NavHeader } from '../components/NavHeader';
 
 type SubmissionStep = 'intro' | 'capture' | 'submitting' | 'success' | 'error';
 
@@ -247,7 +247,7 @@ export default function Verification() {
           <SelfieCapture
             onComplete={(payload) => void handleComplete(payload)}
             onCancel={() => setStep('intro')}
-            busy={step === 'submitting'}
+            busy={false}
           />
         )}
 

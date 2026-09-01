@@ -139,9 +139,9 @@ export default function SelfieCapture({ onComplete, onCancel, busy }: SelfieCapt
       let lumaSum = 0;
       const step = Math.max(1, Math.floor(pixels.length / 4 / 4_000));
       for (let index = 0; index < pixels.length; index += step * 4) {
-        const r = pixels[index];
-        const g = pixels[index + 1];
-        const b = pixels[index + 2];
+        const r = pixels[index] ?? 0;
+        const g = pixels[index + 1] ?? 0;
+        const b = pixels[index + 2] ?? 0;
         lumaSum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
       }
       const samples = Math.floor(pixels.length / (step * 4)) || 1;
@@ -161,6 +161,7 @@ export default function SelfieCapture({ onComplete, onCancel, busy }: SelfieCapt
   const handleCapture = useCallback(async () => {
     if (activeIndex >= POSE_SEQUENCE.length) return;
     const frame = POSE_SEQUENCE[activeIndex];
+    if (!frame) return;
     setCaptureError(null);
     const blob = await captureFrame(frame.pose);
     if (!blob) return;
@@ -287,7 +288,7 @@ export default function SelfieCapture({ onComplete, onCancel, busy }: SelfieCapt
     );
   }
 
-  const active = POSE_SEQUENCE[activeIndex];
+  const active = POSE_SEQUENCE[activeIndex] ?? POSE_SEQUENCE[0];
   return (
     <div className="space-y-4">
       <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-black-700/70">
