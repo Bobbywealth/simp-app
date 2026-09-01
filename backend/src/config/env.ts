@@ -33,7 +33,7 @@ const schema = z
     RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
     EMAIL_WEBHOOK_URL: z.string().url().optional(),
 
-    PUSH_PROVIDER: z.enum(['disabled', 'firebase', 'webpush']).default('disabled'),
+    PUSH_PROVIDER: z.enum(['disabled', 'firebase', 'webpush', 'hybrid']).default('disabled'),
     FIREBASE_SERVICE_ACCOUNT_JSON: z.string().min(1).optional(),
 
     // Web Push (VAPID). Required when PUSH_PROVIDER=webpush.
@@ -167,6 +167,13 @@ const schema = z
     } else if (value.PUSH_PROVIDER === 'webpush') {
       if (!value.VAPID_PUBLIC_KEY || !value.VAPID_PRIVATE_KEY) {
         warnings.push('push: PUSH_PROVIDER=webpush but VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY is missing');
+      }
+    } else if (value.PUSH_PROVIDER === 'hybrid') {
+      if (!value.FIREBASE_SERVICE_ACCOUNT_JSON) {
+        warnings.push('push: PUSH_PROVIDER=hybrid but FIREBASE_SERVICE_ACCOUNT_JSON is missing — iOS/Android tokens will be deactivated on first dispatch');
+      }
+      if (!value.VAPID_PUBLIC_KEY || !value.VAPID_PRIVATE_KEY) {
+        warnings.push('push: PUSH_PROVIDER=hybrid but VAPID_PUBLIC_KEY or VAPID_PRIVATE_KEY is missing — WEB tokens will be deactivated on first dispatch');
       }
     } else if (value.PUSH_PROVIDER === 'disabled') {
       warnings.push('push: PUSH_PROVIDER is disabled — push notifications will not be delivered');

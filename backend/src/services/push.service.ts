@@ -13,8 +13,14 @@ type PushPayload = {
 
 let webpushConfigured = false;
 
+/**
+ * Initialize the Firebase Admin SDK if the service account JSON is present.
+ * Independent of `PUSH_PROVIDER` — Firebase is enabled when its config exists,
+ * regardless of the env-level toggle, so admins can run hybrid
+ * (FCM for native + VAPID for web) by setting both config blocks.
+ */
 function firebaseReady(): boolean {
-  if (env.PUSH_PROVIDER !== 'firebase' || !env.FIREBASE_SERVICE_ACCOUNT_JSON) return false;
+  if (!env.FIREBASE_SERVICE_ACCOUNT_JSON) return false;
   if (!getApps().length) {
     let raw = env.FIREBASE_SERVICE_ACCOUNT_JSON;
     if (!raw.trim().startsWith('{')) raw = Buffer.from(raw, 'base64').toString('utf8');
@@ -24,9 +30,12 @@ function firebaseReady(): boolean {
   return true;
 }
 
+/**
+ * Configure VAPID web-push if the public/private key pair is present.
+ * Independent of `PUSH_PROVIDER` — same rationale as `firebaseReady()`.
+ */
 function configureWebPush(): boolean {
   if (webpushConfigured) return true;
-  if (env.PUSH_PROVIDER !== 'webpush') return false;
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return false;
   try {
     webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
@@ -41,14 +50,29 @@ function configureWebPush(): boolean {
   }
 }
 
-export function pushProvider(): 'firebase' | 'webpush' | 'disabled' {
-  if (env.PUSH_PROVIDER === 'firebase' && firebaseReady()) return 'firebase';
-  if (env.PUSH_PROVIDER === 'webpush' && configureWebPush()) return 'webpush';
+/**
+ * Reports which providers are actually initialized for the running
+ * process. `PUSH_PROVIDER` is a legacy hint that's no longer the gate —
+ * we initialize a provider when its config is present so admins can
+ * run hybrid (FCM for iOS/Android tokens + VAPID for WEB tokens) by
+ * leaving both config blocks in place.
+ *
+ * Returns one of:
+ *   - 'firebase'  → FCM configured, VAPID not
+ *   - 'webpush'   → VAPID configured, FCM not
+ *   - 'hybrid'    → both configured (the SIMP prod mode)
+ *   - 'disabled'  → neither configured
+ */
+export function pushProvider(): 'firebase' | 'webpush' | 'hybrid' | 'disabled' {
+  const hasFirebase = firebaseReady();
+  const hasWebPush = configureWebPush();
+  if (hasFirebase && hasWebPush) return 'hybrid';
+  if (hasFirebase) return 'firebase';
+  if (hasWebPush) return 'webpush';
   return 'disabled';
 }
 
 export function vapidPublicKey(): string | null {
-  if (env.PUSH_PROVIDER !== 'webpush') return null;
   return env.VAPID_PUBLIC_KEY ?? null;
 }
 
@@ -120,21 +144,50 @@ async function sendWebPush(token: StoredToken, payload: PushPayload): Promise<'o
   }
 }
 
+/**
+ * Per-token dispatch: WEB tokens go through VAPID, IOS/ANDROID tokens go
+ * through Firebase. Tokens whose platform doesn't have a configured
+ * provider are marked `active=false` so they stop being tried (e.g. an
+ * old WEB token from before VAPID was enabled). Tokens that the provider
+ * reports as gone (404/410/registration-token-not-registered) are also
+ * deactivated in the same pass.
+ *
+ * This is what makes the hybrid mode work — a single user can have a
+ * WEB subscription token, an iOS FCM token, and an Android FCM token
+ * all registered, and each one is delivered via the right provider.
+ */
 export async function sendPushToUser(
   userId: string,
   payload: PushPayload,
 ): Promise<{ configured: boolean; sent: number }> {
-  const provider = pushProvider();
-  if (provider === 'disabled') return { configured: false, sent: 0 };
-
   const tokens = await loadTokens(userId);
   if (!tokens.length) return { configured: true, sent: 0 };
+
+  const firebaseEnabled = firebaseReady();
+  const webPushEnabled = configureWebPush();
+  if (!firebaseEnabled && !webPushEnabled) {
+    return { configured: false, sent: 0 };
+  }
 
   let sent = 0;
   const gone: string[] = [];
   for (const item of tokens) {
-    const result =
-      provider === 'firebase' ? await sendFirebase(item, payload) : await sendWebPush(item, payload);
+    let result: 'ok' | 'gone';
+    if (item.platform === 'WEB') {
+      if (!webPushEnabled) {
+        // VAPID config was removed; deactivate the stale token.
+        gone.push(item.id);
+        continue;
+      }
+      result = await sendWebPush(item, payload);
+    } else {
+      // IOS or ANDROID
+      if (!firebaseEnabled) {
+        gone.push(item.id);
+        continue;
+      }
+      result = await sendFirebase(item, payload);
+    }
     if (result === 'ok') sent += 1;
     else gone.push(item.id);
   }

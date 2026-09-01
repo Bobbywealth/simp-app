@@ -24,7 +24,9 @@ healthRouter.get('/ready', async (_req, res) => {
         env.EMAIL_PROVIDER === 'resend' && Boolean(env.RESEND_WEBHOOK_SECRET),
       push:
         (env.PUSH_PROVIDER === 'firebase' && Boolean(env.FIREBASE_SERVICE_ACCOUNT_JSON)) ||
-        (env.PUSH_PROVIDER === 'webpush' && Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY)),
+        (env.PUSH_PROVIDER === 'webpush' && Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY)) ||
+        (env.PUSH_PROVIDER === 'hybrid' && Boolean(env.FIREBASE_SERVICE_ACCOUNT_JSON)) ||
+        (env.PUSH_PROVIDER === 'hybrid' && Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY)),
       turn:
         (env.TURN_PROVIDER === 'twilio' && Boolean(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN)) ||
         Boolean(env.TURN_URLS && env.TURN_USERNAME && env.TURN_CREDENTIAL),
