@@ -4,10 +4,14 @@
 <dict>
   <key>aps-environment</key>
   <string>development</string>
+  <key>com.apple.developer.applesignin</key>
+  <array>
+    <string>Default</string>
+  </array>
   <key>com.apple.developer.associated-domains</key>
   <array>
-    <string>applinks:simp.app</string>
-    <string>applinks:www.simp.app</string>
+    <string>applinks:mysimp.com</string>
+    <string>applinks:www.mysimp.com</string>
   </array>
 </dict>
 </plist>
