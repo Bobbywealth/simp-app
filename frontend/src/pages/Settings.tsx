@@ -13,7 +13,6 @@ import {
 import {
   getDiscoveryPreferences,
   getMyProfile,
-  requestProfileVerification,
   updateDiscoveryPreferences,
   updatePresence,
 } from '../api/users';
@@ -158,14 +157,7 @@ export default function Settings() {
   }
 
   async function requestVerification() {
-    await run(
-      'verification',
-      async () => {
-        await requestProfileVerification();
-        setProfile(await getMyProfile());
-      },
-      'Verification request submitted for moderator review.',
-    ).catch(() => undefined);
+    navigate('/verify');
   }
 
   async function exportData() {
@@ -222,9 +214,10 @@ export default function Settings() {
           <div className="border-t border-white/[0.06] p-4">
             <p className="text-sm font-medium">Profile verification</p>
             <p className="mt-1 text-xs text-white/40">Status: {profile?.verificationStatus?.replace(/_/g, ' ').toLowerCase() ?? 'not requested'}</p>
-            {profile?.verificationStatus !== 'APPROVED' && profile?.verificationStatus !== 'PENDING' && (
-              <button type="button" disabled={busy === 'verification'} onClick={() => void requestVerification()} className="btn-gold-outline mt-3 px-4 py-2 text-[10px] uppercase tracking-[0.15em]">Request review</button>
-            )}
+            <p className="mt-2 text-[10px] text-white/30">
+              Take a live selfie with pose prompts. Moderators compare your selfie to your profile photos and approve verified profiles within 24 hours.
+            </p>
+            <button type="button" onClick={() => void requestVerification()} className="btn-gold-outline mt-3 px-4 py-2 text-[10px] uppercase tracking-[0.15em]">Get verified</button>
           </div>
           <details className="border-t border-white/[0.06] p-4">
             <summary className="cursor-pointer text-sm font-medium">Change password</summary>

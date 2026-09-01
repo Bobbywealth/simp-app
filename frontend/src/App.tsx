@@ -36,6 +36,7 @@ const Licenses = lazy(() => import('./pages/Licenses'));
 const Admin = lazy(() => import('./pages/Admin'));
 const BlockedUsers = lazy(() => import('./pages/BlockedUsers'));
 const NotFound = lazy(() => import('./pages/NotFound'));
+const Verification = lazy(() => import('./pages/Verification'));
 
 export default function App() {
   const { initialize, ready, user } = useAuth();
@@ -121,6 +122,7 @@ export default function App() {
               <Route path="/profile" element={<ProtectedRoute requireOnboarding><ProfileView /></ProtectedRoute>} />
               <Route path="/profile/edit" element={<ProtectedRoute requireOnboarding><ProfileEdit /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute requireOnboarding><Settings /></ProtectedRoute>} />
+              <Route path="/verify" element={<ProtectedRoute requireOnboarding><Verification /></ProtectedRoute>} />
               <Route path="/discover" element={<ProtectedRoute requireOnboarding><Discover /></ProtectedRoute>} />
               <Route path="/explore" element={<ProtectedRoute requireOnboarding><Explore /></ProtectedRoute>} />
               <Route path="/live" element={<ProtectedRoute requireOnboarding><Live /></ProtectedRoute>} />

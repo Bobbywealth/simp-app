@@ -28,6 +28,7 @@ import { swipesRouter } from './routes/swipes.routes.js';
 import { usersRouter } from './routes/users.routes.js';
 import { webhooksRouter } from './routes/webhooks.routes.js';
 import { demoRouter } from './routes/demo.routes.js';
+import { verificationRouter } from './routes/verification.routes.js';
 
 const limiter = (windowMs: number, max: number) =>
   rateLimit({
@@ -119,6 +120,7 @@ export function createApp() {
   app.use('/account/me', limiter(60 * 60_000, 3));
   app.use('/swipes', limiter(60_000, 60));
   app.use('/photos/upload', limiter(60_000, 6));
+  app.use('/me/verification/selfie', limiter(60 * 60_000, 5));
   app.use('/reports', limiter(60 * 60_000, 10));
   app.use('/live/streams', limiter(60_000, 60));
   app.use('/conversations', limiter(60_000, 120));
@@ -134,6 +136,7 @@ export function createApp() {
   app.use(matchesRouter);
   app.use(messagesRouter);
   app.use(photosRouter);
+  app.use(verificationRouter);
   app.use(moderationRouter);
   app.use(liveRouter);
   app.use(notificationsRouter);

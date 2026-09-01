@@ -27,7 +27,7 @@ This matrix is based on inspected code and executable checks, not README claims.
 | Reporting | Basic string reasons | Basic routes | Unstructured Report | No moderation events | No | PARTIAL |
 | Admin/RBAC | Missing by design | Untracked unsafe stub, not mounted | Missing roles/audit | N/A | No | BROKEN |
 | Account states | Missing | Missing | Missing | Missing | No | MISSING |
-| Profile verification | Badge displayed | Missing workflow | Static boolean | N/A | No | BROKEN/misleading |
+| Profile verification | Selfie capture with pose prompts (PWA + Capacitor WebView) | Multipart selfie upload to Cloudinary (`simp/verification-selfies`), moderator queue + approve/reject, side-by-side selfie vs profile photos in admin UI, self-deletion on review completion | `ProfileVerificationRequest.selfieUrl`, `selfiePublicId`, `poseSequence[]`, `livenessHints` | N/A | No (smoke-tested live after deploy) | COMPLETE — manual moderator review; vendor liveness (AWS Rekognition Face Liveness) deferred to Phase 2 |
 | Live stream listing/start/end | Implemented | Implemented | LiveStream | Socket.IO | No cross-network test | PARTIAL |
 | WebRTC signaling | Implemented UI/peer code | Implemented with identity/routing mismatch | N/A | Socket.IO | No | BROKEN |
 | TURN | Warning/config fetch | Env-driven ICE response | N/A | WebRTC | No credentials | PARTIAL: external setup required |

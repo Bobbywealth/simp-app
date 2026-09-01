@@ -17,7 +17,7 @@
   <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
 
   <key>NSCameraUsageDescription</key>
-  <string>SIMP uses your camera only when you choose to broadcast a live stream.</string>
+  <string>SIMP uses your camera when you broadcast a live stream or take a verification selfie. Selfies are processed by moderators and permanently deleted.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>SIMP uses your microphone only while you are broadcasting a live stream.</string>
   <key>NSPhotoLibraryUsageDescription</key>

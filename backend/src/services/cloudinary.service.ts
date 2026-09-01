@@ -31,6 +31,7 @@ export function cloudinaryConfigured(): boolean {
 export async function uploadCloudinaryImage(
   buffer: Buffer,
   userId: string,
+  options: { folder?: string; filename?: string } = {},
 ): Promise<{ url: string; publicId: string; width: number; height: number; bytes: number }> {
   if (!cloudinaryConfigured()) {
     throw new AppError(
@@ -40,18 +41,20 @@ export async function uploadCloudinaryImage(
     );
   }
 
+  const folder = options.folder ?? env.CLOUDINARY_FOLDER;
+  const filename = options.filename ?? 'profile.webp';
   const timestamp = String(Math.floor(Date.now() / 1_000));
   const publicId = `${userId}/${crypto.randomUUID()}`;
   const params = {
-    folder: env.CLOUDINARY_FOLDER,
+    folder,
     public_id: publicId,
     timestamp,
   };
   const form = new FormData();
-  form.set('file', new Blob([buffer], { type: 'image/webp' }), 'profile.webp');
+  form.set('file', new Blob([buffer], { type: 'image/webp' }), filename);
   form.set('api_key', env.CLOUDINARY_API_KEY!);
   form.set('timestamp', timestamp);
-  form.set('folder', env.CLOUDINARY_FOLDER);
+  form.set('folder', folder);
   form.set('public_id', publicId);
   form.set('signature', signature(params));
 
