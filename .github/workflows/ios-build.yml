@@ -199,6 +199,11 @@ jobs:
           # Capture full output to log file; tail it to the job log so failures
           # are visible without re-running locally.
           LOG=$RUNNER_TEMP/xcodebuild-archive.log
+          # NOTE: do NOT pass PROVISIONING_PROFILE_SPECIFIER on the command line —
+          # it would propagate to every Pod target, and Pods (libraries/frameworks)
+          # don't support provisioning profiles. xcodebuild will auto-match the
+          # profile for the App target from the bundle ID + team + installed
+          # profiles in ~/Library/MobileDevice/Provisioning Profiles/.
           xcodebuild \
             -workspace ${{ env.WORKSPACE }} \
             -scheme ${{ env.SCHEME }} \
@@ -207,7 +212,6 @@ jobs:
             -archivePath $RUNNER_TEMP/App.xcarchive \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="SIMP App Store" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             archive 2>&1 | tee "$LOG" | xcpretty || {
               echo "❌ archive failed. Last 80 lines of xcodebuild output:"
