@@ -288,7 +288,17 @@ export default function SelfieCapture({ onComplete, onCancel, busy }: SelfieCapt
     );
   }
 
-  const active = POSE_SEQUENCE[activeIndex] ?? POSE_SEQUENCE[0];
+  const active = POSE_SEQUENCE[activeIndex];
+  if (!active) {
+    // Should never happen because we transition to the preview state once
+    // activeIndex reaches POSE_SEQUENCE.length. Defensive fallback so the
+    // render still produces a stable DOM node if state ever drifts.
+    return (
+      <div className="rounded-2xl border border-white/[0.08] bg-black-700/60 p-6 text-center text-sm text-white/60">
+        Preparing next pose…
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
       <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-black-700/70">
