@@ -12,6 +12,12 @@ import { listRecordings as listLiveRecordings } from '../services/livekit.servic
 import { lastLivekitUsage, snapshotLivekitUsage } from '../services/livekit-usage.service.js';
 import { AppError } from '../utils/errors.js';
 import { getRealtimeServer } from '../sockets/realtime.js';
+import {
+  BROADCAST_AUDIENCES,
+  broadcastToUsers,
+  type BroadcastAudience,
+  type BroadcastResult,
+} from '../services/notification.service.js';
 
 export const adminRouter = Router();
 
@@ -691,6 +697,104 @@ adminRouter.get('/admin/abuse-metrics', async (req: AuthedRequest, res, next) =>
         displayName: userMap.get(t.reportedId) ?? 'User',
         reportCount: t._count._all,
       })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /admin/notifications/broadcast
+ *
+ * Admin-only: send a custom push + in-app notification to every user in
+ * the requested audience. The body matches the admin composer form on
+ * `/admin → Broadcasts`.
+ *
+ * Returns the broadcast id + delivery counts so the UI can show
+ * "X targeted, Y dispatched, Z failed" immediately.
+ *
+ * Audience tokens are validated against `BROADCAST_AUDIENCES` so admins
+ * can't pass arbitrary role strings.
+ */
+adminRouter.post('/admin/notifications/broadcast', async (req: AuthedRequest, res, next) => {
+  try {
+    const input = z
+      .object({
+        title: z.string().trim().min(1).max(120),
+        body: z.string().trim().min(1).max(500),
+        audience: z.enum(BROADCAST_AUDIENCES as [BroadcastAudience, ...BroadcastAudience[]]),
+        route: z
+          .string()
+          .trim()
+          .min(1)
+          .max(200)
+          .refine((value) => value.startsWith('/'), 'Route must start with "/"')
+          .optional(),
+      })
+      .parse(req.body);
+
+    const result: BroadcastResult = await broadcastToUsers({
+      actorId: req.userId ?? null,
+      audience: input.audience,
+      title: input.title,
+      body: input.body,
+      route: input.route,
+    });
+
+    res.status(201).json({
+      broadcastId: result.broadcastId,
+      targeted: result.targeted,
+      dispatched: result.dispatched,
+      failed: result.failed,
+      audience: input.audience,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /admin/notifications/broadcasts?limit=50&cursor=...
+ *
+ * Admin-only: history of past broadcasts, newest first. Includes the
+ * actor's display name, the audience, title/body, and the targeted /
+ * dispatched / failed counters so admins can audit who sent what and
+ * how it landed.
+ */
+adminRouter.get('/admin/notifications/broadcasts', async (req: AuthedRequest, res, next) => {
+  try {
+    const input = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        cursor: z.string().optional(),
+      })
+      .parse(req.query);
+    const rows = await prisma.broadcast.findMany({
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: input.limit + 1,
+      ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+      include: {
+        actor: { select: { id: true, profile: { select: { displayName: true } } } },
+      },
+    });
+    const hasMore = rows.length > input.limit;
+    const page = hasMore ? rows.slice(0, input.limit) : rows;
+    res.json({
+      broadcasts: page.map((row) => ({
+        id: row.id,
+        audience: row.audience,
+        title: row.title,
+        body: row.body,
+        route: row.route,
+        targeted: row.targeted,
+        dispatched: row.dispatched,
+        failed: row.failed,
+        createdAt: row.createdAt,
+        actor: row.actor
+          ? { id: row.actor.id, displayName: row.actor.profile?.displayName ?? 'Admin' }
+          : null,
+      })),
+      nextCursor: hasMore && page.length > 0 ? page[page.length - 1]!.id : null,
     });
   } catch (error) {
     next(error);

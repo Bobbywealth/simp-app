@@ -2,6 +2,8 @@ import { Component, lazy, Suspense, useEffect, useState, type ErrorInfo, type Re
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, MotionConfig, useReducedMotion } from 'framer-motion';
 import { useAuth } from './store/auth';
+import { ensurePushTokenRegistered, getDeviceContext } from './capacitor';
+import { registerPushToken } from './api/notifications';
 import { BottomTabBar } from './components/BottomTabBar';
 import { InstallPrompt } from './components/InstallPrompt';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -51,6 +53,45 @@ export default function App() {
   useEffect(() => {
     void initialize();
   }, [initialize]);
+
+  // Auto-register the FCM token once the user is logged in and permission
+  // was granted on a previous launch. No-op if permission was denied or
+  // the FCM config files aren't in place yet. Wrapped in an async IIFE so
+  // we can `await getDeviceContext()` without changing the effect's
+  // callback shape (returns void cleanup).
+  useEffect(() => {
+    if (!ready || !user) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const device = await getDeviceContext();
+        await ensurePushTokenRegistered({
+          onToken: async (token) => {
+            if (cancelled) return;
+            try {
+              await registerPushToken({ token, ...device });
+            } catch {
+              // Network errors / race conditions on cold launch are
+              // acceptable — the next launch will retry.
+            }
+          },
+          onRoute: (route) => {
+            if (cancelled) return;
+            try {
+              navigate(route);
+            } catch {
+              // Fallback to web history if React Router is mid-navigation.
+            }
+          },
+        });
+      } catch {
+        // Push registration is best-effort.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, user, navigate]);
 
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);

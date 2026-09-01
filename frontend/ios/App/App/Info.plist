@@ -16,6 +16,15 @@
   <key>UIMainStoryboardFile</key><string>Main</string>
   <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
 
+  <!-- Required by iOS to receive APNs pushes (delivered through Firebase
+       Cloud Messaging on iOS) while the app is backgrounded. Without
+       this key the device only receives pushes when the app is in the
+       foreground, which defeats most notification use cases. -->
+  <key>UIBackgroundModes</key>
+  <array>
+    <string>remote-notification</string>
+  </array>
+
   <key>NSCameraUsageDescription</key>
   <string>SIMP uses your camera when you broadcast a live stream or take a verification selfie. Selfies are processed by moderators and permanently deleted.</string>
   <key>NSMicrophoneUsageDescription</key>

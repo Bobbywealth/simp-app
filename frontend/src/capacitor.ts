@@ -106,24 +106,103 @@ export async function getDeviceContext(): Promise<{
   }
 }
 
+/**
+ * Register for native push notifications and forward the device token
+ * to the SIMP backend. Returns one of:
+ *   - `'granted'`   permission granted and registration started
+ *   - `'denied'`    permission was refused
+ *   - `'unsupported'` running on web (no native push available), or the
+ *                    FCM plugin is missing / Firebase isn't configured
+ *
+ * Uses `@capacitor-firebase/messaging` so both iOS and Android get a
+ * Firebase Cloud Messaging token. The FCM token is what the backend's
+ * `firebase-admin/messaging.send()` consumes — Firebase then routes to
+ * APNs on iOS automatically, so no APNs HTTP/2 client is needed on the
+ * backend.
+ *
+ * iOS requires:
+ *   - `GoogleService-Info.plist` in `frontend/ios/App/` (drag into Xcode)
+ *   - An APNs Auth Key (.p8) uploaded to the Firebase Cloud Messaging
+ *     console for the iOS app id `app.simp.client`.
+ *
+ * Android requires:
+ *   - `google-services.json` in `frontend/android/app/`
+ *   - The `com.google.gms.google-services` Gradle plugin applied.
+ *
+ * If those config files aren't in place, this function still returns
+ * `'granted'` if permission was granted but `onToken` will never fire
+ * because the native SDK won't bootstrap. The backend will simply have
+ * no token to send to — pushes for that device are silently dropped
+ * (the dispatch service marks missing tokens as `active=false`).
+ */
 export async function requestNativePushPermission(callbacks: {
   onToken: (token: string) => void | Promise<void>;
   onRoute: (route: string) => void;
 }): Promise<'granted' | 'denied' | 'unsupported'> {
   if (!isNative()) return 'unsupported';
-  const { PushNotifications } = await import('@capacitor/push-notifications');
-  let permission = await PushNotifications.checkPermissions();
-  if (permission.receive === 'prompt') permission = await PushNotifications.requestPermissions();
-  if (permission.receive !== 'granted') return 'denied';
+  try {
+    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
+    let permission = await FirebaseMessaging.checkPermissions();
+    if (permission.receive === 'prompt') permission = await FirebaseMessaging.requestPermissions();
+    if (permission.receive !== 'granted') return 'denied';
 
-  await PushNotifications.removeAllListeners();
-  await PushNotifications.addListener('registration', ({ value }) => void callbacks.onToken(value));
-  await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
-    const route = notification.data?.route;
-    if (typeof route === 'string' && route.startsWith('/')) callbacks.onRoute(route);
-  });
-  await PushNotifications.register();
-  return 'granted';
+    await FirebaseMessaging.removeAllListeners();
+    await FirebaseMessaging.addListener('tokenReceived', ({ token }) => void callbacks.onToken(token));
+    await FirebaseMessaging.addListener(
+      'notificationActionPerformed',
+      ({ notification }) => {
+        const data = (notification.data ?? {}) as Record<string, unknown>;
+        const route = data.route;
+        if (typeof route === 'string' && route.startsWith('/')) callbacks.onRoute(route);
+      },
+    );
+    await FirebaseMessaging.getToken();
+    return 'granted';
+  } catch {
+    // Plugin missing or Firebase not configured — treat as unsupported
+    // rather than crashing the app. Token registration is best-effort
+    // until the FCM config files are dropped into the project.
+    return 'unsupported';
+  }
+}
+
+/**
+ * Auto-register the push token without prompting the user. Safe to
+ * call on every app launch — it only sends a token to the backend if
+ * permission was already granted on a previous session. Use this from
+ * a top-level effect so the token is registered proactively rather
+ * than waiting for the user to tap "Enable notifications" on the Home
+ * banner.
+ */
+export async function ensurePushTokenRegistered(callbacks: {
+  onToken: (token: string) => void | Promise<void>;
+  onRoute: (route: string) => void;
+}): Promise<'already-registered' | 'registered' | 'not-granted' | 'unsupported'> {
+  if (!isNative()) return 'unsupported';
+  try {
+    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
+    const permission = await FirebaseMessaging.checkPermissions();
+    if (permission.receive !== 'granted') return 'not-granted';
+
+    await FirebaseMessaging.removeAllListeners();
+    await FirebaseMessaging.addListener('tokenReceived', ({ token }) => void callbacks.onToken(token));
+    await FirebaseMessaging.addListener(
+      'notificationActionPerformed',
+      ({ notification }) => {
+        const data = (notification.data ?? {}) as Record<string, unknown>;
+        const route = data.route;
+        if (typeof route === 'string' && route.startsWith('/')) callbacks.onRoute(route);
+      },
+    );
+    const { token } = await FirebaseMessaging.getToken();
+    if (token) {
+      await callbacks.onToken(token);
+      return 'already-registered';
+    }
+    return 'registered';
+  } catch {
+    return 'unsupported';
+  }
 }
 
 export async function requestApproximateLocation(): Promise<{ latitude: number; longitude: number }> {

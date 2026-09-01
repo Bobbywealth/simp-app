@@ -5,20 +5,26 @@ import {
   getAdminModerationHistory,
   getAdminStats,
   getBackendHealth,
+  listAdminBroadcasts,
   listAdminLiveStreams,
   listAdminReports,
   listAdminUsers,
   listAdminVerifications,
   reviewAdminVerification,
+  sendAdminBroadcast,
   updateAdminReport,
   updateAdminUserRole,
   updateAdminUserStatus,
+  BROADCAST_AUDIENCES,
+  BROADCAST_ROUTE_PRESETS,
+  type AdminBroadcast,
   type AdminHealth,
   type AdminModerationHistoryRow,
   type AdminReportRow,
   type AdminStats,
   type AdminUserRow,
   type AdminVerificationRow,
+  type BroadcastAudience,
 } from '../api/admin';
 import type { LiveStream } from '../api/live';
 import { listLiveRecordings, type LiveRecording } from '../api/live-moderation';
@@ -29,7 +35,7 @@ const USER_STATUS_OPTIONS = ['ALL', 'ACTIVE', 'SUSPENDED', 'BANNED', 'DELETED'] 
 const USER_ROLE_OPTIONS = ['USER', 'MODERATOR', 'ADMIN', 'SUPER_ADMIN'] as const;
 const REPORT_STATUS_OPTIONS = ['ALL', 'OPEN', 'REVIEWING', 'ACTIONED', 'DISMISSED'] as const;
 const VERIFICATION_STATUS_OPTIONS = ['PENDING', 'APPROVED', 'REJECTED'] as const;
-const TABS = ['overview', 'users', 'reports', 'verifications', 'live', 'health'] as const;
+const TABS = ['overview', 'users', 'reports', 'verifications', 'live', 'broadcasts', 'health'] as const;
 
 type Tab = (typeof TABS)[number];
 type UserStatusFilter = (typeof USER_STATUS_OPTIONS)[number];
@@ -60,6 +66,20 @@ export default function Admin() {
   const [reports, setReports] = useState<AdminReportRow[]>([]);
   const [verifications, setVerifications] = useState<AdminVerificationRow[]>([]);
   const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
+  const [broadcasts, setBroadcasts] = useState<AdminBroadcast[]>([]);
+  const [broadcastDraft, setBroadcastDraft] = useState<{
+    title: string;
+    body: string;
+    audience: BroadcastAudience;
+    route: string;
+    customRoute: string;
+  }>({ title: '', body: '', audience: 'pushable', route: '/home', customRoute: '' });
+  const [lastBroadcastResult, setLastBroadcastResult] = useState<{
+    broadcastId: string;
+    targeted: number;
+    dispatched: number;
+    failed: number;
+  } | null>(null);
   const [userQuery, setUserQuery] = useState('');
   const [userStatus, setUserStatus] = useState<UserStatusFilter>('ALL');
   const [reportStatus, setReportStatus] = useState<ReportStatusFilter>('OPEN');
@@ -182,6 +202,60 @@ export default function Admin() {
     try {
       const result = await listAdminLiveStreams();
       setLiveStreams(result.streams);
+    } catch (value) {
+      setError((value as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function refreshBroadcasts() {
+    setBusy('broadcasts');
+    setError(null);
+    try {
+      const result = await listAdminBroadcasts({ limit: 25 });
+      setBroadcasts(result.broadcasts);
+    } catch (value) {
+      setError((value as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sendBroadcast() {
+    const title = broadcastDraft.title.trim();
+    const body = broadcastDraft.body.trim();
+    if (!title || !body) {
+      setError('Broadcast title and body are required.');
+      return;
+    }
+    const customRoute = broadcastDraft.customRoute.trim();
+    const route = customRoute || broadcastDraft.route;
+    if (route && !route.startsWith('/')) {
+      setError('Custom route must start with "/" (for example /matches).');
+      return;
+    }
+    setBusy('broadcast-send');
+    setError(null);
+    setLastBroadcastResult(null);
+    try {
+      const result = await sendAdminBroadcast({
+        title,
+        body,
+        audience: broadcastDraft.audience,
+        ...(route ? { route } : {}),
+      });
+      setLastBroadcastResult({
+        broadcastId: result.broadcastId,
+        targeted: result.targeted,
+        dispatched: result.dispatched,
+        failed: result.failed,
+      });
+      // Clear the composer body but keep title/audience/route so the
+      // admin can quickly send a follow-up variant.
+      setBroadcastDraft((current) => ({ ...current, body: '', customRoute: '' }));
+      await refreshBroadcasts();
+      await refreshStats();
     } catch (value) {
       setError((value as Error).message);
     } finally {
@@ -556,6 +630,143 @@ export default function Admin() {
                 {liveStreams.length === 0 && <EmptyState label="No live streams are active." />}
               </div>
               <RecentRecordings />
+            </Panel>
+          )}
+
+          {activeTab === 'broadcasts' && (
+            <Panel title="Custom broadcasts" action={<button type="button" onClick={() => void refreshBroadcasts()} className="text-xs uppercase tracking-[0.16em] text-gold-300">Refresh</button>}>
+              <p className="mb-4 text-xs text-white/55">
+                Compose a push notification and ship it to a slice of users. Recipients get the
+                message in-app and as a system push (FCM/APNs). Each recipient receives a regular
+                notification they can read or dismiss.
+              </p>
+              <div className="space-y-3">
+                <label className="block text-xs uppercase tracking-[0.14em] text-white/35">
+                  Title
+                  <input
+                    value={broadcastDraft.title}
+                    onChange={(event) => setBroadcastDraft((current) => ({ ...current, title: event.target.value }))}
+                    maxLength={120}
+                    className="input-luxe mt-2 w-full"
+                    placeholder="e.g. New feature: voice notes"
+                  />
+                </label>
+                <label className="block text-xs uppercase tracking-[0.14em] text-white/35">
+                  Body
+                  <textarea
+                    value={broadcastDraft.body}
+                    onChange={(event) => setBroadcastDraft((current) => ({ ...current, body: event.target.value }))}
+                    maxLength={500}
+                    rows={3}
+                    className="input-luxe mt-2 w-full resize-y"
+                    placeholder="e.g. Tap to send a 30-second voice note to your matches."
+                  />
+                </label>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="block text-xs uppercase tracking-[0.14em] text-white/35">
+                    Audience
+                    <select
+                      value={broadcastDraft.audience}
+                      onChange={(event) => setBroadcastDraft((current) => ({ ...current, audience: event.target.value as BroadcastAudience }))}
+                      className="input-luxe mt-2 w-full"
+                    >
+                      {BROADCAST_AUDIENCES.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="mt-2 block text-[10px] font-normal normal-case tracking-normal text-white/40">
+                      {BROADCAST_AUDIENCES.find((option) => option.value === broadcastDraft.audience)?.description}
+                    </span>
+                  </label>
+                  <div className="space-y-3">
+                    <label className="block text-xs uppercase tracking-[0.14em] text-white/35">
+                      Deep-link route
+                      <select
+                        value={broadcastDraft.route}
+                        onChange={(event) => setBroadcastDraft((current) => ({ ...current, route: event.target.value }))}
+                        className="input-luxe mt-2 w-full"
+                      >
+                        {BROADCAST_ROUTE_PRESETS.map((preset) => (
+                          <option key={preset.route} value={preset.route}>
+                            {preset.label} ({preset.route})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs uppercase tracking-[0.14em] text-white/35">
+                      Or custom route
+                      <input
+                        value={broadcastDraft.customRoute}
+                        onChange={(event) => setBroadcastDraft((current) => ({ ...current, customRoute: event.target.value }))}
+                        className="input-luxe mt-2 w-full"
+                        placeholder="/messages/abc123"
+                      />
+                    </label>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => void sendBroadcast()}
+                    disabled={busy === 'broadcast-send'}
+                    className="btn-gold px-5 py-3 text-xs uppercase tracking-[0.16em] disabled:opacity-30"
+                  >
+                    {busy === 'broadcast-send' ? 'Sending…' : 'Send broadcast'}
+                  </button>
+                  {lastBroadcastResult && (
+                    <p className="text-xs text-white/65">
+                      Sent — targeted <span className="text-gold-200">{lastBroadcastResult.targeted}</span>
+                      {lastBroadcastResult.failed > 0 ? (
+                        <>
+                          , dispatched <span className="text-gold-200">{lastBroadcastResult.dispatched}</span>
+                          , failed <span className="text-red-300">{lastBroadcastResult.failed}</span>
+                        </>
+                      ) : (
+                        <>
+                          , dispatched <span className="text-emerald-300">{lastBroadcastResult.dispatched}</span>
+                        </>
+                      )}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="mt-8">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-gold-300/80">Recent broadcasts</h3>
+                <div className="space-y-3">
+                  {broadcasts.map((row) => (
+                    <div key={row.id} className="rounded-3xl border border-white/[0.08] bg-black/30 p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="font-semibold text-white">{row.title}</h4>
+                        <Pill>{row.audience}</Pill>
+                        {row.route && <Pill>{row.route}</Pill>}
+                      </div>
+                      <p className="mt-2 text-sm text-white/70">{row.body}</p>
+                      <div className="mt-3 grid gap-2 text-xs text-white/55 sm:grid-cols-4">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Targeted</p>
+                          <p className="mt-1 text-gold-200">{row.targeted}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Dispatched</p>
+                          <p className="mt-1 text-emerald-300">{row.dispatched}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Failed</p>
+                          <p className={`mt-1 ${row.failed > 0 ? 'text-red-300' : 'text-white/45'}`}>{row.failed}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">By</p>
+                          <p className="mt-1 text-white/65">{row.actor?.displayName ?? 'Admin'}</p>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-[10px] text-white/35">{formatDate(row.createdAt)}</p>
+                    </div>
+                  ))}
+                  {broadcasts.length === 0 && <EmptyState label="No broadcasts sent yet." />}
+                </div>
+              </div>
             </Panel>
           )}
 

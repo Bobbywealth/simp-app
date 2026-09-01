@@ -176,3 +176,72 @@ export function getBackendHealth() {
 export function listAdminLiveStreams() {
   return apiFetch<{ streams: LiveStream[] }>('/live/streams');
 }
+
+// --- Custom broadcasts (admin → user push composer) -----------------------
+
+export type BroadcastAudience =
+  | 'all'
+  | 'verified'
+  | 'pushable'
+  | 'role:USER'
+  | 'role:MODERATOR'
+  | 'role:ADMIN'
+  | 'role:SUPER_ADMIN';
+
+export const BROADCAST_AUDIENCES: { value: BroadcastAudience; label: string; description: string }[] = [
+  { value: 'all', label: 'All active users', description: 'Every account with status = ACTIVE.' },
+  { value: 'verified', label: 'Verified profiles only', description: 'Active users whose profile is verified.' },
+  { value: 'pushable', label: 'Users with a push token', description: 'Active users with at least one registered FCM/APNs token — most likely to deliver.' },
+  { value: 'role:USER', label: 'Standard users', description: 'Active USER-role accounts only.' },
+  { value: 'role:MODERATOR', label: 'Moderators', description: 'Active MODERATOR-role accounts.' },
+  { value: 'role:ADMIN', label: 'Admins + super admins', description: 'Active ADMIN and SUPER_ADMIN accounts.' },
+  { value: 'role:SUPER_ADMIN', label: 'Super admins only', description: 'Active SUPER_ADMIN accounts.' },
+];
+
+export interface AdminBroadcast {
+  id: string;
+  audience: string;
+  title: string;
+  body: string;
+  route: string | null;
+  targeted: number;
+  dispatched: number;
+  failed: number;
+  createdAt: string;
+  actor: { id: string; displayName: string } | null;
+}
+
+export function sendAdminBroadcast(input: {
+  title: string;
+  body: string;
+  audience: BroadcastAudience;
+  route?: string;
+}) {
+  return apiFetch<{
+    broadcastId: string;
+    targeted: number;
+    dispatched: number;
+    failed: number;
+    audience: BroadcastAudience;
+  }>('/admin/notifications/broadcast', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function listAdminBroadcasts(params: { cursor?: string; limit?: number } = {}) {
+  const search = new URLSearchParams();
+  if (params.cursor) search.set('cursor', params.cursor);
+  if (params.limit) search.set('limit', String(params.limit));
+  return apiFetch<{ broadcasts: AdminBroadcast[]; nextCursor: string | null }>(
+    `/admin/notifications/broadcasts${search.toString() ? `?${search.toString()}` : ''}`,
+  );
+}
+
+export const BROADCAST_ROUTE_PRESETS: { label: string; route: string }[] = [
+  { label: 'Home feed', route: '/home' },
+  { label: 'Matches', route: '/matches' },
+  { label: 'Messages', route: '/messages' },
+  { label: 'Profile', route: '/profile' },
+  { label: 'Settings', route: '/settings' },
+];

@@ -198,6 +198,7 @@ model User {
   moderationActionsReceived ModerationAction[]           @relation("TargetActions")
   verificationRequests      ProfileVerificationRequest[] @relation("VerificationSubject")
   verificationReviews       ProfileVerificationRequest[] @relation("VerificationReviewer")
+  broadcastsSent            Broadcast[]                  @relation("BroadcastActor")
   tosAcceptances            TosAcceptance[]
 
   // Required before broadcasting. Birthdate eligibility is separately
@@ -820,4 +821,32 @@ model AnalyticsEvent {
   @@index([userId, createdAt])
   @@index([sessionId])
   @@index([createdAt])
+}
+
+/// Admin broadcast log. One row per broadcast send event (one audience,
+/// one title/body/route, one actor). The individual `Notification`
+/// rows created for each recipient are NOT stored here — those live in
+/// the regular Notification table so users can mark them read/delete
+/// them. This table is the historical log the admin dashboard reads
+/// to show "Bobby sent X to all users at 12:30pm → 1,245 delivered".
+///
+/// `audience` is a free-form string token (e.g. `all`, `verified`,
+/// `pushable`, `role:USER`) so admins can see what slice they sent
+/// to without needing to migrate a new enum per audience type.
+model Broadcast {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("BroadcastActor", fields: [actorId], references: [id], onDelete: SetNull)
+  audience   String
+  title      String
+  body       String
+  route      String?
+  data       Json?
+  targeted   Int      @default(0)
+  dispatched Int      @default(0)
+  failed     Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
 }
