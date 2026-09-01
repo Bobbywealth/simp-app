@@ -13,7 +13,7 @@ const config: CapacitorConfig = {
   /// entries; see `npx cap sync` for the auto-generated snippets.
   server: {
     androidScheme: 'https',
-    iosScheme: 'simP',
+    iosScheme: 'simp',
     /// Allow navigation to our own API so the WebView can make XHR
     /// calls + open the Socket.IO stream without being blocked by the
     /// cleartext / CORS rules on iOS 14+ and Android 9+.
