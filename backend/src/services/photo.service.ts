@@ -130,3 +130,82 @@ export async function deleteStoredPhoto(photo: { url: string; publicId: string |
     return false;
   }
 }
+
+// Verification selfies are stored in a separate Cloudinary folder
+// (`simp/verification-selfies`) so they can be cleanly deleted after
+// review without touching profile photos. We resize to a smaller cap
+// (1280px longest edge) because moderators don't need full-resolution
+// selfies and we want to keep storage lean.
+export const VERIFICATION_SELFIE_FOLDER = 'simp/verification-selfies';
+const VERIFICATION_MAX_DIMENSION = 1_280;
+
+export async function processAndStoreVerificationSelfie(
+  file: Express.Multer.File,
+  userId: string,
+): Promise<StoredPhoto> {
+  const extension = path.extname(file.originalname).toLowerCase();
+  if (!EXTENSIONS.has(extension) || !MIME_TYPES.has(file.mimetype) || !hasKnownSignature(file.buffer)) {
+    throw new AppError('unsupported_image', 400, 'Capture a valid JPEG, PNG, or WebP selfie.');
+  }
+  if (file.size <= 0 || file.size > MAX_BYTES) {
+    throw new AppError('image_too_large', 413, 'Selfies must be 10 MB or smaller.');
+  }
+
+  let metadata: sharp.Metadata;
+  try {
+    metadata = await sharp(file.buffer, { failOn: 'error', limitInputPixels: 144_000_000 }).metadata();
+  } catch {
+    throw new AppError('invalid_image_payload', 400, 'That file is not a readable image.');
+  }
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+  if (width < MIN_DIMENSION || height < MIN_DIMENSION || width > MAX_DIMENSION || height > MAX_DIMENSION) {
+    throw new AppError(
+      'invalid_image_dimensions',
+      400,
+      `Selfies must be between ${MIN_DIMENSION}px and ${MAX_DIMENSION}px on each side.`,
+    );
+  }
+
+  const processed = await sharp(file.buffer, { failOn: 'error', limitInputPixels: 144_000_000 })
+    .rotate()
+    .resize({
+      width: VERIFICATION_MAX_DIMENSION,
+      height: VERIFICATION_MAX_DIMENSION,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .webp({ quality: 82, smartSubsample: true })
+    .toBuffer({ resolveWithObject: true });
+
+  if (env.STORAGE_PROVIDER === 'cloudinary') {
+    const stored = await uploadCloudinaryImage(processed.data, userId, {
+      folder: VERIFICATION_SELFIE_FOLDER,
+      filename: 'selfie.webp',
+    });
+    return {
+      url: cloudinaryDeliveryUrl(stored.url, 1_280),
+      publicId: stored.publicId,
+      width: stored.width,
+      height: stored.height,
+      bytes: stored.bytes,
+      mimeType: 'image/webp',
+    };
+  }
+
+  if (env.NODE_ENV === 'production') {
+    throw new AppError('persistent_storage_unavailable', 503, 'Photo storage is not configured.');
+  }
+  const directory = path.resolve(process.cwd(), env.UPLOAD_DIR);
+  await fs.mkdir(directory, { recursive: true });
+  const filename = `${userId}-selfie-${crypto.randomUUID()}.webp`;
+  await fs.writeFile(path.join(directory, filename), processed.data, { flag: 'wx' });
+  return {
+    url: `${env.PUBLIC_BASE_URL.replace(/\/$/, '')}/uploads/${filename}`,
+    publicId: filename,
+    width: processed.info.width,
+    height: processed.info.height,
+    bytes: processed.info.size,
+    mimeType: 'image/webp',
+  };
+}

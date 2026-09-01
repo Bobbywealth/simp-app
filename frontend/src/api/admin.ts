@@ -48,8 +48,11 @@ export interface AdminVerificationRow {
   id: string;
   userId: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  note: string | null;
+  userNote: string | null;
   reviewNote: string | null;
+  selfieUrl: string | null;
+  poseSequence: string[];
+  livenessHints: { framesCaptured?: number; faceMovedBetweenFrames?: boolean } | null;
   createdAt: string;
   user: {
     id: string;

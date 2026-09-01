@@ -512,7 +512,22 @@ model ProfileVerificationRequest {
   status     VerificationStatus @default(PENDING)
   userNote   String?
   reviewNote String?
-  createdAt  DateTime           @default(now())
+
+  // Image verification: the user submits a live selfie (captured in-app)
+  // alongside a sequence of pose prompts. The selfie is stored in Cloudinary
+  // (folder `simp/verification-selfies`) and shown side-by-side with the
+  // user's existing profile photos in the moderator review UI. After review
+  // (approved / rejected / cancelled) the selfie is deleted from storage.
+  // Selfies are processed for moderator review only and are never used as
+  // persistent biometric identifiers — see `deleteVerificationSelfie`.
+  selfieUrl      String?
+  selfiePublicId String?
+  poseSequence   String[]   @default([])
+  // Lightweight liveness hints captured client-side (e.g. face-moved-between-
+  // frames boolean, capture timestamps). Free-form JSON; moderators can ignore.
+  livenessHints  Json?
+
+  createdAt  DateTime @default(now())
   reviewedAt DateTime?
 
   user     User  @relation("VerificationSubject", fields: [userId], references: [id], onDelete: Cascade)

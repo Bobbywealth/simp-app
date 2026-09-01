@@ -482,6 +482,50 @@ export default function Admin() {
                       </div>
                       <p className="mt-2 text-xs text-white/45">{row.user.email}</p>
                       <p className="mt-1 text-xs text-white/35">Requested {formatDate(row.createdAt)}</p>
+                      {row.userNote && (
+                        <p className="mt-3 rounded-xl bg-black/30 p-3 text-xs italic text-white/60">
+                          User note: “{row.userNote}”
+                        </p>
+                      )}
+                      {row.poseSequence?.length > 0 && (
+                        <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-white/45">
+                          Pose sequence: {row.poseSequence.join(' → ')}
+                          {row.livenessHints?.faceMovedBetweenFrames && (
+                            <span className="ml-2 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] text-emerald-200">face moved</span>
+                          )}
+                        </p>
+                      )}
+                      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Submitted selfie</p>
+                          {row.selfieUrl ? (
+                            <img
+                              src={row.selfieUrl}
+                              alt="Submitted verification selfie"
+                              className="mt-2 aspect-square w-full rounded-2xl object-cover"
+                            />
+                          ) : (
+                            <p className="mt-2 rounded-xl bg-black/30 p-3 text-xs text-white/45">No selfie submitted.</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Profile photos</p>
+                          {row.user.photos.length === 0 ? (
+                            <p className="mt-2 rounded-xl bg-black/30 p-3 text-xs text-white/45">No profile photos on file.</p>
+                          ) : (
+                            <div className="mt-2 grid grid-cols-3 gap-2">
+                              {row.user.photos.slice(0, 6).map((photo) => (
+                                <img
+                                  key={photo.id}
+                                  src={photo.thumbnailUrl ?? photo.url}
+                                  alt="Profile photo"
+                                  className="aspect-square w-full rounded-xl object-cover"
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       <label className="mt-4 block text-xs uppercase tracking-[0.14em] text-white/35">
                         Review note
                         <textarea value={note} onChange={(event) => setVerificationNotes((current) => ({ ...current, [row.id]: event.target.value }))} className="input-luxe mt-2 min-h-24 w-full resize-y" />

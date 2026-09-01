@@ -5,6 +5,8 @@ import { env } from '../config/env.js';
 import { prisma } from '../config/db.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { deleteStoredPhoto } from '../services/photo.service.js';
+import { deleteVerificationSelfie } from '../services/verification.service.js';
+import { cloudinaryDeliveryUrl } from '../services/cloudinary.service.js';
 import { getFunnelCounts } from '../services/analytics.service.js';
 import { listRecordings as listLiveRecordings } from '../services/livekit.service.js';
 import { lastLivekitUsage, snapshotLivekitUsage } from '../services/livekit-usage.service.js';
@@ -375,7 +377,12 @@ adminRouter.get('/admin/verifications', async (req: AuthedRequest, res, next) =>
       orderBy: { createdAt: 'asc' },
       take: 100,
     });
-    res.json({ requests });
+    res.json({
+      requests: requests.map((row) => ({
+        ...row,
+        selfieUrl: row.selfieUrl ? cloudinaryDeliveryUrl(row.selfieUrl, 1_280) : null,
+      })),
+    });
   } catch (error) {
     next(error);
   }
@@ -413,6 +420,15 @@ adminRouter.patch('/admin/verifications/:id', async (req: AuthedRequest, res, ne
         },
       }),
     ]);
+    // Delete the selfie from Cloudinary after the DB transaction commits,
+    // regardless of approve/reject. Selfies are processed for review and
+    // then permanently deleted — they're not persistent biometric data.
+    if (request.selfiePublicId || request.selfieUrl) {
+      await deleteVerificationSelfie({
+        publicId: request.selfiePublicId,
+        url: request.selfieUrl ?? '',
+      }).catch(() => undefined);
+    }
     res.json({ ok: true, status: input.status });
   } catch (error) {
     next(error);
