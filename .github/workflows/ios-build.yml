@@ -196,6 +196,9 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -o pipefail
+          # Capture full output to log file; tail it to the job log so failures
+          # are visible without re-running locally.
+          LOG=$RUNNER_TEMP/xcodebuild-archive.log
           xcodebuild \
             -workspace ${{ env.WORKSPACE }} \
             -scheme ${{ env.SCHEME }} \
@@ -206,7 +209,11 @@ jobs:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="SIMP App Store" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            archive | xcpretty || (echo "❌ archive failed"; exit 1)
+            archive 2>&1 | tee "$LOG" | xcpretty || {
+              echo "❌ archive failed. Last 80 lines of xcodebuild output:"
+              tail -80 "$LOG"
+              exit 1
+            }
 
       - name: Export .ipa
         working-directory: frontend/ios/App
