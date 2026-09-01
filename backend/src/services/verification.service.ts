@@ -1,4 +1,5 @@
-import type { Prisma, VerificationStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { VerificationStatus } from '@prisma/client';
 import { prisma } from '../config/db.js';
 import { AppError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
