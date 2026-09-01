@@ -156,6 +156,19 @@ jobs:
           KEYCHAIN_PASSWORD: ci-keychain-temp-password
         run: |
           security find-identity -v -p codesigning $RUNNER_TEMP/build.keychain-db
+          echo ""
+          echo "=== Installed provisioning profiles ==="
+          for p in ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision; do
+            name=$(/usr/libexec/PlistBuddy -c "Print :Name" "$p" 2>/dev/null)
+            uuid=$(basename "$p" .mobileprovision)
+            bundleid=$(/usr/libexec/PlistBuddy -c "Print :AppIDName" "$p" 2>/dev/null)
+            echo "  $uuid  |  name=$name  |  AppIDName=$bundleid"
+            echo "    entitlements:"
+            security cms -D -i "$p" -o /tmp/p.plist 2>/dev/null && \
+              /usr/libexec/PlistBuddy -c "Print :Entitlements" /tmp/p.plist 2>/dev/null | sed 's/^/      /' || \
+              echo "    (could not extract entitlements)"
+            rm -f /tmp/p.plist
+          done
 
       - name: Generate ExportOptions.plist
         working-directory: frontend/ios/App
