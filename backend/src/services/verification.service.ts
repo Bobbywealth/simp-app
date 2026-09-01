@@ -127,9 +127,9 @@ export async function submitVerificationSelfie({
     select: { id: true, selfiePublicId: true, selfieUrl: true },
   });
 
-  const hintsJson: Prisma.InputJsonValue | null = livenessHints
+  const hintsJson: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput = livenessHints
     ? (livenessHints as unknown as Prisma.InputJsonValue)
-    : null;
+    : Prisma.JsonNull;
 
   const request = await prisma.$transaction(async (tx) => {
     if (previousPending) {
