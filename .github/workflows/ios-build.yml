@@ -126,7 +126,12 @@ jobs:
         run: |
           set -e
           PROFILE_PATH=$RUNNER_TEMP/simp_app_store.mobileprovision
-          echo "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode > $PROFILE_PATH
+          echo "DEBUG: secret length=${#BUILD_PROVISION_PROFILE_BASE64}"
+          echo "DEBUG: first 60 chars='${BUILD_PROVISION_PROFILE_BASE64:0:60}'"
+          echo "DEBUG: last 60 chars='${BUILD_PROVISION_PROFILE_BASE64: -60}'"
+          echo "DEBUG: xxd of full value:"
+          printf '%s' "$BUILD_PROVISION_PROFILE_BASE64" | xxd | head -5
+          printf '%s' "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode > $PROFILE_PATH
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles/
           cp $PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" $PROFILE_PATH)
