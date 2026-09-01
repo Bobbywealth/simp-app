@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "633230686633",
+    "project_id": "simp-dating-75023",
+    "storage_bucket": "simp-dating-75023.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:633230686633:android:4d6f497f88573cabf86cb8",
+        "android_client_info": {
+          "package_name": "app.simp.client"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzTkFURSpvPexfXPkqmHMMWOSMtNhCn_w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
