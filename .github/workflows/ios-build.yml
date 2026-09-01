@@ -126,12 +126,17 @@ jobs:
         run: |
           set -e
           PROFILE_PATH=$RUNNER_TEMP/simp_app_store.mobileprovision
-          echo "DEBUG: secret length=${#BUILD_PROVISION_PROFILE_BASE64}"
-          echo "DEBUG: first 60 chars='${BUILD_PROVISION_PROFILE_BASE64:0:60}'"
-          echo "DEBUG: last 60 chars='${BUILD_PROVISION_PROFILE_BASE64: -60}'"
-          echo "DEBUG: xxd of full value:"
-          printf '%s' "$BUILD_PROVISION_PROFILE_BASE64" | xxd | head -5
-          printf '%s' "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode > $PROFILE_PATH
+          B64_TMP=$RUNNER_TEMP/profile.b64
+          # Write secret to a file (no pipe) so we know exact bytes
+          printf '%s' "$BUILD_PROVISION_PROFILE_BASE64" > "$B64_TMP"
+          echo "DEBUG: wrote $(wc -c < "$B64_TMP") bytes to $B64_TMP"
+          echo "DEBUG: first 80 bytes (hex):"
+          xxd -l 80 "$B64_TMP"
+          echo "DEBUG: which base64: $(which base64), type: $(file $(which base64) | head -1)"
+          # Decode using openssl (universally available, more lenient than BSD base64)
+          openssl base64 -d -in "$B64_TMP" -out "$PROFILE_PATH"
+          echo "DEBUG: decoded profile size = $(wc -c < "$PROFILE_PATH") bytes (expected 12520)"
+          file "$PROFILE_PATH"
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles/
           cp $PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" $PROFILE_PATH)
