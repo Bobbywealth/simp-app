@@ -141,12 +141,15 @@ jobs:
               f.write(data)
           " "$BUILD_PROVISION_PROFILE_BASE64" "$PROFILE_PATH"
           echo "DEBUG: decoded profile size = $(wc -c < "$PROFILE_PATH") bytes (expected 12520)"
-          file "$PROFILE_PATH"
+          # CMS-wrapped plist: unwrap with openssl to extract UUID, since
+          # PlistBuddy can't parse the CMS binary directly.
+          security cms -D -i "$PROFILE_PATH" -o "$RUNNER_TEMP/profile.plist" 2>/dev/null || \
+            openssl smime -verify -in "$PROFILE_PATH" -inform der -noverify -out "$RUNNER_TEMP/profile.plist" 2>/dev/null
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$RUNNER_TEMP/profile.plist")
+          rm "$RUNNER_TEMP/profile.plist"
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles/
-          cp $PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" $PROFILE_PATH)
-          mv $PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
-          echo "✅ Profile installed: $PROFILE_UUID"
+          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
+          echo "✅ Profile installed with UUID $PROFILE_UUID"
 
       - name: Verify signing identity
         env:
