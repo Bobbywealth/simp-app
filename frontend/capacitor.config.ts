@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'app.simp.client',
   appName: 'SIMP',
-  appVersion: '0.2.0',
+  appVersion: '0.3.1',
   /// Build artifact from `npm run build` (Vite outputs to ./dist).
   /// Capacitor copies this into the native project on `cap sync`.
   webDir: 'dist',
