@@ -62,8 +62,8 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: '11076708'
-          android-api-level: '35'
-          build-tools-version: '35.0.0'
+          android-api-level: '36'
+          build-tools-version: '36.0.0'
           cache: gradle
 
       - name: Install frontend deps
