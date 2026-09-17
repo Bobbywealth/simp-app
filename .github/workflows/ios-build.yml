@@ -58,6 +58,12 @@ jobs:
           # When unset, the plugin prints a warning and skips — build still succeeds.
           # Add the token as a GitHub secret when you wire up Sentry for SIMP.
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          # Backend URL baked into the JS bundle. Without this the iOS app
+          # falls back to http://localhost:4000 and every auth call silently
+          # fails on a real device (confirmed: Apple rejected v1.0 build 5
+          # for Guideline 2.1 + 2.1(a) because login + signup couldn't reach
+          # the backend). Keep this in sync with frontend/.env.production.
+          VITE_API_BASE_URL: https://simp-backend-b8nz.onrender.com
         run: npm run build
 
       - name: Setup Java 17
