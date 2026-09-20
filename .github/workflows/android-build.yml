@@ -59,12 +59,24 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: '11076708'
-          android-api-level: '36'
-          build-tools-version: '36.0.0'
-          cache: gradle
+        run: |
+          # android-actions/setup-android@v3 fails on 'sdkmanager tools' because
+          # the deprecated 'tools' package was removed from newer Android SDKs.
+          # Set up the SDK manually instead.
+          export ANDROID_HOME=$HOME/Android/Sdk
+          export ANDROID_SDK_ROOT=$ANDROID_HOME
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+          mkdir -p $ANDROID_HOME/cmdline-tools
+
+          # Download and extract cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools/
+          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          rm cmdline-tools.zip
+
+          # Accept licenses and install required SDK components
+          yes | sdkmanager --licenses > /dev/null 2>&1
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install frontend deps
         working-directory: frontend
