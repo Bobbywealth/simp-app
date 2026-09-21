@@ -5,7 +5,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { sentryErrorHandler, sentryRequestHandler } from './services/sentry.service.js';
-import { allowedOrigins, env } from './config/env.js';
+import { allowedOrigins, env, normalizeOrigin } from './config/env.js';
 import { requestContext } from './middleware/request-context.js';
 import { errorHandler } from './middleware/error.js';
 import { accountRouter } from './routes/account.routes.js';
@@ -62,13 +62,8 @@ export function createApp() {
     cors({
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        const normalizedOrigin = (() => {
-          try {
-            return new URL(origin).origin;
-          } catch {
-            return origin.replace(/\/$/, '');
-          }
-        })();
+        const normalizedOrigin = normalizeOrigin(origin);
+        if (!normalizedOrigin) return callback(null, false);
         if (allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
         // Do not turn a normal blocked CORS origin into a 500 response.
         // Browsers will still block the response when no CORS header is emitted.

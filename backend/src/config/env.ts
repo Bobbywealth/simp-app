@@ -200,16 +200,36 @@ const CANONICAL_WEB_ORIGINS = [
   'https://mysimp.com',
   'https://www.mysimp.com',
   'https://simp-web.onrender.com',
+  // Native (Capacitor) WebView origins. The iOS/Android shells are NOT
+  // served from a web domain — WKWebView/Android WebView send their own
+  // scheme as the Origin header. Without these the native app's login
+  // XHR is blocked by CORS and surfaces as a generic error, which is
+  // what App Review hit on 2026-09-21 (Guideline 2.1(a)).
+  // iOS: capacitor.config.ts sets iosScheme: 'simp' -> simp://localhost
+  // Older/default Capacitor iOS -> capacitor://localhost
+  // Android: androidScheme 'https' -> https://localhost
+  'simp://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
+  'https://localhost',
 ];
 
-const normalizeOrigin = (value: string) => {
+// NOTE: `new URL('capacitor://localhost').origin` returns the STRING
+// "null" because custom schemes are not "special" per the WHATWG URL
+// spec. Collapsing them to "null" would (a) fail to match the intended
+// origin and (b) make every custom-scheme origin compare equal, which
+// is an accidental allow-all. So we only trust URL#origin when it is a
+// real origin, and otherwise fall back to the literal trimmed value.
+export const normalizeOrigin = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return null;
   try {
-    return new URL(trimmed).origin;
+    const parsed = new URL(trimmed).origin;
+    if (parsed && parsed !== 'null') return parsed;
   } catch {
-    return trimmed.replace(/\/$/, '');
+    /* fall through to literal comparison below */
   }
+  return trimmed.replace(/\/$/, '').toLowerCase();
 };
 
 export const allowedOrigins = Array.from(
