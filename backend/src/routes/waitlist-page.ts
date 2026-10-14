@@ -3,6 +3,41 @@
 // step, served straight from this compiled string. Bobby authorized
 // 2026-10-14.
 
+// The real SIMP mark — gold "S with crown" emblem, inlined so the
+// backend doesn't have to ship a separate static asset file. Source
+// of truth: frontend/public/icons/favicon.svg (kept in sync). 512x512
+// viewBox, scales cleanly down to a ~28px nav mark.
+const SIMP_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="simpGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f6e6b8"/>
+      <stop offset="45%" stop-color="#e8d598"/>
+      <stop offset="65%" stop-color="#d4a93a"/>
+      <stop offset="100%" stop-color="#a98320"/>
+    </linearGradient>
+    <radialGradient id="simpBg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+    <filter id="simpGlow"><feGaussianBlur stdDeviation="2"/></filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#simpBg)"/>
+  <g transform="translate(256, 256)">
+    <g transform="translate(0, -140)">
+      <line x1="-60" y1="0" x2="60" y2="0" stroke="url(#simpGold)" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
+      <polygon points="0,-50 -8,-8 8,-8" fill="url(#simpGold)"/>
+      <polygon points="-30,-35 -38,-8 -22,-8" fill="url(#simpGold)"/>
+      <polygon points="30,-35 22,-8 38,-8" fill="url(#simpGold)"/>
+      <polygon points="-58,-25 -64,-5 -52,-5" fill="url(#simpGold)" opacity="0.9"/>
+      <polygon points="58,-25 52,-5 64,-5" fill="url(#simpGold)" opacity="0.9"/>
+    </g>
+    <g transform="translate(0, 10)">
+      <path d="M60 -90 Q90 -100 90 -60 Q90 -35 55 -25 Q20 -15 0 0 Q-20 10 -55 20 Q-90 30 -90 60 Q-90 90 -60 100 Q-20 115 20 90 Q50 75 60 40" stroke="url(#simpGold)" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+  </g>
+  <circle cx="256" cy="256" r="248" fill="none" stroke="url(#simpGold)" stroke-width="0.5" opacity="0.2"/>
+</svg>`;
+
 export const WAITLIST_PAGE_HTML = `<!doctype html>
 <html lang="en">
   <head>
@@ -18,7 +53,8 @@ export const WAITLIST_PAGE_HTML = `<!doctype html>
     <meta property="og:url" content="https://mysimp.com" />
     <meta property="og:site_name" content="SIMP" />
 
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0a0a'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-size='38' font-weight='700' text-anchor='middle' fill='%23d4a93a'%3ES%3C/text%3E%3C/svg%3E" />
+    <link rel="icon" type="image/svg+xml" href="/prelaunch/static/favicon.svg" />
+    <link rel="mask-icon" href="/prelaunch/static/favicon.svg" color="#d4a93a" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -95,14 +131,15 @@ export const WAITLIST_PAGE_HTML = `<!doctype html>
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 38px; height: 38px;
-        border-radius: 10px;
-        background: linear-gradient(135deg, var(--gold), var(--gold-2));
-        color: #0a0a0a;
-        font-family: 'Cormorant Garamond', Georgia, serif;
-        font-weight: 700;
-        font-size: 22px;
-        box-shadow: 0 6px 18px var(--gold-glow);
+        width: 46px; height: 46px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(212, 169, 58, 0.18);
+      }
+      .brand .mark svg {
+        display: block;
+        width: 100%;
+        height: 100%;
       }
       .brand .name { color: var(--ink); }
 
@@ -320,7 +357,7 @@ export const WAITLIST_PAGE_HTML = `<!doctype html>
     <div class="page">
       <header>
         <div class="brand">
-          <span class="mark">S</span>
+          <span class="mark">${SIMP_LOGO_SVG}</span>
           <span class="name">SIMP</span>
         </div>
         <div class="nav-status" aria-live="polite">

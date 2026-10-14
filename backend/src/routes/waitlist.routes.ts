@@ -7,6 +7,40 @@ import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { WAITLIST_PAGE_HTML } from './waitlist-page.js';
 
+// Source of truth mirrors frontend/public/icons/favicon.svg. Kept
+// inline so the bundle is self-contained — no extra static file to
+// ship alongside the backend. Update both in lockstep if the mark
+// changes.
+const SIMP_FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="simpGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f6e6b8"/>
+      <stop offset="45%" stop-color="#e8d598"/>
+      <stop offset="65%" stop-color="#d4a93a"/>
+      <stop offset="100%" stop-color="#a98320"/>
+    </linearGradient>
+    <radialGradient id="simpBg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#simpBg)"/>
+  <g transform="translate(256, 256)">
+    <g transform="translate(0, -140)">
+      <line x1="-60" y1="0" x2="60" y2="0" stroke="url(#simpGold)" stroke-width="8" stroke-linecap="round" opacity="0.8"/>
+      <polygon points="0,-50 -8,-8 8,-8" fill="url(#simpGold)"/>
+      <polygon points="-30,-35 -38,-8 -22,-8" fill="url(#simpGold)"/>
+      <polygon points="30,-35 22,-8 38,-8" fill="url(#simpGold)"/>
+      <polygon points="-58,-25 -64,-5 -52,-5" fill="url(#simpGold)" opacity="0.9"/>
+      <polygon points="58,-25 52,-5 64,-5" fill="url(#simpGold)" opacity="0.9"/>
+    </g>
+    <g transform="translate(0, 10)">
+      <path d="M60 -90 Q90 -100 90 -60 Q90 -35 55 -25 Q20 -15 0 0 Q-20 10 -55 20 Q-90 30 -90 60 Q-90 90 -60 100 Q-20 115 20 90 Q50 75 60 40" stroke="url(#simpGold)" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+  </g>
+  <circle cx="256" cy="256" r="248" fill="none" stroke="url(#simpGold)" stroke-width="0.5" opacity="0.2"/>
+</svg>`;
+
 /**
  * Prelaunch waitlist. Two endpoints:
  *  - GET  /prelaunch (and /, /waitlist)  — serves the landing HTML.
@@ -67,6 +101,14 @@ function sendWaitlistPage(_req: Request, res: Response): void {
 // Landing page. Mounted at /prelaunch so the existing /api/* routes
 // remain unaffected. Root (/) is reserved for the future API root.
 waitlistRouter.get(['/prelaunch', '/waitlist'], sendWaitlistPage);
+
+// The SIMP mark served as the favicon + Safari pinned-tab mask.
+// Long-cacheable — the SVG only changes when the brand changes.
+waitlistRouter.get('/prelaunch/static/favicon.svg', (_req, res) => {
+  res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+  res.send(SIMP_FAVICON_SVG);
+});
 
 waitlistRouter.post('/api/waitlist', submitLimiter, async (req, res, next) => {
   try {
