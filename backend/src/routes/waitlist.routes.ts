@@ -50,6 +50,14 @@ function escapeHtml(s: string): string {
 
 function sendWaitlistPage(_req: Request, res: Response): void {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  // The default helmet CSP locks script-src to 'self', which would
+  // silently kill the inline form handler. Override for this route
+  // only — we control the HTML and the only JS it ships is the form
+  // submit handler. No third-party scripts.
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self';img-src 'self' data: https:;style-src 'self' 'unsafe-inline' https:;script-src 'self' 'unsafe-inline';font-src 'self' https: data:;form-action 'self';base-uri 'self';object-src 'none'",
+  );
   // Short browser cache so the page can be iterated quickly during
   // launch. No CDN edge cache; this is a single-tenant landing page.
   res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300');
