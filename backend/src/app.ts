@@ -25,6 +25,7 @@ import { notificationsRouter } from './routes/notifications.routes.js';
 import { photosRouter } from './routes/photos.routes.js';
 import { publicRouter } from './routes/public.routes.js';
 import { swipesRouter } from './routes/swipes.routes.js';
+import { waitlistRouter } from './routes/waitlist.routes.js';
 import { usersRouter } from './routes/users.routes.js';
 import { webhooksRouter } from './routes/webhooks.routes.js';
 import { demoRouter } from './routes/demo.routes.js';
@@ -141,6 +142,10 @@ export function createApp() {
   app.use(legalRouter);
   app.use(configRouter);
   app.use(publicRouter);
+  // Prelaunch waitlist landing + capture endpoint. Mounted at the
+  // root so /prelaunch (HTML) and /api/waitlist (POST) resolve
+  // directly without a prefix. Bobby authorized 2026-10-14.
+  app.use(waitlistRouter);
   app.use(accountRouter);
 
   app.use((_req, res) =>

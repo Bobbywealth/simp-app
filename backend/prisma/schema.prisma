@@ -850,3 +850,21 @@ model Broadcast {
   @@index([createdAt])
   @@index([actorId, createdAt])
 }
+
+/// Prelaunch waitlist signups. Anonymous (no userId) until the user
+/// finishes onboarding, at which point a backfill can join the row on
+/// email. One row per submitted email — duplicate submissions update
+/// the `name` and bump `updatedAt`. Used by `/prelaunch` and
+/// `POST /api/waitlist`.
+model WaitlistEntry {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  source      String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdAt])
+}
