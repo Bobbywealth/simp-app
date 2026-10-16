@@ -46,6 +46,10 @@ vi.mock('../src/middleware/auth.js', () => ({
       next(),
 }));
 
+vi.mock('../src/services/notification.service.js', () => ({
+  notify: vi.fn().mockResolvedValue({ id: 'notif-1' }),
+}));
+
 const { experiencesRouter } = await import('../src/routes/experiences.routes.js');
 
 function buildApp() {
@@ -274,7 +278,9 @@ describe('POST /experiences/:id/requests/:requestId/approve', () => {
   });
 
   function mockTx(txImpl: Record<string, any>) {
-    prismaMock.$transaction.mockImplementation(async (cb: any) => cb(txImpl));
+    prismaMock.$transaction.mockImplementation(async (cb: any) =>
+      cb({ $queryRaw: vi.fn().mockResolvedValue([]), ...txImpl }),
+    );
   }
 
   it('approves a pending request as the host', async () => {
@@ -283,7 +289,7 @@ describe('POST /experiences/:id/requests/:requestId/approve', () => {
       experienceRequest: {
         findUnique: vi.fn().mockResolvedValue(pendingRequest()),
         count: vi.fn().mockResolvedValue(0),
-        update: vi.fn().mockResolvedValue({ id: 'req-1', status: 'APPROVED' }),
+        update: vi.fn().mockResolvedValue({ id: 'req-1', status: 'APPROVED', requesterId: 'requester-1', requester: { id: 'requester-1', profile: { displayName: 'Alex' } }, experience: { id: 'exp-1', title: 'Test Date' } }),
       },
       experience: { update: vi.fn().mockResolvedValue({}) },
     });
@@ -301,7 +307,7 @@ describe('POST /experiences/:id/requests/:requestId/approve', () => {
       experienceRequest: {
         findUnique: vi.fn().mockResolvedValue(pendingRequest()),
         count: vi.fn().mockResolvedValue(1), // one already approved, capacity 2
-        update: vi.fn().mockResolvedValue({ id: 'req-1', status: 'APPROVED' }),
+        update: vi.fn().mockResolvedValue({ id: 'req-1', status: 'APPROVED', requesterId: 'requester-1', requester: { id: 'requester-1', profile: { displayName: 'Alex' } }, experience: { id: 'exp-1', title: 'Test Date' } }),
       },
       experience: { update: txExperienceUpdate },
     });

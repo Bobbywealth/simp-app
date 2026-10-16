@@ -251,6 +251,14 @@ accountRouter.delete('/account/me', requireAuth, async (req: AuthedRequest, res,
           data: { deletedAt: new Date() },
         }),
         tx.swipe.deleteMany({ where: { OR: [{ swiperId: userId }, { swipedId: userId }] } }),
+        tx.experience.updateMany({
+          where: { hostId: userId, status: { in: ['OPEN', 'FULL'] } },
+          data: { status: 'CANCELLED' },
+        }),
+        tx.experienceRequest.updateMany({
+          where: { requesterId: userId, status: { in: ['PENDING', 'APPROVED'] } },
+          data: { status: 'CANCELLED' },
+        }),
         tx.match.updateMany({
           where: { OR: [{ userAId: userId }, { userBId: userId }] },
           data: { isActive: false, deactivatedAt: new Date(), deactivatedById: userId },

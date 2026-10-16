@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import type { NotificationType } from '@prisma/client';
 import { prisma } from '../config/db.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { AppError } from '../utils/errors.js';
+import { notify } from '../services/notification.service.js';
 
 export const experiencesRouter = Router();
 
@@ -358,6 +360,17 @@ experiencesRouter.post('/experiences/:id/requests', requireAuth, async (req: Aut
         status: 'PENDING',
       },
     });
+
+    void notify({
+      userId: experience.hostId,
+      actorId: me,
+      type: 'EXPERIENCE' as NotificationType,
+      entityId: id,
+      title: 'New join request',
+      body: `Someone wants to join "${experience.title}". Review their request.`,
+      data: { experienceId: id, requestId: joinRequest.id },
+    }).catch(() => {});
+
     res.status(201).json(joinRequest);
   } catch (error) {
     next(error);
@@ -443,9 +456,15 @@ experiencesRouter.post(
       const me = req.userId!;
 
       const updated = await prisma.$transaction(async (tx) => {
+        // Lock the experience row so concurrent approves can't overfill capacity.
+        await tx.$queryRaw`SELECT id FROM "Experience" WHERE id = ${experienceId} FOR UPDATE`;
+
         const joinRequest = await tx.experienceRequest.findUnique({
           where: { id: requestId },
-          include: { experience: { select: { id: true, hostId: true, capacity: true, status: true } } },
+          include: {
+            experience: { select: { id: true, hostId: true, capacity: true, status: true, title: true } },
+            requester: { select: { profile: { select: { displayName: true } } } },
+          },
         });
         if (!joinRequest || joinRequest.experienceId !== experienceId) {
           throw new AppError('request_not_found', 404, 'Request not found.');
@@ -471,6 +490,10 @@ experiencesRouter.post(
         const approved = await tx.experienceRequest.update({
           where: { id: requestId },
           data: { status: 'APPROVED' },
+          include: {
+            experience: { select: { id: true, title: true } },
+            requester: { select: { id: true, profile: { select: { displayName: true } } } },
+          },
         });
 
         if (capacity != null && approvedCount + 1 >= capacity) {
@@ -478,6 +501,18 @@ experiencesRouter.post(
         }
         return approved;
       });
+
+      // Notify the requester (outside the transaction so a push failure can't roll back the approval).
+      const requesterName = updated.requester.profile?.displayName ?? 'Someone';
+      void notify({
+        userId: updated.requesterId,
+        actorId: me,
+        type: 'EXPERIENCE' as NotificationType,
+        entityId: experienceId,
+        title: "You're in!",
+        body: `${requesterName}, your request to join "${updated.experience.title}" was approved.`,
+        data: { experienceId, requestId: updated.id },
+      }).catch(() => {});
 
       res.json(updated);
     } catch (error) {
@@ -511,6 +546,17 @@ experiencesRouter.post(
         where: { id: requestId },
         data: { status: 'DECLINED' },
       });
+
+      void notify({
+        userId: declined.requesterId,
+        actorId: req.userId!,
+        type: 'EXPERIENCE' as NotificationType,
+        entityId: experience.id,
+        title: 'Request declined',
+        body: `Your request to join "${experience.title}" wasn't approved this time.`,
+        data: { experienceId: experience.id, requestId: declined.id },
+      }).catch(() => {});
+
       res.json(declined);
     } catch (error) {
       next(error);

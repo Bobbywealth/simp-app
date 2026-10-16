@@ -22,11 +22,22 @@ const EMERGENCY_NUMBERS = [
   { name: 'RAINN Sexual Assault', number: '1-800-656-4673' },
 ];
 
+const SAFETY_TIPS = [
+  { title: 'Meet in public', text: 'Always meet for the first time in a busy, public place. Never invite someone to your home or go to theirs on a first date.' },
+  { title: 'Tell someone', text: 'Share your date plans — who, where, when — with a trusted friend. Use the location-sharing above so someone knows where you are.' },
+  { title: 'Stay sober and alert', text: 'Watch your drink being prepared and never leave it unattended. Keep your phone charged and with you.' },
+  { title: 'Trust your instincts', text: 'If something feels off, leave. You never owe anyone your time. Block and report concerning behavior in the app.' },
+  { title: 'Keep personal info private', text: "Don't share your home address, workplace details, or financial information until you've built real trust over time." },
+  { title: 'Use your own transport', text: 'Arrange your own ride to and from the date so you can leave whenever you want.' },
+];
+
 export function SafetyMenu({ onClose }: SafetyMenuProps) {
   const [showContacts, setShowContacts] = useState(false);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [locationShared, setLocationShared] = useState(false);
   const [showShareConfirm, setShowShareConfirm] = useState(false);
+  const [showTips, setShowTips] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   function toggleContact(id: string) {
     setSelectedContacts((prev) => {
@@ -39,7 +50,7 @@ export function SafetyMenu({ onClose }: SafetyMenuProps) {
 
   async function shareLocation() {
     if (!navigator.geolocation) {
-      alert('Location not available on this device');
+      setLocationError('Location not available on this device');
       return;
     }
 
@@ -48,16 +59,16 @@ export function SafetyMenu({ onClose }: SafetyMenuProps) {
         const { latitude, longitude } = position.coords;
         const mapsLink = `https://maps.google.com/?q=${latitude},${longitude}`;
         const message = `Emergency: I'm sharing my location with you. My current location: ${mapsLink}`;
-        
+
         // In production, this would SMS contacts via backend
         // For now, just show confirmation
         setLocationShared(true);
         setShowShareConfirm(true);
-        console.log('Location shared:', { latitude, longitude, message });
+        setLocationError(null);
       },
       (error) => {
-        console.error('Location error:', error);
-        alert('Could not get your location. Please check location permissions.');
+        if (import.meta.env.DEV) console.error('Location error:', error);
+        setLocationError('Could not get your location. Please check location permissions.');
       }
     );
   }
@@ -179,7 +190,7 @@ export function SafetyMenu({ onClose }: SafetyMenuProps) {
 
           {/* Safety Tips */}
           <button
-            onClick={() => alert('Safety tips coming soon!')}
+            onClick={() => setShowTips((v) => !v)}
             className="flex w-full items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:bg-white/[0.06]"
           >
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gold-400/20">
@@ -191,11 +202,30 @@ export function SafetyMenu({ onClose }: SafetyMenuProps) {
               <p className="font-semibold text-white">Safety Tips</p>
               <p className="text-sm text-white/60">Guidelines for safe dating</p>
             </div>
-            <svg viewBox="0 0 24 24" className="h-5 w-5 text-white/40" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg viewBox="0 0 24 24" className={`h-5 w-5 text-white/40 transition-transform ${showTips ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </button>
+
+          {/* Safety Tips panel */}
+          {showTips && (
+            <div className="mt-2 space-y-3 rounded-2xl border border-gold-400/20 bg-gold-400/[0.04] p-4">
+              {SAFETY_TIPS.map((tip) => (
+                <div key={tip.title}>
+                  <p className="font-semibold text-gold-300 text-sm">{tip.title}</p>
+                  <p className="mt-0.5 text-sm text-white/70">{tip.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Location error */}
+        {locationError && (
+          <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+            <p className="text-sm text-red-300">{locationError}</p>
+          </div>
+        )}
 
         {/* Location Shared Confirmation */}
         {showShareConfirm && locationShared && (

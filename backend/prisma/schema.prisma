@@ -97,6 +97,7 @@ enum NotificationType {
   SYSTEM
   LIVE
   SECURITY
+  EXPERIENCE
 }
 
 enum PushPlatform {
