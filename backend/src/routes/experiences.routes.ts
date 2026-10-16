@@ -578,27 +578,44 @@ experiencesRouter.post(
         if (capacity != null && approvedCount + 1 >= capacity) {
           await tx.experience.update({ where: { id: experienceId }, data: { status: 'FULL' } });
         }
-        return approved;
+        return { approved, approvedCount: approvedCount + 1, becameFull: capacity != null && approvedCount + 1 >= capacity };
       });
 
+      const { approved: approvedRequest, approvedCount: newApprovedCount, becameFull } = updated;
+
       // Notify the requester (outside the transaction so a push failure can't roll back the approval).
-      const requesterName = updated.requester.profile?.displayName ?? 'Someone';
+      const requesterName = approvedRequest.requester.profile?.displayName ?? 'Someone';
       void notify({
-        userId: updated.requesterId,
+        userId: approvedRequest.requesterId,
         actorId: me,
         type: 'EXPERIENCE' as NotificationType,
         entityId: experienceId,
         title: "You're in!",
-        body: `${requesterName}, your request to join "${updated.experience.title}" was approved.`,
-        data: { experienceId, requestId: updated.id, route: `/experiences/${experienceId}` },
+        body: `${requesterName}, your request to join "${approvedRequest.experience.title}" was approved.`,
+        data: { experienceId, requestId: approvedRequest.id, route: `/experiences/${experienceId}` },
       }).catch(() => {});
 
-      getRealtimeServer()?.to(`user:${updated.requesterId}`).emit('experience:approved', {
+      getRealtimeServer()?.to(`user:${approvedRequest.requesterId}`).emit('experience:approved', {
         experienceId,
-        requestId: updated.id,
+        requestId: approvedRequest.id,
       });
 
-      res.json(updated);
+      res.json({
+        request: {
+          id: approvedRequest.id,
+          status: approvedRequest.status,
+          note: approvedRequest.note,
+          createdAt: approvedRequest.createdAt,
+          requester: {
+            id: approvedRequest.requester.id,
+            displayName: approvedRequest.requester.profile?.displayName ?? null,
+            age: null,
+            photoUrl: null,
+          },
+        },
+        approvedCount: newApprovedCount,
+        experienceStatus: becameFull ? 'FULL' : 'OPEN',
+      });
     } catch (error) {
       next(error);
     }
@@ -629,6 +646,15 @@ experiencesRouter.post(
       const declined = await prisma.experienceRequest.update({
         where: { id: requestId },
         data: { status: 'DECLINED' },
+        include: {
+          requester: {
+            select: {
+              id: true,
+              profile: { select: { displayName: true, birthDate: true } },
+              photos: { orderBy: { position: 'asc' }, take: 1, select: { url: true } },
+            },
+          },
+        },
       });
 
       void notify({
@@ -646,7 +672,20 @@ experiencesRouter.post(
         requestId: declined.id,
       });
 
-      res.json(declined);
+      res.json({
+        request: {
+          id: declined.id,
+          status: declined.status,
+          note: declined.note,
+          createdAt: declined.createdAt,
+          requester: {
+            id: declined.requester.id,
+            displayName: declined.requester.profile?.displayName ?? null,
+            age: declined.requester.profile ? calculateAge(declined.requester.profile.birthDate) : null,
+            photoUrl: declined.requester.photos[0]?.url ?? null,
+          },
+        },
+      });
     } catch (error) {
       next(error);
     }

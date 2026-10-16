@@ -299,7 +299,9 @@ describe('POST /experiences/:id/requests/:requestId/approve', () => {
     const res = await request(app).post('/experiences/exp-1/requests/req-1/approve');
 
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe('APPROVED');
+    expect(res.body.request.status).toBe('APPROVED');
+    expect(res.body.approvedCount).toBe(1);
+    expect(res.body.experienceStatus).toBe('OPEN');
   });
 
   it('marks the experience FULL when the last seat is taken', async () => {
@@ -401,12 +403,19 @@ describe('POST /experiences/:id/requests/:requestId/decline', () => {
       experienceId: 'exp-1',
       status: 'PENDING',
     });
-    prismaMock.experienceRequest.update.mockResolvedValue({ id: 'req-1', status: 'DECLINED' });
+    prismaMock.experienceRequest.update.mockResolvedValue({
+      id: 'req-1',
+      status: 'DECLINED',
+      note: null,
+      createdAt: new Date().toISOString(),
+      requesterId: 'requester-1',
+      requester: { id: 'requester-1', profile: null, photos: [] },
+    });
 
     const res = await request(app).post('/experiences/exp-1/requests/req-1/decline');
 
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe('DECLINED');
+    expect(res.body.request.status).toBe('DECLINED');
   });
 
   it('403s when a non-host tries to decline', async () => {
