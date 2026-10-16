@@ -211,7 +211,7 @@ export interface ConversationDetail {
 
 export interface InAppNotification {
   id: string;
-  type: 'MATCH' | 'MESSAGE' | 'LIKE' | 'SYSTEM' | 'LIVE' | 'SECURITY';
+  type: 'MATCH' | 'MESSAGE' | 'LIKE' | 'SYSTEM' | 'LIVE' | 'SECURITY' | 'EXPERIENCE';
   entityId: string | null;
   title: string;
   body: string;

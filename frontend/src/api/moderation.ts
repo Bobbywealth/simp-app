@@ -29,6 +29,13 @@ export function reportUser(reportedId: string, reason: ReportReason, details?: s
   });
 }
 
+export function reportExperience(experienceId: string, reason: ReportReason, details?: string) {
+  return apiFetch<{ reportId: string }>('/reports', {
+    method: 'POST',
+    body: JSON.stringify({ experienceId, reason, details }),
+  });
+}
+
 export function listBlocks() {
   return apiFetch<{
     blocks: Array<{ blockedId: string; displayName: string; createdAt: string }>;

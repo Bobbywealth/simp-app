@@ -212,6 +212,24 @@ export default function Home() {
             Start discovering →
           </p>
         </motion.button>
+        <motion.button
+          type="button"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.25 }}
+          onClick={() => navigate("/experiences")}
+          className="mt-3 w-full overflow-hidden rounded-2xl border border-gold-400/40 bg-white/[0.03] p-5 text-left backdrop-blur transition active:scale-[0.99] hover:border-gold-300/70"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-gold-200">
+            Experiences
+          </p>
+          <p className="mt-3 font-display text-3xl font-medium leading-[1.05] text-white">
+            Host the date, not just the match
+          </p>
+          <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-200">
+            Browse experiences →
+          </p>
+        </motion.button>
         {showNotificationBanner && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}

@@ -31,6 +31,7 @@ const preferencesSchema = z.object({
   likes: z.boolean().optional(),
   live: z.boolean().optional(),
   marketing: z.boolean().optional(),
+  experiences: z.boolean().optional(),
 });
 
 notificationsRouter.get('/notifications', requireAuth, async (req: AuthedRequest, res, next) => {
@@ -97,7 +98,8 @@ notificationsRouter.post('/users/me/push-tokens', requireAuth, async (req: Authe
       where: { token: input.token },
       create: { userId: req.userId!, ...input },
       update: {
-        userId: req.userId!,
+        // Do NOT overwrite userId — a token presented by a different user
+        // must not be reassigned (prevents push DoS via token theft).
         deviceId: input.deviceId,
         deviceName: input.deviceName,
         platform: input.platform,
@@ -105,6 +107,22 @@ notificationsRouter.post('/users/me/push-tokens', requireAuth, async (req: Authe
         lastSeenAt: new Date(),
       },
     });
+
+    // Cap active tokens per user — deactivate the oldest beyond the limit.
+    const MAX_PUSH_TOKENS_PER_USER = 10;
+    const excess = await prisma.pushToken.findMany({
+      where: { userId: req.userId!, active: true },
+      orderBy: { lastSeenAt: 'desc' },
+      skip: MAX_PUSH_TOKENS_PER_USER,
+      select: { id: true },
+    });
+    if (excess.length) {
+      await prisma.pushToken.updateMany({
+        where: { id: { in: excess.map((t) => t.id) } },
+        data: { active: false },
+      });
+    }
+
     res.status(201).json({ id: token.id, active: token.active });
   } catch (error) {
     next(error);

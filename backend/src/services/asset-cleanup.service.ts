@@ -21,7 +21,11 @@ export async function processAssetDeletionJobs(limit = 25) {
   for (const job of jobs) {
     const value = job.publicId.startsWith('url_') ? job.url : job.publicId;
     if (!value) continue;
-    const deleted = await deleteCloudinaryAsset(value, { isPublicId: !job.publicId.startsWith('url_') });
+    let deleted = await deleteCloudinaryAsset(value, { isPublicId: !job.publicId.startsWith('url_') });
+    // Retry as private — verification selfies are private assets.
+    if (!deleted && !job.publicId.startsWith('url_')) {
+      deleted = await deleteCloudinaryAsset(value, { isPublicId: true, private: true });
+    }
     if (deleted) {
       await prisma.assetDeletionJob.update({
         where: { id: job.id },

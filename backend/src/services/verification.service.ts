@@ -3,7 +3,7 @@ import type { VerificationStatus } from '@prisma/client';
 import { prisma } from '../config/db.js';
 import { AppError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
-import { deleteCloudinaryAsset, cloudinaryDeliveryUrl } from './cloudinary.service.js';
+import { deleteCloudinaryAsset, cloudinaryDeliveryUrl, cloudinarySignedDeliveryUrl } from './cloudinary.service.js';
 import { processAndStoreVerificationSelfie, type StoredPhoto } from './photo.service.js';
 import { enqueueAssetDeletion } from './asset-cleanup.service.js';
 
@@ -251,7 +251,11 @@ export async function getVerificationStatus(userId: string): Promise<Verificatio
     pendingRequest: pending
       ? {
           id: pending.id,
-          selfieUrl: pending.selfieUrl ? cloudinaryDeliveryUrl(pending.selfieUrl, 1_280) : null,
+          selfieUrl: pending.selfiePublicId
+            ? cloudinarySignedDeliveryUrl(pending.selfiePublicId, 1_280)
+            : pending.selfieUrl
+              ? cloudinaryDeliveryUrl(pending.selfieUrl, 1_280)
+              : null,
           poseSequence: pending.poseSequence,
           livenessHints: (pending.livenessHints as LivenessHints | null) ?? null,
           createdAt: pending.createdAt.toISOString(),
@@ -278,8 +282,10 @@ export async function deleteVerificationSelfie(selfie: {
   url: string;
 }): Promise<boolean> {
   if (!selfie.publicId && !selfie.url) return false;
+  // Selfies are private assets — destroy must specify type=private.
   const deleted = await deleteCloudinaryAsset(selfie.publicId ?? selfie.url, {
     isPublicId: Boolean(selfie.publicId),
+    private: true,
   });
   if (!deleted) {
     await enqueueAssetDeletion({ publicId: selfie.publicId, url: selfie.url });

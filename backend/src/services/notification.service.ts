@@ -96,7 +96,9 @@ export async function dispatchNotification(notificationId: string) {
     createdAt: notification.createdAt,
   });
 
-  const preferences = notification.user.notificationPreference;
+  const preferences = notification.user.notificationPreference as
+    | (typeof notification.user.notificationPreference & { experiences?: boolean })
+    | null;
   const allowed =
     notification.type === 'MATCH'
       ? preferences?.matches !== false
@@ -108,7 +110,9 @@ export async function dispatchNotification(notificationId: string) {
             ? preferences?.live !== false
             : notification.type === 'SECURITY'
               ? preferences?.security !== false
-              : true;
+              : notification.type === ('EXPERIENCE' as NotificationType)
+                ? preferences?.experiences !== false
+                : true;
   if (!allowed) return;
 
   const stringData: Record<string, string> = {

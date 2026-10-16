@@ -121,6 +121,12 @@ export function createApp() {
   app.use('/live/streams', limiter(60_000, 60));
   app.use('/conversations', limiter(60_000, 120));
   app.use('/analytics/events', limiter(60_000, 120));
+  // Expensive/authenticated endpoints that were unlimited.
+  app.use('/discovery', limiter(60_000, 60));
+  app.use('/admin', limiter(60_000, 120));
+  app.use('/notifications', limiter(60_000, 120));
+  app.use('/users', limiter(60_000, 120));
+  app.use('/experiences', limiter(60_000, 60));
 
   app.use('/health', healthRouter);
   app.use(webhooksRouter);

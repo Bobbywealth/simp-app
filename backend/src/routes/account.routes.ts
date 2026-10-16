@@ -8,6 +8,8 @@ import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import { enqueueAssetDeletion } from '../services/asset-cleanup.service.js';
 import { deleteStoredPhoto } from '../services/photo.service.js';
 import { getRealtimeServer } from '../sockets/realtime.js';
+import { notify } from '../services/notification.service.js';
+import type { NotificationType } from '@prisma/client';
 import { AppError } from '../utils/errors.js';
 
 export const accountRouter = Router();
@@ -224,6 +226,19 @@ accountRouter.delete('/account/me', requireAuth, async (req: AuthedRequest, res,
       })
     ).map((stream) => stream.id);
 
+    // Guests to notify: fetch before the transaction cancels everything.
+    const hostedExperiences = await prisma.experience.findMany({
+      where: { hostId: userId, status: { in: ['OPEN', 'FULL'] } },
+      select: {
+        id: true,
+        title: true,
+        requests: {
+          where: { status: { in: ['PENDING', 'APPROVED'] } },
+          select: { requesterId: true },
+        },
+      },
+    });
+
     await prisma.$transaction(async (tx) => {
       await Promise.all([
         tx.report.updateMany({
@@ -251,6 +266,14 @@ accountRouter.delete('/account/me', requireAuth, async (req: AuthedRequest, res,
           data: { deletedAt: new Date() },
         }),
         tx.swipe.deleteMany({ where: { OR: [{ swiperId: userId }, { swipedId: userId }] } }),
+        tx.experience.updateMany({
+          where: { hostId: userId, status: { in: ['OPEN', 'FULL'] } },
+          data: { status: 'CANCELLED' },
+        }),
+        tx.experienceRequest.updateMany({
+          where: { requesterId: userId, status: { in: ['PENDING', 'APPROVED'] } },
+          data: { status: 'CANCELLED' },
+        }),
         tx.match.updateMany({
           where: { OR: [{ userAId: userId }, { userBId: userId }] },
           data: { isActive: false, deactivatedAt: new Date(), deactivatedById: userId },
@@ -310,6 +333,24 @@ accountRouter.delete('/account/me', requireAuth, async (req: AuthedRequest, res,
       });
     }
     getRealtimeServer()?.to(`user:${userId}`).emit('account:deleted');
+
+    // Notify guests of cancelled hosted experiences (push + realtime).
+    for (const exp of hostedExperiences) {
+      for (const req of exp.requests) {
+        void notify({
+          userId: req.requesterId,
+          actorId: null,
+          type: 'EXPERIENCE' as NotificationType,
+          entityId: exp.id,
+          title: 'Experience cancelled',
+          body: `"${exp.title}" was cancelled.`,
+          data: { experienceId: exp.id, route: `/experiences/${exp.id}` },
+        }).catch(() => {});
+        getRealtimeServer()?.to(`user:${req.requesterId}`).emit('experience:cancelled', {
+          experienceId: exp.id,
+        });
+      }
+    }
 
     for (const photo of photos) {
       const deleted = await deleteStoredPhoto(photo);

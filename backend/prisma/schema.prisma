@@ -97,6 +97,7 @@ enum NotificationType {
   SYSTEM
   LIVE
   SECURITY
+  EXPERIENCE
 }
 
 enum PushPlatform {
@@ -135,6 +136,21 @@ enum ExperienceCategory {
   ADVENTURE
   VIP
   OTHER
+}
+
+enum ExperienceStatus {
+  DRAFT
+  OPEN
+  FULL
+  COMPLETED
+  CANCELLED
+}
+
+enum ExperienceRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  CANCELLED
 }
 
 model User {
@@ -200,6 +216,8 @@ model User {
   verificationReviews       ProfileVerificationRequest[] @relation("VerificationReviewer")
   broadcastsSent            Broadcast[]                  @relation("BroadcastActor")
   tosAcceptances            TosAcceptance[]
+  hostedExperiences         Experience[]                 @relation("HostedExperiences")
+  experienceRequests        ExperienceRequest[]
 
   // Required before broadcasting. Birthdate eligibility is separately
   // enforced when the profile is created or changed.
@@ -464,6 +482,7 @@ model Report {
   reporterId          String?
   reportedId          String?
   streamId            String?
+  experienceId        String?
   category            ReportCategory @default(OTHER)
   reason              String
   details             String?
@@ -656,6 +675,7 @@ model NotificationPreference {
   live      Boolean  @default(true)
   security  Boolean  @default(true)
   marketing Boolean  @default(false)
+  experiences Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -714,8 +734,34 @@ model Experience {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
+  // User-hosted experiences
+  hostId   String
+  host     User             @relation("HostedExperiences", fields: [hostId], references: [id], onDelete: Cascade)
+  status   ExperienceStatus @default(OPEN)
+  requests ExperienceRequest[]
+  venue    String?
+  logistics String?
+
   @@index([isActive, city, startsAt])
   @@index([category, startsAt])
+  @@index([hostId])
+  @@index([status, startsAt])
+}
+
+model ExperienceRequest {
+  id           String                  @id @default(cuid())
+  experienceId String
+  experience   Experience              @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  requesterId  String
+  requester    User                    @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  note         String?                 @db.VarChar(500)
+  status       ExperienceRequestStatus @default(PENDING)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  @@unique([experienceId, requesterId])
+  @@index([experienceId, status])
+  @@index([requesterId, status])
 }
 
 /// Versioned Terms of Service / Privacy Policy documents.

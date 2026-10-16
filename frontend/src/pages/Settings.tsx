@@ -36,6 +36,7 @@ const DEFAULT_NOTIFICATIONS: NotificationPreferences = {
   live: true,
   security: true,
   marketing: false,
+  experiences: true,
 };
 
 type BlockedUser = { blockedId: string; displayName: string; photoUrl?: string | null; createdAt: string };
@@ -288,7 +289,7 @@ export default function Settings() {
         </SettingsSection>
 
         <SettingsSection title="Notifications">
-          <div className="divide-y divide-white/[0.06]">{(['matches', 'messages', 'likes', 'live', 'marketing'] as const).map((key) => <div key={key} className="p-4"><Toggle label={key.charAt(0).toUpperCase() + key.slice(1)} checked={notifications[key]} onChange={(checked) => void saveNotifications({ ...notifications, [key]: checked })} /></div>)}</div>
+          <div className="divide-y divide-white/[0.06]">{(['matches', 'messages', 'likes', 'live', 'experiences', 'marketing'] as const).map((key) => <div key={key} className="p-4"><Toggle label={key.charAt(0).toUpperCase() + key.slice(1)} checked={notifications[key]} onChange={(checked) => void saveNotifications({ ...notifications, [key]: checked })} /></div>)}</div>
           <div className="border-t border-white/[0.06] p-4"><button type="button" disabled={busy === 'push'} onClick={() => void enablePush()} className="btn-gold-outline w-full py-3 text-xs uppercase tracking-[0.16em]">Enable device push</button></div>
         </SettingsSection>
 

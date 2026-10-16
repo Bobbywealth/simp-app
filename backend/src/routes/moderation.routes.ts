@@ -144,21 +144,37 @@ moderationRouter.post('/reports', requireAuth, async (req: AuthedRequest, res, n
   try {
     const input = z
       .object({
-        reportedId: z.string().min(1),
+        reportedId: z.string().min(1).optional(),
+        experienceId: z.string().min(1).optional(),
         category: z.enum(categoryValues).optional(),
         reason: z.string().trim().min(1).max(120).optional(),
         details: z.string().trim().max(1_000).optional().nullable(),
       })
       .refine((value) => value.category || value.reason, 'Choose a report category')
+      .refine((value) => value.reportedId || value.experienceId, 'Report a user or an experience')
       .parse(req.body);
     if (input.reportedId === req.userId) {
       throw new AppError('cannot_report_self', 400, 'You cannot report yourself.');
     }
-    const target = await prisma.user.findUnique({ where: { id: input.reportedId }, select: { id: true } });
-    if (!target) throw new AppError('user_not_found', 404, 'User not found.');
+    let reportedId = input.reportedId ?? null;
+    let experienceId = input.experienceId ?? null;
+    if (experienceId) {
+      const exp = await prisma.experience.findUnique({
+        where: { id: experienceId },
+        select: { id: true, hostId: true },
+      });
+      if (!exp) throw new AppError('experience_not_found', 404, 'Experience not found.');
+      // Reporting an experience also flags the host.
+      reportedId = exp.hostId;
+    } else {
+      const target = await prisma.user.findUnique({ where: { id: reportedId! }, select: { id: true } });
+      if (!target) throw new AppError('user_not_found', 404, 'User not found.');
+    }
     const category = input.category ?? legacyCategory(input.reason!);
     const label = REPORT_CATEGORIES.find((item) => item.value === category)?.label ?? 'Other';
-    const contextKey = `user:${input.reportedId}:${category}`;
+    const contextKey = experienceId
+      ? `experience:${experienceId}:${category}`
+      : `user:${reportedId}:${category}`;
     const existing = await prisma.report.findUnique({
       where: { reporterId_contextKey: { reporterId: req.userId!, contextKey } },
     });
@@ -167,12 +183,14 @@ moderationRouter.post('/reports', requireAuth, async (req: AuthedRequest, res, n
     const report = await prisma.report.create({
       data: {
         reporterId: req.userId!,
-        reportedId: input.reportedId,
+        reportedId,
+        // experienceId added in migration 20261016060000; cast until prisma generate runs on deploy.
+        ...(experienceId ? ({ experienceId } as object) : {}),
         category,
         reason: input.reason ?? label,
         details: input.details || null,
         contextKey,
-      },
+      } as Parameters<typeof prisma.report.create>[0]['data'],
     });
     res.status(201).json({ reportId: report.id, alreadyReported: false });
   } catch (error) {

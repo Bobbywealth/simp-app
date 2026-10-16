@@ -91,7 +91,7 @@ async function loadTokens(userId: string): Promise<StoredToken[]> {
   });
 }
 
-async function sendFirebase(token: StoredToken, payload: PushPayload): Promise<'ok' | 'gone'> {
+async function sendFirebase(token: StoredToken, payload: PushPayload): Promise<'ok' | 'gone' | 'failed'> {
   try {
     await getMessaging().send({
       token: token.token,
@@ -111,12 +111,13 @@ async function sendFirebase(token: StoredToken, payload: PushPayload): Promise<'
     ) {
       return 'gone';
     }
+    // Transient errors (quota, server-unavailable, etc.) must NOT kill the token.
     logger.warn({ event: 'push_delivery_failed', provider: 'firebase', code });
-    return 'gone';
+    return 'failed';
   }
 }
 
-async function sendWebPush(token: StoredToken, payload: PushPayload): Promise<'ok' | 'gone'> {
+async function sendWebPush(token: StoredToken, payload: PushPayload): Promise<'ok' | 'gone' | 'failed'> {
   if (!token.subscription || !token.endpoint) return 'gone';
   try {
     await webpush.sendNotification(
@@ -140,7 +141,7 @@ async function sendWebPush(token: StoredToken, payload: PushPayload): Promise<'o
       status,
       error: error instanceof Error ? error.message : String(error),
     });
-    return 'gone';
+    return 'failed';
   }
 }
 
@@ -172,7 +173,7 @@ export async function sendPushToUser(
   let sent = 0;
   const gone: string[] = [];
   for (const item of tokens) {
-    let result: 'ok' | 'gone';
+    let result: 'ok' | 'gone' | 'failed';
     if (item.platform === 'WEB') {
       if (!webPushEnabled) {
         // VAPID config was removed; deactivate the stale token.
@@ -189,7 +190,8 @@ export async function sendPushToUser(
       result = await sendFirebase(item, payload);
     }
     if (result === 'ok') sent += 1;
-    else gone.push(item.id);
+    else if (result === 'gone') gone.push(item.id);
+    // 'failed' = transient error — keep the token, retry next time.
   }
 
   if (gone.length) {
