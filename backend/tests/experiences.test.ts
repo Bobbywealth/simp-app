@@ -472,6 +472,7 @@ describe('POST /experiences/:id/cancel', () => {
     authState.userId = 'host-1';
     prismaMock.experience.findUnique.mockResolvedValue(openExperience({ hostId: 'host-1' }));
     prismaMock.experience.update.mockResolvedValue({ id: 'exp-1', status: 'CANCELLED' });
+    prismaMock.experienceRequest.findMany.mockResolvedValue([]);
 
     const res = await request(app).post('/experiences/exp-1/cancel');
 

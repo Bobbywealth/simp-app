@@ -284,6 +284,20 @@ experiencesRouter.patch('/experiences/:id', requireAuth, async (req: AuthedReque
         ...(input.imageUrl !== undefined ? { imageUrl: input.imageUrl } : {}),
       },
     });
+
+    // If capacity was raised on a FULL experience, reopen it.
+    if (input.capacity !== undefined && updated.status === 'FULL') {
+      const approvedCount = await prisma.experienceRequest.count({
+        where: { experienceId: id, status: 'APPROVED' },
+      });
+      if (input.capacity > approvedCount) {
+        await prisma.experience.update({
+          where: { id: experience.id },
+          data: { status: 'OPEN' },
+        });
+        updated.status = 'OPEN';
+      }
+    }
     res.json(updated);
   } catch (error) {
     next(error);
@@ -305,6 +319,27 @@ experiencesRouter.post('/experiences/:id/cancel', requireAuth, async (req: Authe
       where: { id: experience.id },
       data: { status: 'CANCELLED' },
     });
+
+    // Notify all approved + pending guests that the experience was cancelled.
+    const guests = await prisma.experienceRequest.findMany({
+      where: { experienceId: id, status: { in: ['PENDING', 'APPROVED'] } },
+      select: { requesterId: true },
+    });
+    for (const guest of guests) {
+      void notify({
+        userId: guest.requesterId,
+        actorId: req.userId!,
+        type: 'EXPERIENCE' as NotificationType,
+        entityId: id,
+        title: 'Experience cancelled',
+        body: `"${experience.title}" was cancelled by the host.`,
+        data: { experienceId: id, route: `/experiences/${id}` },
+      }).catch(() => {});
+      getRealtimeServer()?.to(`user:${guest.requesterId}`).emit('experience:cancelled', {
+        experienceId: id,
+      });
+    }
+
     res.json(updated);
   } catch (error) {
     next(error);
@@ -391,17 +426,48 @@ experiencesRouter.delete('/experiences/:id/requests/mine', requireAuth, async (r
   try {
     const id = z.string().min(1).parse(req.params.id);
     const me = req.userId!;
-    const pending = await prisma.experienceRequest.findFirst({
-      where: { experienceId: id, requesterId: me, status: 'PENDING' },
-      select: { id: true },
+    const existing = await prisma.experienceRequest.findFirst({
+      where: { experienceId: id, requesterId: me, status: { in: ['PENDING', 'APPROVED'] } },
+      select: { id: true, status: true },
     });
-    if (!pending) {
-      throw new AppError('request_not_found', 404, 'No pending request found for this experience.');
+    if (!existing) {
+      throw new AppError('request_not_found', 404, 'No active request found for this experience.');
     }
     const updated = await prisma.experienceRequest.update({
-      where: { id: pending.id },
+      where: { id: existing.id },
       data: { status: 'CANCELLED' },
     });
+
+    // If an approved guest leaves a FULL experience, reopen it.
+    if (existing.status === 'APPROVED') {
+      const experience = await prisma.experience.findUnique({
+        where: { id },
+        select: { status: true, capacity: true },
+      });
+      if (experience?.status === 'FULL') {
+        const approvedCount = await prisma.experienceRequest.count({
+          where: { experienceId: id, status: 'APPROVED' },
+        });
+        if (experience.capacity == null || approvedCount < experience.capacity) {
+          await prisma.experience.update({ where: { id }, data: { status: 'OPEN' } });
+        }
+      }
+      // Let the host know a guest left.
+      const host = await prisma.experience.findUnique({ where: { id }, select: { hostId: true, title: true } });
+      if (host) {
+        void notify({
+          userId: host.hostId,
+          actorId: me,
+          type: 'EXPERIENCE' as NotificationType,
+          entityId: id,
+          title: 'Guest left',
+          body: `A guest left "${host.title}".`,
+          data: { experienceId: id, route: `/experiences/${id}` },
+        }).catch(() => {});
+        getRealtimeServer()?.to(`user:${host.hostId}`).emit('experience:guest-left', { experienceId: id });
+      }
+    }
+
     res.json(updated);
   } catch (error) {
     next(error);
@@ -574,6 +640,60 @@ experiencesRouter.post(
       });
 
       res.json(declined);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Remove an approved guest (host only)
+// ---------------------------------------------------------------------------
+
+experiencesRouter.delete(
+  '/experiences/:id/requests/:requestId',
+  requireAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const experienceId = z.string().min(1).parse(req.params.id);
+      const requestId = z.string().min(1).parse(req.params.requestId);
+      const experience = await getHostedExperience(experienceId, req.userId!);
+
+      const joinRequest = await prisma.experienceRequest.findUnique({ where: { id: requestId } });
+      if (!joinRequest || joinRequest.experienceId !== experience.id) {
+        throw new AppError('request_not_found', 404, 'Request not found.');
+      }
+      if (joinRequest.status !== 'APPROVED') {
+        throw new AppError('request_not_approved', 400, 'Only approved guests can be removed.');
+      }
+
+      const removed = await prisma.experienceRequest.update({
+        where: { id: requestId },
+        data: { status: 'CANCELLED' },
+      });
+
+      // Reopen if the experience was FULL.
+      if (experience.status === 'FULL') {
+        await prisma.experience.update({
+          where: { id: experienceId },
+          data: { status: 'OPEN' },
+        });
+      }
+
+      void notify({
+        userId: removed.requesterId,
+        actorId: req.userId!,
+        type: 'EXPERIENCE' as NotificationType,
+        entityId: experienceId,
+        title: 'Removed from experience',
+        body: `You were removed from "${experience.title}".`,
+        data: { experienceId, route: `/experiences/${experienceId}` },
+      }).catch(() => {});
+      getRealtimeServer()?.to(`user:${removed.requesterId}`).emit('experience:removed', {
+        experienceId,
+      });
+
+      res.json(removed);
     } catch (error) {
       next(error);
     }

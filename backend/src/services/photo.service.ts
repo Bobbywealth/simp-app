@@ -182,6 +182,7 @@ export async function processAndStoreVerificationSelfie(
     const stored = await uploadCloudinaryImage(processed.data, userId, {
       folder: VERIFICATION_SELFIE_FOLDER,
       filename: 'selfie.webp',
+      private: true,
     });
     return {
       url: cloudinaryDeliveryUrl(stored.url, 1_280),

@@ -458,11 +458,16 @@ export async function appleSignIn(
       await consumeAuthActionToken(
         input.linkMergeToken,
         'APPLE_ACCOUNT_MERGE',
-        async () => {
-          /* no-op: we just need to verify and burn the token */
+        async (_tx, tokenUserId) => {
+          // The merge token must belong to the account being linked —
+          // otherwise an attacker could link their Apple ID to a victim's account.
+          if (tokenUserId !== input.linkToUserId) {
+            throw new AuthError('invalid_merge_token', 401, 'Merge link expired. Please re-authenticate.');
+          }
         },
       );
-    } catch {
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
       throw new AuthError(
         'invalid_merge_token',
         401,

@@ -31,7 +31,7 @@ export function cloudinaryConfigured(): boolean {
 export async function uploadCloudinaryImage(
   buffer: Buffer,
   userId: string,
-  options: { folder?: string; filename?: string } = {},
+  options: { folder?: string; filename?: string; private?: boolean } = {},
 ): Promise<{ url: string; publicId: string; width: number; height: number; bytes: number }> {
   if (!cloudinaryConfigured()) {
     throw new AppError(
@@ -45,17 +45,22 @@ export async function uploadCloudinaryImage(
   const filename = options.filename ?? 'profile.webp';
   const timestamp = String(Math.floor(Date.now() / 1_000));
   const publicId = `${userId}/${crypto.randomUUID()}`;
-  const params = {
+  const params: Record<string, string> = {
     folder,
     public_id: publicId,
     timestamp,
   };
+  // Verification selfies are sensitive — upload as private so delivery URLs require signing.
+  if (options.private) {
+    params.type = 'private';
+  }
   const form = new FormData();
   form.set('file', new Blob([buffer], { type: 'image/webp' }), filename);
   form.set('api_key', env.CLOUDINARY_API_KEY!);
   form.set('timestamp', timestamp);
   form.set('folder', folder);
   form.set('public_id', publicId);
+  if (options.private) form.set('type', 'private');
   form.set('signature', signature(params));
 
   const response = await fetch(
