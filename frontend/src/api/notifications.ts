@@ -19,6 +19,7 @@ export type NotificationPreferences = {
   live: boolean;
   security: boolean;
   marketing: boolean;
+  experiences: boolean;
 };
 export const getNotificationPreferences = () =>
   apiFetch<NotificationPreferences>('/users/me/notification-preferences');

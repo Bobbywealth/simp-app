@@ -113,20 +113,22 @@ export function cloudinaryThumbnailUrl(url: string, size = 320): string {
 
 export async function deleteCloudinaryAsset(
   value: string,
-  options: { isPublicId?: boolean } = {},
+  options: { isPublicId?: boolean; private?: boolean } = {},
 ): Promise<boolean> {
   const match = value.match(/\/upload\/(?:[^/]+\/)*(?:v\d+\/)?(.+?)(?:\.[a-z0-9]+)?$/i);
   const publicId = options.isPublicId ? value : match?.[1];
   if (!publicId || !cloudinaryConfigured()) return false;
 
   const timestamp = String(Math.floor(Date.now() / 1_000));
-  const params = { public_id: publicId, timestamp };
+  const params: Record<string, string> = { public_id: publicId, timestamp };
+  if (options.private) params.type = 'private';
   const body = new URLSearchParams({
     public_id: publicId,
     timestamp,
     api_key: env.CLOUDINARY_API_KEY!,
     signature: signature(params),
   });
+  if (options.private) body.set('type', 'private');
 
   try {
     const response = await fetch(

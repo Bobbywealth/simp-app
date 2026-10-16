@@ -419,7 +419,14 @@ experiencesRouter.post('/experiences/:id/requests', requireAuth, async (req: Aut
       requestId: joinRequest.id,
     });
 
-    res.status(201).json(joinRequest);
+    res.status(201).json({
+      request: {
+        id: joinRequest.id,
+        status: joinRequest.status,
+        note: joinRequest.note,
+        createdAt: joinRequest.createdAt,
+      },
+    });
   } catch (error) {
     next(error);
   }

@@ -283,13 +283,13 @@ export default function ExperienceDetail() {
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold uppercase tracking-[0.16em] text-gold-200">Spots</span>
                 <span className="font-extrabold text-white">
-                  {detail.approvedCount}/{detail.capacity}
+                  {detail.capacity ? `${detail.approvedCount}/${detail.capacity}` : `${detail.approvedCount} joined`}
                 </span>
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full bg-gold-gradient transition-all duration-500"
-                  style={{ width: `${detail.capacity > 0 ? Math.min(100, (detail.approvedCount / detail.capacity) * 100) : 0}%` }}
+                  style={{ width: `${detail.capacity && detail.capacity > 0 ? Math.min(100, (detail.approvedCount / detail.capacity) * 100) : 0}%` }}
                 />
               </div>
             </div>
@@ -304,7 +304,7 @@ export default function ExperienceDetail() {
               {detail.host.photoUrl ? (
                 <img
                   src={detail.host.photoUrl}
-                  alt={detail.host.displayName}
+                  alt={detail.host.displayName ?? 'Host'}
                   className="h-12 w-12 rounded-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
@@ -575,6 +575,20 @@ function GuestControls({
         <p className="mt-1 text-sm text-white/60">
           The host didn't approve your request. There are plenty more experiences to explore.
         </p>
+      </div>
+    );
+  }
+
+  if (detail.myRequest?.status === 'CANCELLED') {
+    return (
+      <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
+        <p className="display-heading text-xl font-light text-white">Request ended</p>
+        <p className="mt-1 text-sm text-white/60">
+          This request is no longer active. You can send a new request to join.
+        </p>
+        <Button onClick={onOpenForm} className="mt-4">
+          Request to join
+        </Button>
       </div>
     );
   }

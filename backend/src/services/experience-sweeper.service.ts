@@ -1,5 +1,7 @@
 import { prisma } from '../config/db.js';
 import { logger } from '../utils/logger.js';
+import { notify } from './notification.service.js';
+import type { NotificationType } from '@prisma/client';
 
 /**
  * Expires stale PENDING experience requests. When an experience's start time
@@ -17,7 +19,7 @@ async function expireStaleRequests() {
         status: { in: ['OPEN', 'FULL'] },
       },
     },
-    select: { id: true },
+    select: { id: true, requesterId: true, experienceId: true, experience: { select: { title: true } } },
   });
   if (!stale.length) return;
 
@@ -26,6 +28,19 @@ async function expireStaleRequests() {
     data: { status: 'CANCELLED' },
   });
   logger.info({ event: 'experience_stale_requests_expired', count: result.count });
+
+  // Let requesters know their pending request expired.
+  for (const req of stale) {
+    void notify({
+      userId: req.requesterId,
+      actorId: null,
+      type: 'EXPERIENCE' as NotificationType,
+      entityId: req.experienceId,
+      title: 'Request expired',
+      body: `Your request to join "${req.experience.title}" expired — the event has started.`,
+      data: { experienceId: req.experienceId, route: `/experiences/${req.experienceId}` },
+    }).catch(() => {});
+  }
 }
 
 export function startExperienceSweeper() {

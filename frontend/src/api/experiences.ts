@@ -17,7 +17,7 @@ export type ExperienceRequestStatus = 'PENDING' | 'APPROVED' | 'DECLINED' | 'CAN
 
 export interface ExperienceHost {
   id: string;
-  displayName: string;
+  displayName: string | null;
   photoUrl: string | null;
   age?: number | null;
 }
@@ -31,7 +31,7 @@ export interface Experience {
   startsAt: string;
   priceCents: number | null;
   currency: string;
-  capacity: number;
+  capacity: number | null;
   imageUrl: string | null;
   status: ExperienceStatus;
   host: ExperienceHost;
@@ -130,7 +130,7 @@ export function cancelExperience(id: string) {
 }
 
 export function requestToJoin(id: string, note?: string) {
-  return apiFetch<{ id: string; status: ExperienceRequestStatus }>(`/experiences/${id}/requests`, {
+  return apiFetch<{ request: { id: string; status: ExperienceRequestStatus; note: string | null; createdAt: string } }>(`/experiences/${id}/requests`, {
     method: 'POST',
     body: JSON.stringify(note ? { note } : {}),
   });

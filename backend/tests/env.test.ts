@@ -55,6 +55,7 @@ describe('production environment validation', () => {
       EMAIL_PROVIDER: 'resend',
       EMAIL_FROM: 'hello@mysimp.com',
       RESEND_API_KEY: 'resend-key',
+      RESEND_WEBHOOK_SECRET: 'whsec-test',
       PUSH_PROVIDER: 'firebase',
       FIREBASE_SERVICE_ACCOUNT_JSON: '{"project_id":"simp"}',
       TURN_PROVIDER: 'manual',

@@ -8,6 +8,8 @@ import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import { enqueueAssetDeletion } from '../services/asset-cleanup.service.js';
 import { deleteStoredPhoto } from '../services/photo.service.js';
 import { getRealtimeServer } from '../sockets/realtime.js';
+import { notify } from '../services/notification.service.js';
+import type { NotificationType } from '@prisma/client';
 import { AppError } from '../utils/errors.js';
 
 export const accountRouter = Router();
@@ -332,9 +334,18 @@ accountRouter.delete('/account/me', requireAuth, async (req: AuthedRequest, res,
     }
     getRealtimeServer()?.to(`user:${userId}`).emit('account:deleted');
 
-    // Notify guests of cancelled hosted experiences.
+    // Notify guests of cancelled hosted experiences (push + realtime).
     for (const exp of hostedExperiences) {
       for (const req of exp.requests) {
+        void notify({
+          userId: req.requesterId,
+          actorId: null,
+          type: 'EXPERIENCE' as NotificationType,
+          entityId: exp.id,
+          title: 'Experience cancelled',
+          body: `"${exp.title}" was cancelled.`,
+          data: { experienceId: exp.id, route: `/experiences/${exp.id}` },
+        }).catch(() => {});
         getRealtimeServer()?.to(`user:${req.requesterId}`).emit('experience:cancelled', {
           experienceId: exp.id,
         });

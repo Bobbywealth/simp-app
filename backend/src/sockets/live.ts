@@ -30,6 +30,17 @@ const connectionAttempts = new Map<string, { count: number; resetAt: number }>()
 const eventWindows = new Map<string, { count: number; resetAt: number }>();
 let io: Server | null = null;
 
+// Prune expired rate-limit entries hourly so the maps don't grow unboundedly.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of connectionAttempts) {
+    if (entry.resetAt <= now) connectionAttempts.delete(key);
+  }
+  for (const [key, entry] of eventWindows) {
+    if (entry.resetAt <= now) eventWindows.delete(key);
+  }
+}, 60 * 60 * 1_000).unref();
+
 function allowedEvent(key: string, max: number, windowMs: number) {
   const now = Date.now();
   const current = eventWindows.get(key);

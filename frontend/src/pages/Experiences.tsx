@@ -253,7 +253,7 @@ function ExperienceCard({
   onOpen: () => void;
 }) {
   const price = formatExperiencePrice(experience.priceCents, experience.currency);
-  const spotsLeft = Math.max(0, experience.capacity - experience.approvedCount);
+  const spotsLeft = experience.capacity ? Math.max(0, experience.capacity - experience.approvedCount) : 0;
 
   return (
     <motion.button
@@ -298,16 +298,22 @@ function ExperienceCard({
         <div className="mt-3 flex items-center justify-between">
           <div className="flex min-w-0 items-center gap-2">
             {experience.host.photoUrl ? (
-              <img src={experience.host.photoUrl} alt={experience.host.displayName} className="h-6 w-6 rounded-full object-cover" />
-            ) : (
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink-700 text-[10px] text-white/60">
-                {(experience.host.displayName.charAt(0) || '?').toUpperCase()}
+              <img
+                src={experience.host.photoUrl}
+                alt={experience.host.displayName ?? 'Host'}
+                className="h-6 w-6 rounded-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            ) : null}
+            <span className={`flex h-6 w-6 items-center justify-center rounded-full bg-ink-700 text-[10px] text-white/60 ${experience.host.photoUrl ? '-ml-8' : ''}`}>
+                {((experience.host.displayName ?? '').charAt(0) || '?').toUpperCase()}
               </span>
-            )}
             <span className="truncate text-xs text-white/70">{experience.host.displayName}</span>
           </div>
           <span className={`shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] ${spotsLeft === 0 ? 'text-white/40' : 'text-gold-200'}`}>
-            {experience.approvedCount}/{experience.capacity} spots
+            {experience.capacity ? `${experience.approvedCount}/${experience.capacity} spots` : `${experience.approvedCount} joined`}
           </span>
         </div>
       </div>

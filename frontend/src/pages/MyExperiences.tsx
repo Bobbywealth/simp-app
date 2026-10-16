@@ -34,8 +34,7 @@ export default function MyExperiences() {
       if (requestId !== requestIdRef.current) return;
       if (!silent) setError('Could not load your experiences. Try again.');
     } finally {
-      if (requestId !== requestIdRef.current) return;
-      if (!silent) setLoading(false);
+      if (requestId === requestIdRef.current && !silent) setLoading(false);
     }
   }, []);
 
@@ -181,7 +180,7 @@ export default function MyExperiences() {
                     {exp.city} · {formatExperienceDate(exp.startsAt)}
                   </p>
                   <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-gold-200/80">
-                    {exp.approvedCount}/{exp.capacity} spots
+                    {exp.capacity ? `${exp.approvedCount}/${exp.capacity} spots` : `${exp.approvedCount} joined`}
                   </p>
                 </div>
               </motion.button>

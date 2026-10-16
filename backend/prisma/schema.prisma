@@ -674,6 +674,7 @@ model NotificationPreference {
   live      Boolean  @default(true)
   security  Boolean  @default(true)
   marketing Boolean  @default(false)
+  experiences Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
