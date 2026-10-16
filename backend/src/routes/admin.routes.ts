@@ -6,7 +6,7 @@ import { prisma } from '../config/db.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { deleteStoredPhoto } from '../services/photo.service.js';
 import { deleteVerificationSelfie } from '../services/verification.service.js';
-import { cloudinaryDeliveryUrl } from '../services/cloudinary.service.js';
+import { cloudinaryDeliveryUrl, cloudinarySignedDeliveryUrl } from '../services/cloudinary.service.js';
 import { getFunnelCounts } from '../services/analytics.service.js';
 import { listRecordings as listLiveRecordings } from '../services/livekit.service.js';
 import { lastLivekitUsage, snapshotLivekitUsage } from '../services/livekit-usage.service.js';
@@ -386,7 +386,12 @@ adminRouter.get('/admin/verifications', async (req: AuthedRequest, res, next) =>
     res.json({
       requests: requests.map((row) => ({
         ...row,
-        selfieUrl: row.selfieUrl ? cloudinaryDeliveryUrl(row.selfieUrl, 1_280) : null,
+        // Private selfies (new) need signed URLs; old public selfies use the regular transform.
+        selfieUrl: row.selfiePublicId
+          ? cloudinarySignedDeliveryUrl(row.selfiePublicId, 1_280)
+          : row.selfieUrl
+            ? cloudinaryDeliveryUrl(row.selfieUrl, 1_280)
+            : null,
       })),
     });
   } catch (error) {

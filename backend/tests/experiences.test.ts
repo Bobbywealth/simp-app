@@ -20,6 +20,7 @@ const { prismaMock, authState } = vi.hoisted(() => ({
     },
     experienceRequest: {
       create: vi.fn(),
+      upsert: vi.fn(),
       findUnique: vi.fn(),
       findFirst: vi.fn(),
       findMany: vi.fn(),
@@ -167,18 +168,19 @@ describe('POST /experiences/:id/requests', () => {
     authState.userId = 'requester-1';
     prismaMock.experience.findUnique.mockResolvedValue(openExperience());
     prismaMock.experienceRequest.findFirst.mockResolvedValue(null);
-    prismaMock.experienceRequest.create.mockResolvedValue({ id: 'req-1', status: 'PENDING' });
+    prismaMock.experienceRequest.upsert.mockResolvedValue({ id: 'req-1', status: 'PENDING' });
 
     const res = await request(app).post('/experiences/exp-1/requests').send({ note: 'Would love to join!' });
 
     expect(res.status).toBe(201);
-    const data = prismaMock.experienceRequest.create.mock.calls[0][0].data;
-    expect(data).toMatchObject({
+    const args = prismaMock.experienceRequest.upsert.mock.calls[0][0];
+    expect(args.create).toMatchObject({
       experienceId: 'exp-1',
       requesterId: 'requester-1',
       status: 'PENDING',
       note: 'Would love to join!',
     });
+    expect(args.update).toMatchObject({ status: 'PENDING', note: 'Would love to join!' });
   });
 
   it('404s when the experience does not exist', async () => {

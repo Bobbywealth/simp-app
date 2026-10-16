@@ -388,10 +388,17 @@ experiencesRouter.post('/experiences/:id/requests', requireAuth, async (req: Aut
       );
     }
 
-    const joinRequest = await prisma.experienceRequest.create({
-      data: {
+    // Upsert: a prior CANCELLED/DECLINED row is revived as PENDING (unique constraint
+    // on [experienceId, requesterId] prevents a second row).
+    const joinRequest = await prisma.experienceRequest.upsert({
+      where: { experienceId_requesterId: { experienceId: id, requesterId: me } },
+      create: {
         experienceId: id,
         requesterId: me,
+        note: input.note,
+        status: 'PENDING',
+      },
+      update: {
         note: input.note,
         status: 'PENDING',
       },

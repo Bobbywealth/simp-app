@@ -91,6 +91,18 @@ export function cloudinaryDeliveryUrl(url: string, width = 1_600): string {
   return url.replace('/image/upload/', `/image/upload/f_auto,q_auto,c_limit,w_${width}/`);
 }
 
+/**
+ * Signed delivery URL for private Cloudinary assets (e.g. verification selfies).
+ * Cloudinary requires the s--signature-- component for authenticated delivery.
+ */
+export function cloudinarySignedDeliveryUrl(publicId: string, width = 1_280): string {
+  if (!cloudinaryConfigured()) return '';
+  const transformation = `f_auto,q_auto,c_limit,w_${width}`;
+  const toSign = `${transformation}/${publicId}`;
+  const sig = crypto.createHash('sha1').update(toSign + env.CLOUDINARY_API_SECRET).digest('hex').slice(0, 8);
+  return `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/image/private/s--${sig}--/${transformation}/${publicId}`;
+}
+
 export function cloudinaryThumbnailUrl(url: string, size = 320): string {
   if (!/res\.cloudinary\.com/.test(url)) return url;
   return url.replace(

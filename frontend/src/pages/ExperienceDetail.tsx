@@ -80,10 +80,16 @@ export default function ExperienceDetail() {
     socket.on('experience:request', onChange);
     socket.on('experience:approved', onChange);
     socket.on('experience:declined', onChange);
+    socket.on('experience:cancelled', onChange);
+    socket.on('experience:removed', onChange);
+    socket.on('experience:guest-left', onChange);
     return () => {
       socket.off('experience:request', onChange);
       socket.off('experience:approved', onChange);
       socket.off('experience:declined', onChange);
+      socket.off('experience:cancelled', onChange);
+      socket.off('experience:removed', onChange);
+      socket.off('experience:guest-left', onChange);
     };
   }, [id, load]);
 
