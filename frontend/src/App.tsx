@@ -39,6 +39,10 @@ const Admin = lazy(() => import('./pages/Admin'));
 const BlockedUsers = lazy(() => import('./pages/BlockedUsers'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Verification = lazy(() => import('./pages/Verification'));
+const Experiences = lazy(() => import('./pages/Experiences'));
+const CreateExperience = lazy(() => import('./pages/CreateExperience'));
+const MyExperiences = lazy(() => import('./pages/MyExperiences'));
+const ExperienceDetail = lazy(() => import('./pages/ExperienceDetail'));
 
 export default function App() {
   const { initialize, ready, user } = useAuth();
@@ -173,6 +177,10 @@ export default function App() {
               <Route path="/messages" element={<ProtectedRoute requireOnboarding><Messages /></ProtectedRoute>} />
               <Route path="/messages/:id" element={<ProtectedRoute requireOnboarding><Conversation /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute requireOnboarding><Notifications /></ProtectedRoute>} />
+              <Route path="/experiences" element={<PageTransition routeKey="/experiences"><ProtectedRoute requireOnboarding><Experiences /></ProtectedRoute></PageTransition>} />
+              <Route path="/experiences/new" element={<PageTransition routeKey="/experiences/new"><ProtectedRoute requireOnboarding><CreateExperience /></ProtectedRoute></PageTransition>} />
+              <Route path="/experiences/mine" element={<PageTransition routeKey="/experiences/mine"><ProtectedRoute requireOnboarding><MyExperiences /></ProtectedRoute></PageTransition>} />
+              <Route path="/experiences/:id" element={<PageTransition routeKey="/experiences/:id"><ProtectedRoute requireOnboarding><ExperienceDetail /></ProtectedRoute></PageTransition>} />
               <Route path="/licenses" element={<ProtectedRoute requireOnboarding><Licenses /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requireRole="ADMIN"><Admin /></ProtectedRoute>} />
               <Route path="/settings/blocked" element={<ProtectedRoute requireOnboarding><BlockedUsers /></ProtectedRoute>} />
