@@ -24,6 +24,7 @@ export default function CreateExperience() {
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [imageBroken, setImageBroken] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -220,24 +221,28 @@ export default function CreateExperience() {
             name="imageUrl"
             type="url"
             value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
+            onChange={(e) => {
+              setImageUrl(e.target.value);
+              setImageBroken(false);
+            }}
             placeholder="https://…"
             error={errors.imageUrl}
           />
 
           {imageUrl.trim() && !errors.imageUrl && (
             <div className="overflow-hidden rounded-2xl border border-white/10">
-              <img
-                src={imageUrl.trim()}
-                alt="Cover preview"
-                className="aspect-video w-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-                onLoad={(e) => {
-                  (e.target as HTMLImageElement).style.display = '';
-                }}
-              />
+              {!imageBroken ? (
+                <img
+                  src={imageUrl.trim()}
+                  alt="Cover preview"
+                  className="aspect-video w-full object-cover"
+                  onError={() => setImageBroken(true)}
+                />
+              ) : (
+                <p className="px-4 py-6 text-center text-xs text-red-300/70">
+                  Couldn't load that image. Check the URL and try another.
+                </p>
+              )}
             </div>
           )}
 

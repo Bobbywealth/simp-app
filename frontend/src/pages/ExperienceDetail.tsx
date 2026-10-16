@@ -40,10 +40,11 @@ export default function ExperienceDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actingRequestId, setActingRequestId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [liveMessage, setLiveMessage] = useState('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!id) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     setRequestsError(false);
     try {
@@ -59,9 +60,9 @@ export default function ExperienceDetail() {
         }
       }
     } catch {
-      setError('Could not load this experience. It may have been removed.');
+      if (!silent) setError('Could not load this experience. It may have been removed.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [id]);
 
@@ -69,27 +70,32 @@ export default function ExperienceDetail() {
     void load();
   }, [load]);
 
-  // Live updates: refresh when requests change or our status changes.
+  // Live updates: silent refresh so the page doesn't flash the loading skeleton.
   useEffect(() => {
     if (!id) return;
     const socket = getRealtimeSocket();
     const onChange = (payload: { experienceId?: string }) => {
       if (payload.experienceId && payload.experienceId !== id) return;
-      void load();
+      void load(true);
     };
-    socket.on('experience:request', onChange);
-    socket.on('experience:approved', onChange);
-    socket.on('experience:declined', onChange);
-    socket.on('experience:cancelled', onChange);
-    socket.on('experience:removed', onChange);
-    socket.on('experience:guest-left', onChange);
+    const announce = (message: string) => (payload: { experienceId?: string }) => {
+      if (payload.experienceId && payload.experienceId !== id) return;
+      setLiveMessage(message);
+      void load(true);
+    };
+    socket.on('experience:request', announce('A new join request arrived.'));
+    socket.on('experience:approved', announce('Your request was approved.'));
+    socket.on('experience:declined', announce('Your request was declined.'));
+    socket.on('experience:cancelled', announce('This experience was cancelled.'));
+    socket.on('experience:removed', announce('You were removed from this experience.'));
+    socket.on('experience:guest-left', announce('A guest left this experience.'));
     return () => {
-      socket.off('experience:request', onChange);
-      socket.off('experience:approved', onChange);
-      socket.off('experience:declined', onChange);
-      socket.off('experience:cancelled', onChange);
-      socket.off('experience:removed', onChange);
-      socket.off('experience:guest-left', onChange);
+      socket.off('experience:request');
+      socket.off('experience:approved');
+      socket.off('experience:declined');
+      socket.off('experience:cancelled');
+      socket.off('experience:removed');
+      socket.off('experience:guest-left');
     };
   }, [id, load]);
 
@@ -174,6 +180,7 @@ export default function ExperienceDetail() {
   return (
     <div className="relative min-h-screen bg-ink-950 text-white">
       <div className="pointer-events-none absolute inset-0 bg-ink-radial" />
+      <p aria-live="polite" className="sr-only">{liveMessage}</p>
 
       <header className="relative z-10 flex items-center justify-between px-6 pt-safe pt-6">
         <button

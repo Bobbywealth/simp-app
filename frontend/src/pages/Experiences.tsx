@@ -38,7 +38,8 @@ export default function Experiences() {
       append?: boolean;
     }) => {
       const requestId = ++requestIdRef.current;
-      if (opts.append) {
+      const isAppend = !!opts.append;
+      if (isAppend) {
         setLoadingMore(true);
       } else {
         setLoading(true);
@@ -53,16 +54,17 @@ export default function Experiences() {
         });
         // Ignore stale responses from superseded requests.
         if (requestId !== requestIdRef.current) return;
-        setExperiences((prev) => (opts.append ? [...prev, ...res.experiences] : res.experiences));
+        setExperiences((prev) => (isAppend ? [...prev, ...res.experiences] : res.experiences));
         setCursor(res.nextCursor);
         setHasMore(res.hasMore);
       } catch {
         if (requestId !== requestIdRef.current) return;
         setError('Could not load experiences. Try again.');
       } finally {
-        if (requestId !== requestIdRef.current) return;
-        setLoading(false);
-        setLoadingMore(false);
+        // Always clear our own loading flag, even if superseded —
+        // otherwise the spinner gets stuck when a fresh load overtakes an append.
+        if (isAppend) setLoadingMore(false);
+        else if (requestId === requestIdRef.current) setLoading(false);
       }
     },
     [],

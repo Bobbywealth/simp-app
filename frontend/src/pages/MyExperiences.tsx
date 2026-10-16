@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getMyExperiences, type Experience } from '../api/experiences';
+import { getRealtimeSocket } from '../lib/realtime';
 import {
   EXPERIENCE_CATEGORY_LABELS,
   categoryGradient,
@@ -21,9 +22,9 @@ export default function MyExperiences() {
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
-  const load = useCallback(async (role: Tab) => {
+  const load = useCallback(async (role: Tab, silent = false) => {
     const requestId = ++requestIdRef.current;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const res = await getMyExperiences(role);
@@ -31,15 +32,35 @@ export default function MyExperiences() {
       setExperiences(res.experiences);
     } catch {
       if (requestId !== requestIdRef.current) return;
-      setError('Could not load your experiences. Try again.');
+      if (!silent) setError('Could not load your experiences. Try again.');
     } finally {
       if (requestId !== requestIdRef.current) return;
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load(tab);
+  }, [tab, load]);
+
+  // Silent refresh when experience state changes elsewhere.
+  useEffect(() => {
+    const socket = getRealtimeSocket();
+    const onChange = () => void load(tab, true);
+    socket.on('experience:request', onChange);
+    socket.on('experience:approved', onChange);
+    socket.on('experience:declined', onChange);
+    socket.on('experience:cancelled', onChange);
+    socket.on('experience:removed', onChange);
+    socket.on('experience:guest-left', onChange);
+    return () => {
+      socket.off('experience:request', onChange);
+      socket.off('experience:approved', onChange);
+      socket.off('experience:declined', onChange);
+      socket.off('experience:cancelled', onChange);
+      socket.off('experience:removed', onChange);
+      socket.off('experience:guest-left', onChange);
+    };
   }, [tab, load]);
 
   return (
