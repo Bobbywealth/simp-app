@@ -36,6 +36,8 @@ export interface Experience {
   status: ExperienceStatus;
   host: ExperienceHost;
   approvedCount: number;
+  venue: string | null;
+  logistics: string | null;
 }
 
 export interface MyExperienceRequest {
@@ -72,6 +74,8 @@ export interface CreateExperienceInput {
   currency?: string;
   capacity: number;
   imageUrl?: string;
+  venue?: string;
+  logistics?: string;
 }
 
 export interface UpdateExperienceInput {

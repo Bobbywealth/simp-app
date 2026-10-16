@@ -22,6 +22,8 @@ export default function CreateExperience() {
   const [startsAt, setStartsAt] = useState('');
   const [capacity, setCapacity] = useState(4);
   const [price, setPrice] = useState('');
+  const [venue, setVenue] = useState('');
+  const [logistics, setLogistics] = useState('');
   const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [imageBroken, setImageBroken] = useState(false);
@@ -72,6 +74,8 @@ export default function CreateExperience() {
         priceCents: price.trim() ? Math.round(Number(price) * 100) : undefined,
         capacity,
         imageUrl: imageUrl.trim() || undefined,
+        venue: venue.trim() || undefined,
+        logistics: logistics.trim() || undefined,
       });
       navigate(`/experiences/${res.id}`, { replace: true });
     } catch {
@@ -202,8 +206,28 @@ export default function CreateExperience() {
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="Leave blank for free"
-            helperText="Guests see this before requesting a spot."
+            helperText="Estimated cost — everyone pays their own way. No payments through Simp."
             error={errors.price}
+          />
+
+          <Input
+            label="Meeting spot (optional)"
+            name="venue"
+            value={venue}
+            onChange={(e) => setVenue(e.target.value)}
+            placeholder="e.g. Blue Bottle Coffee, 1 Ferry Building"
+            maxLength={200}
+            helperText="Where should everyone meet?"
+          />
+
+          <Textarea
+            label="Logistics (optional)"
+            name="logistics"
+            value={logistics}
+            onChange={(e) => setLogistics(e.target.value)}
+            placeholder="Parking, what to bring, how to find the group…"
+            maxLength={2000}
+            rows={3}
           />
 
           <Textarea

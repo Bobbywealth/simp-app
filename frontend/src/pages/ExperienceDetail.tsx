@@ -21,6 +21,7 @@ import {
   formatExperienceDate,
   formatExperiencePrice,
 } from '../lib/experiences';
+import { REPORT_REASONS, reportExperience, type ReportReason } from '../api/moderation';
 import { Button } from '../components/Button';
 import { Textarea } from '../components/Input';
 import { SimpLogo } from '../components/SimpLogo';
@@ -300,6 +301,23 @@ export default function ExperienceDetail() {
               </p>
             )}
 
+            {detail.venue && (
+              <div className="mt-4 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <span className="text-gold-200">📍</span>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">Meeting spot</p>
+                  <p className="mt-1 text-sm text-white/85">{detail.venue}</p>
+                </div>
+              </div>
+            )}
+
+            {detail.logistics && (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">Good to know</p>
+                <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-white/75">{detail.logistics}</p>
+              </div>
+            )}
+
             <div className="mt-6 flex items-center gap-3 rounded-2xl border border-gold-300/20 bg-white/[0.03] p-4">
               {detail.host.photoUrl ? (
                 <img
@@ -353,6 +371,9 @@ export default function ExperienceDetail() {
                 onSubmit={handleRequestToJoin}
                 onWithdraw={handleWithdrawRequest}
               />
+            )}
+            {!detail.isHost && (
+              <ReportExperienceButton experienceId={detail.id} />
             )}
           </motion.div>
         )}
@@ -642,5 +663,85 @@ function GuestControls({
         </Button>
       </div>
     </motion.div>
+  );
+}
+
+function ReportExperienceButton({ experienceId }: { experienceId: string }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<ReportReason | ''>('');
+  const [details, setDetails] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    if (!reason) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await reportExperience(experienceId, reason, details.trim() || undefined);
+      setDone(true);
+      setOpen(false);
+    } catch {
+      setError('Could not submit your report. Try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <p className="mt-6 text-center text-xs text-white/40">
+        Thanks — our team will review this experience.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-6 text-center">
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="text-xs text-white/35 underline decoration-white/20 underline-offset-4 hover:text-white/60"
+        >
+          Report this experience
+        </button>
+      ) : (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left">
+          <p className="text-sm font-semibold text-white">Report this experience</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {REPORT_REASONS.map((r) => (
+              <button
+                key={r}
+                onClick={() => setReason(r)}
+                className={`rounded-xl border px-3 py-2 text-xs ${reason === r ? 'border-gold-300/50 bg-gold-300/10 text-gold-200' : 'border-white/10 text-white/60 hover:border-white/25'}`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <Textarea
+            label="Details (optional)"
+            value={details}
+            onChange={(e) => setDetails(e.target.value)}
+            placeholder="What happened?"
+            maxLength={1000}
+            rows={3}
+          />
+          {error && <p className="mt-2 text-xs text-red-300" role="alert">{error}</p>}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => { setOpen(false); setReason(''); setDetails(''); }}
+              className="rounded-full border border-white/15 py-2.5 text-xs font-semibold uppercase tracking-[0.14em] text-white/60"
+            >
+              Cancel
+            </button>
+            <Button onClick={submit} loading={submitting} disabled={!reason} className="py-2.5 text-xs">
+              Submit report
+            </Button>
+          </div>
+        </motion.div>
+      )}
+    </div>
   );
 }

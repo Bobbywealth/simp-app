@@ -482,6 +482,7 @@ model Report {
   reporterId          String?
   reportedId          String?
   streamId            String?
+  experienceId        String?
   category            ReportCategory @default(OTHER)
   reason              String
   details             String?
@@ -738,6 +739,8 @@ model Experience {
   host     User             @relation("HostedExperiences", fields: [hostId], references: [id], onDelete: Cascade)
   status   ExperienceStatus @default(OPEN)
   requests ExperienceRequest[]
+  venue    String?
+  logistics String?
 
   @@index([isActive, city, startsAt])
   @@index([category, startsAt])

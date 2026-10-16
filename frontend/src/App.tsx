@@ -152,7 +152,7 @@ export default function App() {
             className="contents"
           >
             <Routes>
-              <Route path="/" element={<Navigate to={user ? (user.onboardingCompletedAt ? '/home' : '/profile-setup') : '/login'} replace />} />
+              <Route path="/" element={<Navigate to={user ? (user.onboardingCompletedAt ? '/experiences' : '/profile-setup') : '/login'} replace />} />
               <Route path="/welcome" element={<PageTransition routeKey="/welcome"><Welcome /></PageTransition>} />
               <Route path="/onboarding" element={<PageTransition routeKey="/onboarding"><Onboarding /></PageTransition>} />
               <Route path="/signup" element={<PageTransition routeKey="/signup"><Signup /></PageTransition>} />

@@ -89,11 +89,21 @@ experiencesRouter.get('/experiences', requireAuth, async (req: AuthedRequest, re
       })
       .parse(req.query);
     const me = req.userId!;
+    // Exclude hosts with a block relationship in either direction.
+    const blockedIds = await prisma.block.findMany({
+      where: { OR: [{ blockerId: me }, { blockedId: me }] },
+      select: { blockerId: true, blockedId: true },
+    });
+    const excludedHostIds = new Set<string>();
+    for (const b of blockedIds) {
+      excludedHostIds.add(b.blockerId === me ? b.blockedId : b.blockerId);
+    }
+
     const rows = await prisma.experience.findMany({
       where: {
         status: 'OPEN',
         startsAt: { gt: new Date() },
-        hostId: { not: me },
+        hostId: { not: me, ...(excludedHostIds.size ? { notIn: [...excludedHostIds] } : {}) },
         ...(input.city ? { city: { equals: input.city, mode: 'insensitive' } } : {}),
         ...(input.category ? { category: input.category } : {}),
       },
@@ -167,6 +177,8 @@ const createExperienceSchema = z.object({
   currency: z.string().regex(/^[A-Z]{3}$/).default('USD'),
   capacity: z.number().int().min(2).max(50),
   imageUrl: z.string().url().max(2000).optional(),
+  venue: z.string().trim().min(2).max(200).optional(),
+  logistics: z.string().trim().max(2000).optional(),
 });
 
 experiencesRouter.post('/experiences', requireAuth, async (req: AuthedRequest, res, next) => {
@@ -175,6 +187,17 @@ experiencesRouter.post('/experiences', requireAuth, async (req: AuthedRequest, r
     const startsAt = new Date(input.startsAt);
     if (startsAt <= new Date()) {
       throw new AppError('starts_at_not_future', 400, 'Experience must start in the future.');
+    }
+    // Hosting eligibility: account must be active and email verified.
+    const host = await prisma.user.findUnique({
+      where: { id: req.userId! },
+      select: { status: true, emailVerified: true },
+    });
+    if (!host || host.status !== 'ACTIVE') {
+      throw new AppError('host_not_eligible', 403, 'Your account is not eligible to host experiences.');
+    }
+    if (!host.emailVerified) {
+      throw new AppError('host_email_unverified', 403, 'Verify your email before hosting an experience.');
     }
     const experience = await prisma.experience.create({
       data: {
@@ -189,7 +212,9 @@ experiencesRouter.post('/experiences', requireAuth, async (req: AuthedRequest, r
         imageUrl: input.imageUrl,
         hostId: req.userId!,
         status: 'OPEN',
-      },
+        // venue/logistics added in migration 20261016050000; cast until prisma generate runs on deploy.
+        ...({ venue: input.venue, logistics: input.logistics } as object),
+      } as Parameters<typeof prisma.experience.create>[0]['data'],
     });
     res.status(201).json(experience);
   } catch (error) {
@@ -372,6 +397,20 @@ experiencesRouter.post('/experiences/:id/requests', requireAuth, async (req: Aut
     }
     if (!experience.startsAt || experience.startsAt <= new Date()) {
       throw new AppError('experience_started', 400, 'This experience has already started.');
+    }
+
+    // Block requests when either party has blocked the other.
+    const blockRelation = await prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: me, blockedId: experience.hostId },
+          { blockerId: experience.hostId, blockedId: me },
+        ],
+      },
+      select: { id: true },
+    });
+    if (blockRelation) {
+      throw new AppError('blocked', 403, 'You cannot request to join this experience.');
     }
 
     const existing = await prisma.experienceRequest.findFirst({
@@ -605,6 +644,18 @@ experiencesRouter.post(
       getRealtimeServer()?.to(`user:${approvedRequest.requesterId}`).emit('experience:approved', {
         experienceId,
         requestId: approvedRequest.id,
+      });
+
+      // Create a 1:1 thread so host and guest can coordinate logistics.
+      const [userAId, userBId] = [me, approvedRequest.requesterId].sort() as [string, string];
+      await prisma.match.upsert({
+        where: { userAId_userBId: { userAId, userBId } },
+        create: {
+          userAId,
+          userBId,
+          conversation: { create: {} },
+        },
+        update: { isActive: true, deactivatedAt: null, deactivatedById: null },
       });
 
       res.json({

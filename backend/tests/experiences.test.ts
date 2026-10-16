@@ -28,6 +28,16 @@ const { prismaMock, authState } = vi.hoisted(() => ({
       count: vi.fn(),
       groupBy: vi.fn(),
     },
+    user: {
+      findUnique: vi.fn(),
+    },
+    block: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    match: {
+      upsert: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
   authState: { userId: 'user-1' },
@@ -110,6 +120,11 @@ const openExperience = (overrides: Record<string, any> = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   authState.userId = 'user-1';
+  // Default: eligible host (active account, verified email), no blocks.
+  prismaMock.user.findUnique.mockResolvedValue({ status: 'ACTIVE', emailVerified: true });
+  prismaMock.block.findMany.mockResolvedValue([]);
+  prismaMock.block.findFirst.mockResolvedValue(null);
+  prismaMock.match.upsert.mockResolvedValue({ id: 'match-1' });
 });
 
 describe('POST /experiences', () => {
