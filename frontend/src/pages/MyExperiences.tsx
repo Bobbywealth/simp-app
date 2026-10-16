@@ -154,14 +154,21 @@ export default function MyExperiences() {
               >
                 <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl">
                   {exp.imageUrl ? (
-                    <img src={exp.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                  ) : (
-                    <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${categoryGradient(exp.category)}`}>
+                    <img
+                      src={exp.imageUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : null}
+                  <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${categoryGradient(exp.category)} ${exp.imageUrl ? '-mt-20' : ''}`}>
                       <span className="px-1 text-center text-[9px] font-semibold uppercase tracking-[0.18em] text-gold-200/70">
                         {EXPERIENCE_CATEGORY_LABELS[exp.category]}
                       </span>
                     </div>
-                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">

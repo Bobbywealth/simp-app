@@ -56,7 +56,7 @@ export interface ExperienceRequestItem {
   createdAt: string;
   requester: {
     id: string;
-    displayName: string;
+    displayName: string | null;
     photoUrl: string | null;
     age: number | null;
   };
@@ -90,7 +90,7 @@ export interface ListExperiencesParams {
 }
 
 export function createExperience(input: CreateExperienceInput) {
-  return apiFetch<Experience>('/experiences', {
+  return apiFetch<{ id: string }>('/experiences', {
     method: 'POST',
     body: JSON.stringify(input),
   });
@@ -124,20 +124,20 @@ export function updateExperience(id: string, patch: UpdateExperienceInput) {
 }
 
 export function cancelExperience(id: string) {
-  return apiFetch<{ status: ExperienceStatus }>(`/experiences/${id}/cancel`, {
+  return apiFetch<Experience>(`/experiences/${id}/cancel`, {
     method: 'POST',
   });
 }
 
 export function requestToJoin(id: string, note?: string) {
-  return apiFetch<{ request: ExperienceRequestItem }>(`/experiences/${id}/requests`, {
+  return apiFetch<{ id: string; status: ExperienceRequestStatus }>(`/experiences/${id}/requests`, {
     method: 'POST',
     body: JSON.stringify(note ? { note } : {}),
   });
 }
 
 export function cancelMyRequest(id: string) {
-  return apiFetch<{ status: ExperienceRequestStatus }>(`/experiences/${id}/requests/mine`, {
+  return apiFetch<{ id: string; status: ExperienceRequestStatus }>(`/experiences/${id}/requests/mine`, {
     method: 'DELETE',
   });
 }
@@ -160,5 +160,12 @@ export function declineRequest(experienceId: string, requestId: string) {
   return apiFetch<{ request: ExperienceRequestItem }>(
     `/experiences/${experienceId}/requests/${requestId}/decline`,
     { method: 'POST' },
+  );
+}
+
+export function removeGuest(experienceId: string, requestId: string) {
+  return apiFetch<{ request: ExperienceRequestItem }>(
+    `/experiences/${experienceId}/requests/${requestId}`,
+    { method: 'DELETE' },
   );
 }

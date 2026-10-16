@@ -8,6 +8,7 @@ import {
   declineRequest,
   getExperience,
   getExperienceRequests,
+  removeGuest,
   requestToJoin,
   type ExperienceDetail as ExperienceDetailType,
   type ExperienceRequestItem,
@@ -162,6 +163,22 @@ export default function ExperienceDetail() {
     }
   }
 
+  async function handleRemoveGuest(requestId: string) {
+    if (!id) return;
+    setActingRequestId(requestId);
+    setActionError(null);
+    try {
+      const res = await removeGuest(id, requestId);
+      setRequests((prev) => prev.map((r) => (r.id === requestId ? res.request : r)));
+      // Refresh the detail to pick up the reopened status if it was FULL.
+      void load(true);
+    } catch {
+      setActionError('Could not remove that guest. Try again.');
+    } finally {
+      setActingRequestId(null);
+    }
+  }
+
   async function handleCancelExperience() {
     if (!id) return;
     if (!window.confirm('Cancel this experience? Approved guests will be notified.')) return;
@@ -225,14 +242,20 @@ export default function ExperienceDetail() {
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
             <div className="relative aspect-[16/10] overflow-hidden rounded-2xl border border-white/10">
               {detail.imageUrl ? (
-                <img src={detail.imageUrl} alt={detail.title} className="h-full w-full object-cover" />
-              ) : (
-                <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${categoryGradient(detail.category)}`}>
-                  <span className="text-sm font-semibold uppercase tracking-[0.3em] text-gold-200/70">
-                    {EXPERIENCE_CATEGORY_LABELS[detail.category]}
-                  </span>
-                </div>
-              )}
+                <img
+                  src={detail.imageUrl}
+                  alt={detail.title}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              ) : null}
+              <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${categoryGradient(detail.category)} ${detail.imageUrl ? 'absolute inset-0 -z-10' : ''}`}>
+                <span className="text-sm font-semibold uppercase tracking-[0.3em] text-gold-200/70">
+                  {EXPERIENCE_CATEGORY_LABELS[detail.category]}
+                </span>
+              </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
               <div className="absolute left-3 top-3 flex gap-2">
                 <span className="rounded-full border border-gold-300/40 bg-black/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-200 backdrop-blur">
@@ -279,12 +302,18 @@ export default function ExperienceDetail() {
 
             <div className="mt-6 flex items-center gap-3 rounded-2xl border border-gold-300/20 bg-white/[0.03] p-4">
               {detail.host.photoUrl ? (
-                <img src={detail.host.photoUrl} alt={detail.host.displayName} className="h-12 w-12 rounded-full object-cover" />
-              ) : (
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-ink-700 text-lg text-white/60">
-                  {(detail.host.displayName.charAt(0) || '?').toUpperCase()}
+                <img
+                  src={detail.host.photoUrl}
+                  alt={detail.host.displayName}
+                  className="h-12 w-12 rounded-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              ) : null}
+              <span className={`flex h-12 w-12 items-center justify-center rounded-full bg-ink-700 text-lg text-white/60 ${detail.host.photoUrl ? '-ml-12' : ''}`}>
+                {((detail.host.displayName ?? '').charAt(0) || '?').toUpperCase()}
                 </span>
-              )}
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-200">Hosted by</p>
                 <p className="truncate text-sm font-semibold text-white">
@@ -309,6 +338,7 @@ export default function ExperienceDetail() {
                 cancelling={cancelling}
                 onApprove={handleApprove}
                 onDecline={handleDecline}
+                onRemove={handleRemoveGuest}
                 onCancel={handleCancelExperience}
               />
             ) : (
@@ -339,6 +369,7 @@ function HostControls({
   cancelling,
   onApprove,
   onDecline,
+  onRemove,
   onCancel,
 }: {
   detail: ExperienceDetailType;
@@ -348,6 +379,7 @@ function HostControls({
   cancelling: boolean;
   onApprove: (requestId: string) => void;
   onDecline: (requestId: string) => void;
+  onRemove: (requestId: string) => void;
   onCancel: () => void;
 }) {
   const pending = requests.filter((r) => r.status === 'PENDING');
@@ -384,12 +416,18 @@ function HostControls({
           <div key={req.id} className="rounded-2xl border border-gold-300/25 bg-white/[0.03] p-4">
             <div className="flex items-center gap-3">
               {req.requester.photoUrl ? (
-                <img src={req.requester.photoUrl} alt={req.requester.displayName} className="h-10 w-10 rounded-full object-cover" />
-              ) : (
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-ink-700 text-sm text-white/60">
-                  {(req.requester.displayName.charAt(0) || '?').toUpperCase()}
-                </span>
-              )}
+                <img
+                  src={req.requester.photoUrl}
+                  alt={req.requester.displayName ?? 'Guest'}
+                  className="h-10 w-10 rounded-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              ) : null}
+              <span className={`flex h-10 w-10 items-center justify-center rounded-full bg-ink-700 text-sm text-white/60 ${req.requester.photoUrl ? '-ml-10' : ''}`}>
+                {((req.requester.displayName ?? '').charAt(0) || '?').toUpperCase()}
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-white">
                   {req.requester.displayName}
@@ -428,9 +466,20 @@ function HostControls({
         {decided.map((req) => (
           <div key={req.id} className="flex items-center justify-between rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
             <span className="truncate text-sm text-white/60">{req.requester.displayName}</span>
-            <span className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${req.status === 'APPROVED' ? 'text-emerald-300' : 'text-white/40'}`}>
-              {req.status.charAt(0) + req.status.slice(1).toLowerCase()}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${req.status === 'APPROVED' ? 'text-emerald-300' : 'text-white/40'}`}>
+                {req.status.charAt(0) + req.status.slice(1).toLowerCase()}
+              </span>
+              {req.status === 'APPROVED' && (
+                <button
+                  onClick={() => onRemove(req.id)}
+                  disabled={actingRequestId === req.id}
+                  className="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-300/70 hover:text-red-200 disabled:opacity-50"
+                >
+                  {actingRequestId === req.id ? 'Removing…' : 'Remove'}
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>

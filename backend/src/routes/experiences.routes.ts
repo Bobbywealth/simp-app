@@ -716,6 +716,15 @@ experiencesRouter.delete(
       const removed = await prisma.experienceRequest.update({
         where: { id: requestId },
         data: { status: 'CANCELLED' },
+        include: {
+          requester: {
+            select: {
+              id: true,
+              profile: { select: { displayName: true, birthDate: true } },
+              photos: { orderBy: { position: 'asc' }, take: 1, select: { url: true } },
+            },
+          },
+        },
       });
 
       // Reopen if the experience was FULL.
@@ -739,7 +748,20 @@ experiencesRouter.delete(
         experienceId,
       });
 
-      res.json(removed);
+      res.json({
+        request: {
+          id: removed.id,
+          status: removed.status,
+          note: removed.note,
+          createdAt: removed.createdAt,
+          requester: {
+            id: removed.requester.id,
+            displayName: removed.requester.profile?.displayName ?? null,
+            age: removed.requester.profile ? calculateAge(removed.requester.profile.birthDate) : null,
+            photoUrl: removed.requester.photos[0]?.url ?? null,
+          },
+        },
+      });
     } catch (error) {
       next(error);
     }

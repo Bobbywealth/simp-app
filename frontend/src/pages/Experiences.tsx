@@ -265,14 +265,21 @@ function ExperienceCard({
     >
       <div className="relative aspect-[16/10] overflow-hidden">
         {experience.imageUrl ? (
-          <img src={experience.imageUrl} alt={experience.title} className="h-full w-full object-cover" loading="lazy" />
-        ) : (
-          <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${categoryGradient(experience.category)}`}>
-            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-gold-200/70">
-              {EXPERIENCE_CATEGORY_LABELS[experience.category]}
+          <img
+            src={experience.imageUrl}
+            alt={experience.title}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        ) : null}
+        <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${categoryGradient(experience.category)} ${experience.imageUrl ? 'absolute inset-0 -z-10' : ''}`}>
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-gold-200/70">
+            {EXPERIENCE_CATEGORY_LABELS[experience.category]}
             </span>
           </div>
-        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
         <span className="absolute left-3 top-3 rounded-full border border-gold-300/40 bg-black/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-200 backdrop-blur">
           {EXPERIENCE_CATEGORY_LABELS[experience.category]}
