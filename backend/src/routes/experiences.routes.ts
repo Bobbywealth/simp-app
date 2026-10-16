@@ -5,6 +5,7 @@ import { prisma } from '../config/db.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { AppError } from '../utils/errors.js';
 import { notify } from '../services/notification.service.js';
+import { getRealtimeServer } from '../sockets/realtime.js';
 
 export const experiencesRouter = Router();
 
@@ -368,8 +369,13 @@ experiencesRouter.post('/experiences/:id/requests', requireAuth, async (req: Aut
       entityId: id,
       title: 'New join request',
       body: `Someone wants to join "${experience.title}". Review their request.`,
-      data: { experienceId: id, requestId: joinRequest.id },
+      data: { experienceId: id, requestId: joinRequest.id, route: `/experiences/${id}` },
     }).catch(() => {});
+
+    getRealtimeServer()?.to(`user:${experience.hostId}`).emit('experience:request', {
+      experienceId: id,
+      requestId: joinRequest.id,
+    });
 
     res.status(201).json(joinRequest);
   } catch (error) {
@@ -511,8 +517,13 @@ experiencesRouter.post(
         entityId: experienceId,
         title: "You're in!",
         body: `${requesterName}, your request to join "${updated.experience.title}" was approved.`,
-        data: { experienceId, requestId: updated.id },
+        data: { experienceId, requestId: updated.id, route: `/experiences/${experienceId}` },
       }).catch(() => {});
+
+      getRealtimeServer()?.to(`user:${updated.requesterId}`).emit('experience:approved', {
+        experienceId,
+        requestId: updated.id,
+      });
 
       res.json(updated);
     } catch (error) {
@@ -554,8 +565,13 @@ experiencesRouter.post(
         entityId: experience.id,
         title: 'Request declined',
         body: `Your request to join "${experience.title}" wasn't approved this time.`,
-        data: { experienceId: experience.id, requestId: declined.id },
+        data: { experienceId: experience.id, requestId: declined.id, route: `/experiences/${experience.id}` },
       }).catch(() => {});
+
+      getRealtimeServer()?.to(`user:${declined.requesterId}`).emit('experience:declined', {
+        experienceId: experience.id,
+        requestId: declined.id,
+      });
 
       res.json(declined);
     } catch (error) {

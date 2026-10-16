@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -28,6 +28,7 @@ export default function Experiences() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const load = useCallback(
     async (opts: {
@@ -36,6 +37,7 @@ export default function Experiences() {
       cursor?: string | null;
       append?: boolean;
     }) => {
+      const requestId = ++requestIdRef.current;
       if (opts.append) {
         setLoadingMore(true);
       } else {
@@ -49,12 +51,16 @@ export default function Experiences() {
           cursor: opts.cursor ?? undefined,
           limit: PAGE_SIZE,
         });
+        // Ignore stale responses from superseded requests.
+        if (requestId !== requestIdRef.current) return;
         setExperiences((prev) => (opts.append ? [...prev, ...res.experiences] : res.experiences));
         setCursor(res.nextCursor);
         setHasMore(res.hasMore);
       } catch {
+        if (requestId !== requestIdRef.current) return;
         setError('Could not load experiences. Try again.');
       } finally {
+        if (requestId !== requestIdRef.current) return;
         setLoading(false);
         setLoadingMore(false);
       }

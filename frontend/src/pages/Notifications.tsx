@@ -101,6 +101,7 @@ export default function Notifications() {
     if (typeof route === 'string' && route.startsWith('/')) navigate(route);
     else if (notification.type === 'MATCH' && notification.entityId) navigate(`/matches/${notification.entityId}`);
     else if (notification.type === 'MESSAGE' && notification.entityId) navigate(`/messages/${notification.entityId}`);
+    else if (notification.type === 'EXPERIENCE' && notification.entityId) navigate(`/experiences/${notification.entityId}`);
   }
 
   async function markAll() {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getMyExperiences, type Experience } from '../api/experiences';
@@ -19,16 +19,21 @@ export default function MyExperiences() {
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const load = useCallback(async (role: Tab) => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     try {
       const res = await getMyExperiences(role);
+      if (requestId !== requestIdRef.current) return;
       setExperiences(res.experiences);
     } catch {
+      if (requestId !== requestIdRef.current) return;
       setError('Could not load your experiences. Try again.');
     } finally {
+      if (requestId !== requestIdRef.current) return;
       setLoading(false);
     }
   }, []);

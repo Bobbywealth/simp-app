@@ -27,7 +27,7 @@ export const EXPERIENCE_CATEGORY_LABELS: Record<ExperienceCategory, string> = {
   OTHER: 'Other',
 };
 
-/** "Sat, Oct 24 · 7:30 PM" */
+/** "Sat, Oct 24 · 7:30 PM EDT" — includes the viewer's timezone abbreviation. */
 export function formatExperienceDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -39,6 +39,7 @@ export function formatExperienceDate(iso: string): string {
   const time = d.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
+    timeZoneName: 'short',
   });
   return `${date} · ${time}`;
 }

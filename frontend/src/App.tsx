@@ -115,7 +115,7 @@ export default function App() {
         const parsed = new URL(value);
         let route = parsed.pathname;
         if (parsed.protocol === 'simp:') route = `/${parsed.host}${parsed.pathname}`;
-        const allowed = ['/matches/', '/messages/', '/live/', '/verify-email', '/reset-password'];
+        const allowed = ['/matches/', '/messages/', '/live/', '/experiences/', '/verify-email', '/reset-password'];
         if (allowed.some((prefix) => route.startsWith(prefix))) {
           navigate(`${route}${parsed.search}`);
         }

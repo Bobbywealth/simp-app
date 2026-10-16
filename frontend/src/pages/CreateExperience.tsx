@@ -86,7 +86,10 @@ export default function CreateExperience() {
 
       <header className="relative z-10 flex items-center justify-between px-6 pt-safe pt-6">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            if (window.history.length > 2) navigate(-1);
+            else navigate('/experiences');
+          }}
           className="text-xs font-medium uppercase tracking-[0.2em] text-white/60 hover:text-white"
         >
           ‹ Back
@@ -221,6 +224,22 @@ export default function CreateExperience() {
             placeholder="https://…"
             error={errors.imageUrl}
           />
+
+          {imageUrl.trim() && !errors.imageUrl && (
+            <div className="overflow-hidden rounded-2xl border border-white/10">
+              <img
+                src={imageUrl.trim()}
+                alt="Cover preview"
+                className="aspect-video w-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+                onLoad={(e) => {
+                  (e.target as HTMLImageElement).style.display = '';
+                }}
+              />
+            </div>
+          )}
 
           {submitError && (
             <p className="rounded-xl border border-red-300/30 bg-red-300/10 px-4 py-3 text-xs text-red-200" role="alert">

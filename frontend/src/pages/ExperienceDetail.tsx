@@ -23,12 +23,14 @@ import {
 import { Button } from '../components/Button';
 import { Textarea } from '../components/Input';
 import { SimpLogo } from '../components/SimpLogo';
+import { getRealtimeSocket } from '../lib/realtime';
 
 export default function ExperienceDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<ExperienceDetailType | null>(null);
   const [requests, setRequests] = useState<ExperienceRequestItem[]>([]);
+  const [requestsError, setRequestsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +45,7 @@ export default function ExperienceDetail() {
     if (!id) return;
     setLoading(true);
     setError(null);
+    setRequestsError(false);
     try {
       const res = await getExperience(id);
       setDetail(res);
@@ -51,7 +54,8 @@ export default function ExperienceDetail() {
           const reqs = await getExperienceRequests(id);
           setRequests(reqs.requests);
         } catch {
-          // Requests failing shouldn't block the detail view.
+          // Requests failing shouldn't block the detail view, but show it distinctly from "no requests".
+          setRequestsError(true);
         }
       }
     } catch {
@@ -64,6 +68,24 @@ export default function ExperienceDetail() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Live updates: refresh when requests change or our status changes.
+  useEffect(() => {
+    if (!id) return;
+    const socket = getRealtimeSocket();
+    const onChange = (payload: { experienceId?: string }) => {
+      if (payload.experienceId && payload.experienceId !== id) return;
+      void load();
+    };
+    socket.on('experience:request', onChange);
+    socket.on('experience:approved', onChange);
+    socket.on('experience:declined', onChange);
+    return () => {
+      socket.off('experience:request', onChange);
+      socket.off('experience:approved', onChange);
+      socket.off('experience:declined', onChange);
+    };
+  }, [id, load]);
 
   async function handleRequestToJoin() {
     if (!id) return;
@@ -149,7 +171,11 @@ export default function ExperienceDetail() {
 
       <header className="relative z-10 flex items-center justify-between px-6 pt-safe pt-6">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            // Deep-link entry has no history — fall back instead of exiting the app.
+            if (window.history.length > 2) navigate(-1);
+            else navigate('/experiences');
+          }}
           className="text-xs font-medium uppercase tracking-[0.2em] text-white/60 hover:text-white"
         >
           ‹ Back
@@ -265,6 +291,7 @@ export default function ExperienceDetail() {
               <HostControls
                 detail={detail}
                 requests={requests}
+                requestsError={requestsError}
                 actingRequestId={actingRequestId}
                 cancelling={cancelling}
                 onApprove={handleApprove}
@@ -294,6 +321,7 @@ export default function ExperienceDetail() {
 function HostControls({
   detail,
   requests,
+  requestsError,
   actingRequestId,
   cancelling,
   onApprove,
@@ -302,6 +330,7 @@ function HostControls({
 }: {
   detail: ExperienceDetailType;
   requests: ExperienceRequestItem[];
+  requestsError: boolean;
   actingRequestId: string | null;
   cancelling: boolean;
   onApprove: (requestId: string) => void;
@@ -325,10 +354,16 @@ function HostControls({
         )}
       </div>
 
-      {requests.length === 0 && (
-        <p className="mt-3 text-sm text-white/50">
-          No requests yet. Share your experience to fill the seats.
+      {requestsError ? (
+        <p className="mt-3 text-sm text-red-300/80">
+          Couldn't load requests. Pull to refresh or try again.
         </p>
+      ) : (
+        requests.length === 0 && (
+          <p className="mt-3 text-sm text-white/50">
+            No requests yet. Share your experience to fill the seats.
+          </p>
+        )
       )}
 
       <div className="mt-3 space-y-3">
@@ -467,6 +502,17 @@ function GuestControls({
         >
           {submitting ? 'Working…' : 'Withdraw request'}
         </button>
+      </div>
+    );
+  }
+
+  if (detail.myRequest?.status === 'DECLINED') {
+    return (
+      <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
+        <p className="display-heading text-xl font-light text-white">Not this time</p>
+        <p className="mt-1 text-sm text-white/60">
+          The host didn't approve your request. There are plenty more experiences to explore.
+        </p>
       </div>
     );
   }
