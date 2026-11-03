@@ -301,6 +301,7 @@ export default function ExperienceDetail() {
               </p>
             )}
 
+            {!detail.isHost && detail.myRequest?.status !== 'APPROVED' && <p className="rounded-xl border border-white/10 p-4 text-xs leading-relaxed text-white/55">Exact venue and arrival details are shared after the host approves your request.</p>}
             {detail.venue && (
               <div className="mt-4 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                 <span className="text-gold-200">📍</span>

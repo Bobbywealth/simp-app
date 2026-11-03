@@ -105,7 +105,7 @@ export default function CreateExperience() {
         <div className="w-12" />
       </header>
 
-      <main className="relative z-10 mx-auto w-full max-w-md px-6 pt-6 pb-28">
+      <main className="simp-constrained-form relative z-10 mx-auto w-full max-w-md px-6 pt-6 pb-28">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
           <h2 className="display-heading text-2xl font-light">Plan something unforgettable</h2>
           <p className="mt-1 text-sm text-white/60">

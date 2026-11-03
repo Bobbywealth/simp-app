@@ -43,7 +43,7 @@ export type EmailEventPayload = {
 
 export type VerificationResult =
   | { verified: true }
-  | { verified: false; reason: 'missing_secret' | 'missing_header' | 'bad_signature' | 'malformed_signature' };
+  | { verified: false; reason: 'missing_secret' | 'missing_header' | 'bad_signature' | 'malformed_signature' | 'expired_timestamp' };
 
 export function verifyResendSignature(opts: {
   body: string;
@@ -58,6 +58,10 @@ export function verifyResendSignature(opts: {
   const signatureHeader = headers['svix-signature'];
   if (!id || !timestamp || !signatureHeader) return { verified: false, reason: 'missing_header' };
 
+  const seconds = typeof timestamp === 'string' && /^\d+$/.test(timestamp) ? Number(timestamp) : NaN;
+  if (!Number.isFinite(seconds) || Math.abs(Date.now() / 1000 - seconds) > 300) {
+    return { verified: false, reason: 'expired_timestamp' };
+  }
   const signed = `${id}.${timestamp}.${body}`;
   const expected = createHmac('sha256', base64DecodeSecret(secret)).update(signed).digest();
   const provided = parseSignatureHeader(String(signatureHeader));

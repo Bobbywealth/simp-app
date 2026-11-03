@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:e2e": "playwright test",
-    "cap:sync": "cap sync"
+    "cap:sync": "cap sync",
+    "test:audit": "cd .. && node --test scripts/audit-regressions.cjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^6.0.1",

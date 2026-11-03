@@ -15,18 +15,24 @@ export default function Messages() {
   const user = useAuth((state) => state.user);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
-    setLoading(true);
+  async function load(append = false) {
+    if (append) setLoadingMore(true); else setLoading(true);
     setError(null);
     try {
-      const response = await getConversations();
-      setConversations(response.conversations);
+      const response = await getConversations(append ? cursor ?? undefined : undefined);
+      setConversations(current => append ? [...new Map([...current, ...response.conversations].map(item => [item.id, item])).values()] : response.conversations);
+      setCursor(response.nextCursor);
+      setHasMore(response.hasMore);
     } catch (value) {
       setError((value as Error).message);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }
 
@@ -35,7 +41,7 @@ export default function Messages() {
     const socket = getRealtimeSocket();
     const onUpdate = (payload: { conversationId: string; message: Message; senderId: string }) => {
       const currentUserId = user?.id;
-      const isFromOther = payload.senderId !== currentUserId;
+      const isFromOther = (payload.senderId ?? payload.message.senderId) !== currentUserId;
       setConversations((current) => {
         const found = current.find((item) => item.id === payload.conversationId);
         if (!found) {
@@ -46,7 +52,7 @@ export default function Messages() {
           ...found,
           latestMessage: payload.message,
           updatedAt: payload.message.createdAt,
-          unreadCount: isFromOther ? found.unreadCount + 1 : found.unreadCount,
+          unreadCount: isFromOther && found.latestMessage?.id !== payload.message.id ? found.unreadCount + 1 : found.unreadCount,
         };
         return [updated, ...current.filter((item) => item.id !== payload.conversationId)];
       });
@@ -103,8 +109,8 @@ export default function Messages() {
             </div>
           </div>
         )}
-        {!loading && !error && conversations.length > 0 && (
-          <ul className="divide-y divide-white/[0.08]">
+        {!loading && conversations.length > 0 && (
+          <><ul className="divide-y divide-white/[0.08]">
             {conversations.map((conversation, index) => (
               <motion.li
                 key={conversation.id}
@@ -159,7 +165,7 @@ export default function Messages() {
                 </button>
               </motion.li>
             ))}
-          </ul>
+          </ul>{hasMore && <button className="btn-gold-outline mx-auto mt-7 flex" disabled={loadingMore} onClick={() => void load(true)}>{loadingMore ? 'Loading…' : 'Load more conversations'}</button>}</>
         )}
       </main>
     </div>

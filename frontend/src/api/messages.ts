@@ -25,11 +25,13 @@ export const sendMessage = (conversationId: string, body: string, clientId: stri
     body: JSON.stringify({ body, clientId, messageType: 'TEXT' }),
   });
 
-export const markConversationRead = (conversationId: string, throughMessageId?: string) =>
-  apiFetch<{ ok: boolean; readAt: string }>(`/conversations/${encodeURIComponent(conversationId)}/read`, {
-    method: 'POST',
-    body: JSON.stringify({ throughMessageId }),
+export async function markConversationRead(conversationId: string, throughMessageId?: string) {
+  const result = await apiFetch<{ ok: boolean; readAt: string }>(`/conversations/${encodeURIComponent(conversationId)}/read`, {
+    method: 'POST', body: JSON.stringify({ throughMessageId }),
   });
+  window.dispatchEvent(new Event('simp:inbox-read'));
+  return result;
+}
 
 export const markConversationDelivered = (conversationId: string, throughMessageId?: string) =>
   apiFetch<{ ok: boolean; deliveredAt: string }>(

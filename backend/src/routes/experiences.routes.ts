@@ -102,6 +102,8 @@ experiencesRouter.get('/experiences', requireAuth, async (req: AuthedRequest, re
     const rows = await prisma.experience.findMany({
       where: {
         status: 'OPEN',
+        isActive: true,
+        host: { status: 'ACTIVE' },
         startsAt: { gt: new Date() },
         hostId: { not: me, ...(excludedHostIds.size ? { notIn: [...excludedHostIds] } : {}) },
         ...(input.city ? { city: { equals: input.city, mode: 'insensitive' } } : {}),
@@ -117,6 +119,8 @@ experiencesRouter.get('/experiences', requireAuth, async (req: AuthedRequest, re
     const counts = await approvedCountsByExperience(page.map((r) => r.id));
     const experiences = page.map((r) => ({
       ...r,
+      venue: null,
+      logistics: null,
       host: shapeHost(r.host),
       approvedCount: counts.get(r.id) ?? 0,
     }));
@@ -237,6 +241,11 @@ experiencesRouter.get('/experiences/:id', requireAuth, async (req: AuthedRequest
     if (!experience) {
       throw new AppError('experience_not_found', 404, 'Experience not found.');
     }
+    const block = await prisma.block.findFirst({
+      where: { OR: [{ blockerId: me, blockedId: experience.hostId }, { blockerId: experience.hostId, blockedId: me }] },
+      select: { id: true },
+    });
+    if (block || !experience.isActive) throw new AppError('experience_not_found', 404, 'Experience not found.');
     const isHost = experience.hostId === me;
     if (experience.status === 'DRAFT' && !isHost) {
       throw new AppError('experience_not_found', 404, 'Experience not found.');
@@ -250,6 +259,8 @@ experiencesRouter.get('/experiences/:id', requireAuth, async (req: AuthedRequest
     ]);
     res.json({
       ...experience,
+      venue: isHost || myRequest?.status === 'APPROVED' ? experience.venue : null,
+      logistics: isHost || myRequest?.status === 'APPROVED' ? experience.logistics : null,
       host: shapeHost(experience.host),
       approvedCount,
       myRequest,

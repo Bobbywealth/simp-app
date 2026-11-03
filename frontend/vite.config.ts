@@ -65,19 +65,6 @@ export default defineConfig({
         start_url: '/?utm_source=pwa',
         prefer_related_applications: false,
         handle_links: 'exclusive',
-        related_applications: [
-          {
-            platform: 'itunes',
-            url: 'https://apps.apple.com/app/simp/id000000000',
-            id: 'app.simp.client',
-          },
-          {
-            platform: 'play',
-            url: 'https://play.google.com/store/apps/details?id=app.simp.client',
-            id: 'app.simp.client',
-          },
-        ],
-        iarc_rating_id: 'fb48fbb8-31a6-4d8b-9f6e-7e8e3f3f3f3f',
         scope_extensions: [
           { origin: 'https://mysimp.com' },
           { origin: 'https://api.mysimp.com' },
@@ -171,67 +158,9 @@ export default defineConfig({
         launch_handler: {
           client_mode: 'navigate-existing',
         },
-        protocol_handlers: [
-          {
-            protocol: 'mailto',
-            url: '/support?email=%s',
-          },
-          {
-            protocol: 'web+simp',
-            url: '/open?path=%s',
-          },
-        ],
-        share_target: {
-          action: '/share',
-          method: 'POST',
-          enctype: 'multipart/form-data',
-          params: {
-            title: 'title',
-            text: 'text',
-            url: 'url',
-            files: [
-              {
-                name: 'media',
-                accept: ['image/png', 'image/jpeg', 'image/webp'],
-              },
-            ],
-          },
-        },
         // Newer manifest fields — vite-plugin-pwa types don't yet include these,
         // so cast the rest as `any`. They pass through into the generated
         // manifest.webmanifest as plain JSON.
-        widgets: [
-          {
-            name: 'SIMP Matches',
-            short_name: 'Matches',
-            description: 'Your latest matches at a glance.',
-            tag: 'matches',
-            template: '/widgets/matches.json',
-            screenshots: [
-              {
-                src: '/screenshots/widgets-matches.png',
-                sizes: '600x400',
-                type: 'image/png',
-                label: 'SIMP matches widget',
-              },
-            ],
-          },
-          {
-            name: 'SIMP Profile',
-            short_name: 'Profile',
-            description: 'Quick view of your SIMP profile.',
-            tag: 'profile',
-            template: '/widgets/profile.json',
-            screenshots: [
-              {
-                src: '/screenshots/widgets-profile.png',
-                sizes: '600x400',
-                type: 'image/png',
-                label: 'SIMP profile widget',
-              },
-            ],
-          },
-        ],
         edge_side_panel: {
           preferred_width: 480,
         },
@@ -242,19 +171,6 @@ export default defineConfig({
         tabbed: {
           default_icon_path: '/icons/icon-192.png',
         },
-        note_taking: {
-          new_note_url: '/notes/new',
-        },
-        file_handlers: [
-          {
-            action: '/open-file',
-            accept: {
-              'image/png': ['.png'],
-              'image/jpeg': ['.jpg', '.jpeg'],
-              'image/webp': ['.webp'],
-            },
-          },
-        ],
       } as any,
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],

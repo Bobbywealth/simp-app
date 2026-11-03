@@ -1,7 +1,4 @@
-import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { getUnreadMessageCount } from '../api/messages';
-import { getRealtimeSocket } from '../lib/realtime';
 
 const TABS = [
   { to: '/experiences', label: 'Plans', path: 'M9 5h6v4H9V5Zm-4 6h14v9H5v-9Zm2 2v5h10v-5H7Z' },
@@ -13,26 +10,14 @@ const TABS = [
 
 const PRIMARY_PATHS = new Set(['/home', '/discover', '/matches', '/messages', '/live', '/profile', '/experiences', '/experiences/mine']);
 
-export function BottomTabBar() {
+export function BottomTabBar({ messageCount = 0 }: { messageCount?: number }) {
   const location = useLocation();
-  const [messageCount, setMessageCount] = useState(0);
   const visible = PRIMARY_PATHS.has(location.pathname);
-
-  useEffect(() => {
-    if (!visible) return;
-    void getUnreadMessageCount().then((result) => setMessageCount(result.count)).catch(() => undefined);
-    const socket = getRealtimeSocket();
-    const onInbox = () => setMessageCount((count) => count + 1);
-    socket.on('inbox:update', onInbox);
-    return () => {
-      socket.off('inbox:update', onInbox);
-    };
-  }, [visible]);
 
   if (!visible) return null;
 
   return (
-    <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 bg-ink-950/72 backdrop-blur-2xl">
+    <nav aria-label="Primary" className="simp-mobile-tabbar fixed inset-x-0 bottom-0 z-40 bg-ink-950/72 backdrop-blur-2xl">
       <div className="mx-auto h-px max-w-md bg-gradient-to-r from-transparent via-white/15 to-transparent" aria-hidden />
       <div className="mx-auto grid max-w-md grid-cols-5" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)' }}>
         {TABS.map((tab) => {
@@ -42,6 +27,7 @@ export function BottomTabBar() {
               key={tab.to}
               to={tab.to}
               aria-label={`${tab.label}${badge ? `, ${badge} unread` : ''}`}
+              end={tab.to === '/profile'}
               className={({ isActive }) =>
                 `relative flex min-h-[62px] flex-col items-center justify-center gap-1 text-[9px] font-semibold uppercase tracking-[0.14em] transition duration-300 active:scale-95 ${isActive ? 'text-gold-200' : 'text-white/42 hover:text-white/80'}`
               }

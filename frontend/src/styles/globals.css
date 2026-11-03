@@ -152,3 +152,69 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Desktop gets a real workspace. Below 1024px the native mobile shell is unchanged. */
+.simp-desktop-sidebar, .simp-desktop-topbar { display: none; }
+.simp-skip-link { position: fixed; left: 20px; top: -100px; z-index: 100; padding: 12px 20px; background: #ddc58e; color: #111; border-radius: 8px; }
+.simp-skip-link:focus { top: 12px; }
+.simp-app-content { min-width: 0; outline: none; }
+.simp-host-fab { bottom: calc(82px + env(safe-area-inset-bottom, 0px)); }
+.simp-install-prompt { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 1024px) {
+  html { scrollbar-gutter: stable; }
+  ::-webkit-scrollbar { width: 7px; height: 7px; }
+  ::-webkit-scrollbar-thumb { background: #ffffff25; border-radius: 10px; }
+  .simp-workspace { --simp-sidebar: 248px; }
+  .simp-desktop-sidebar { position: fixed; display: flex; flex-direction: column; inset: 0 auto 0 0; width: var(--simp-sidebar); z-index: 45; border-right: 1px solid #ffffff0f; background: #10110f; padding: 32px 20px 20px; }
+  .simp-sidebar-brand { display: flex; gap: 12px; align-items: center; padding: 0 12px 36px; font-size: 23px; font-weight: 600; letter-spacing: .18em; }
+  .simp-sidebar-brand small, .simp-sidebar-account small { display: block; font-size: 11px; font-weight: 400; letter-spacing: 0; color: #a09f94; margin-top: 4px; }
+  .simp-nav-caption { color: #929487; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; padding: 0 16px 12px; }
+  .simp-sidebar-links { display: grid; gap: 6px; }
+  .simp-sidebar-link { min-height: 48px; border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 13px; font-size: 13px; color: #abaea1; transition: background .2s, color .2s; }
+  .simp-sidebar-link:hover { background: #ffffff06; color: #f5eedc; }
+  .simp-sidebar-link.is-active { background: #ddc58e12; color: #ead4a8; box-shadow: inset 2px 0 #ddc58e; }
+  .simp-sidebar-link svg { height: 20px; width: 20px; flex-shrink: 0; }
+  .simp-nav-badge { margin-left: auto; background: #ddc58e; color: #151710; padding: 2px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+  .simp-sidebar-bottom { margin-top: auto; padding-top: 24px; }
+  .simp-sidebar-account { display: flex; gap: 10px; align-items: center; font-size: 13px; padding: 20px 8px 0; margin-top: 16px; border-top: 1px solid #ffffff12; }
+  .simp-sidebar-account > span:last-child { margin-left: auto; color: #ddc58e; }
+  .simp-account-initial { width: 38px; height: 38px; border: 1px solid #ddc58e50; background: #ddc58e10; border-radius: 50%; display: grid; place-items: center; color: #e4cfa3; font-family: Georgia, serif; font-size: 20px; }
+  .simp-app-content { margin-left: var(--simp-sidebar); }
+  .simp-mobile-tabbar { display: none; }
+  .simp-desktop-topbar { display: flex; height: 76px; padding: 0 40px; align-items: center; justify-content: space-between; border-bottom: 1px solid #ffffff10; color: #e3d6ba; font-size: 13px; }
+  .simp-desktop-topbar > div { display: flex; gap: 25px; color: #a8ad9c; font-size: 12px; }
+  .simp-desktop-topbar a:hover { color: #ead5a8; }
+  .simp-app-content > div:not(.simp-desktop-topbar) { min-height: calc(100dvh - 76px); }
+  .simp-app-content > div > header { max-width: 1180px; margin-inline: auto; padding: 30px 40px 20px; }
+  .simp-app-content > div > main { max-width: 1180px; margin-inline: auto; padding: 24px 40px 64px; }
+  .simp-workspace[data-page="home"] main { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 24px; align-items: start; }
+  .simp-workspace[data-page="home"] .home-wide { grid-column: 1 / -1; }
+  .simp-workspace[data-page="experiences"] .experience-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; }
+  .simp-workspace[data-page="experiences"] main > form { max-width: 540px; }
+  .simp-workspace[data-page="experiences"] main > div:first-child h2 { font-size: 40px; }
+  .simp-workspace[data-page="messages"] .simp-app-content > div > main { max-width: 1000px; }
+  .simp-workspace[data-page="profile"] .simp-app-content > div > main { max-width: 900px; }
+  .simp-workspace[data-page="settings"] .simp-app-content > div > main { max-width: 960px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .simp-workspace[data-page="settings"] main > * { margin-top: 0; }
+  .simp-workspace[data-page="discover"] .simp-app-content > div > main { max-width: 1000px; }
+  .simp-workspace[data-page="discover"] .discovery-deck { max-width: 520px; }
+  .simp-workspace .simp-conversation { left: var(--simp-sidebar); top: 76px; }
+  .simp-conversation > header > div, .simp-conversation footer > div { max-width: 840px; }
+  .simp-host-fab { bottom: 28px; right: 40px; }
+  .simp-install-prompt { left: auto; right: 28px; bottom: 24px; }
+  .simp-workspace .simp-constrained-form { max-width: 840px; }
+}
+@media (min-width: 1440px) { .simp-workspace[data-page="experiences"] .experience-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media (min-width: 1024px) {
+  .simp-login { align-items: center; padding: 64px 8%; }
+  .simp-login > main { max-width: 1100px; display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 100px; padding: 0; }
+  .simp-login > main > div:first-child { padding: 0; }
+  .simp-login h1 { font-size: 72px; }
+  .simp-login > main > div:nth-child(2) { padding: 32px; }
+  .simp-login > main > div:first-child > div { max-width: 420px; }
+}
+@media (min-width: 1024px) {
+  .simp-page-transition > div > header { max-width: 1180px; margin-inline: auto; padding: 30px 40px 20px; }
+  .simp-page-transition > div > main { max-width: 1180px; margin-inline: auto; padding: 24px 40px 64px; }
+  .simp-page-transition .simp-constrained-form { max-width: 840px; }
+}

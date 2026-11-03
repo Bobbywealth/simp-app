@@ -4,7 +4,7 @@ import { AnimatePresence, motion, MotionConfig, useReducedMotion } from 'framer-
 import { useAuth } from './store/auth';
 import { ensurePushTokenRegistered, getDeviceContext } from './capacitor';
 import { registerPushToken } from './api/notifications';
-import { BottomTabBar } from './components/BottomTabBar';
+import { AppShell } from './components/AppShell';
 import { InstallPrompt } from './components/InstallPrompt';
 import { LoadingScreen } from './components/LoadingScreen';
 import { PageTransition } from './components/PageTransition';
@@ -127,6 +127,15 @@ export default function App() {
     return () => window.removeEventListener('simp:deeplink', handler);
   }, [navigate]);
 
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const route = event.data?.route;
+      if (event.data?.type === 'simp:navigate' && typeof route === 'string' && route.startsWith('/') && !route.startsWith('//') && !route.includes('\\')) navigate(route);
+    };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+  }, [navigate]);
+
   if (!ready) return <LoadingScreen />;
 
   return (
@@ -151,6 +160,7 @@ export default function App() {
             transition={{ duration: reduceMotion ? 0 : 0.18 }}
             className="contents"
           >
+            <AppShell>
             <Routes>
               <Route path="/" element={<Navigate to={user ? (user.onboardingCompletedAt ? '/experiences' : '/profile-setup') : '/login'} replace />} />
               <Route path="/welcome" element={<PageTransition routeKey="/welcome"><Welcome /></PageTransition>} />
@@ -182,11 +192,11 @@ export default function App() {
               <Route path="/experiences/mine" element={<PageTransition routeKey="/experiences/mine"><ProtectedRoute requireOnboarding><MyExperiences /></ProtectedRoute></PageTransition>} />
               <Route path="/experiences/:id" element={<PageTransition routeKey="/experiences/:id"><ProtectedRoute requireOnboarding><ExperienceDetail /></ProtectedRoute></PageTransition>} />
               <Route path="/licenses" element={<ProtectedRoute requireOnboarding><Licenses /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute requireRole="ADMIN"><Admin /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']}><Admin /></ProtectedRoute>} />
               <Route path="/settings/blocked" element={<ProtectedRoute requireOnboarding><BlockedUsers /></ProtectedRoute>} />
               <Route path="*" element={<ProtectedRoute><NotFound /></ProtectedRoute>} />
             </Routes>
-            <BottomTabBar />
+            </AppShell>
             <PwaUpdatePrompt />
           </motion.div>
         </AnimatePresence>

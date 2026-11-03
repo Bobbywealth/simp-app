@@ -55,7 +55,7 @@ export function PageTransition({ children, routeKey }: Props) {
         animate="animate"
         exit="exit"
         transition={{ duration: DURATION, ease: IOS_EASE as unknown as number[] }}
-        className="h-full w-full"
+        className="simp-page-transition h-full w-full"
       >
         {children}
       </motion.div>

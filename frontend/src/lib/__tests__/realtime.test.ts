@@ -5,6 +5,7 @@ import * as client from '../../api/client';
 vi.mock('../../api/client', () => ({
   API_BASE_URL: 'http://localhost:3000',
   getAccessToken: vi.fn(),
+  refreshAccessToken: vi.fn().mockResolvedValue(false),
 }));
 
 describe('realtime', () => {

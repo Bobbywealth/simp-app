@@ -46,19 +46,10 @@ export default function Notifications() {
         .catch(() => undefined);
     }
 
-    // Service worker may post a navigate hint when a push is clicked.
-    const onSwMessage = (event: MessageEvent) => {
-      const data = event.data as { type?: string; route?: string } | undefined;
-      if (data?.type === 'simp:navigate' && typeof data.route === 'string') {
-        navigate(data.route);
-      }
-    };
-    navigator.serviceWorker?.addEventListener('message', onSwMessage);
-
     return () => {
       cancelled = true;
       socket.off('notification:new', onNew);
-      navigator.serviceWorker?.removeEventListener('message', onSwMessage);
+
     };
   }, [navigate]);
 

@@ -93,7 +93,9 @@ export default function Conversation() {
   useEffect(() => {
     if (!id || !userId) return;
     const socket = getRealtimeSocket();
-    socket.emit('conversation:join', { conversationId: id });
+    const join = () => socket.emit('conversation:join', { conversationId: id });
+    join();
+    socket.on('connect', join);
 
     const onJoined = (payload: { conversationId: string; otherOnline: boolean }) => {
       if (payload.conversationId === id) setOnline(payload.otherOnline);
@@ -102,7 +104,7 @@ export default function Conversation() {
       if (message.conversationId !== id) return;
       mergeMessage(message);
       if (message.senderId !== userId) {
-        socket.emit('message:read', { conversationId: id, throughMessageId: message.id });
+        void markConversationRead(id, message.id).catch(() => undefined);
       }
       if (shouldStickRef.current || message.senderId === userId) {
         window.requestAnimationFrame(() => scrollToBottom(true));
@@ -162,6 +164,7 @@ export default function Conversation() {
     socket.on('safety:block', onBlocked);
 
     return () => {
+      socket.off('connect', join);
       socket.emit('conversation:leave', { conversationId: id });
       socket.off('conversation:joined', onJoined);
       socket.off('message:new', onNew);
@@ -243,13 +246,11 @@ export default function Conversation() {
     const socket = getRealtimeSocket();
     socket.emit('typing:stop', { conversationId: id });
     try {
-      if (socket.connected) {
-        socket.emit('message:send', { conversationId: id, body, clientId });
-      } else {
-        mergeMessage(await sendMessageRest(id, body, clientId));
-      }
+      // Persist with an acknowledged, idempotent request. Socket events keep both views live.
+      mergeMessage(await sendMessageRest(id, body, clientId));
     } catch (value) {
       setMessages((current) => current.filter((message) => message.clientId !== clientId));
+      setComposer(current => current || body);
       setError((value as Error).message);
     } finally {
       setSending(false);
@@ -300,7 +301,7 @@ export default function Conversation() {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-ink-950 text-white">
+    <div className="simp-conversation fixed inset-0 flex flex-col bg-ink-950 text-white">
       <header className="relative z-20 border-b border-white/[0.08] bg-ink-950/90 px-3 pt-safe backdrop-blur-xl">
         <div className="mx-auto flex h-16 w-full max-w-md items-center gap-3">
           <button type="button" onClick={() => navigate('/messages')} className="flex h-11 w-11 items-center justify-center rounded-full text-white/70 hover:bg-white/5" aria-label="Back to messages">

@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { sentryErrorHandler, sentryRequestHandler } from './services/sentry.service.js';
 import { allowedOrigins, env, normalizeOrigin } from './config/env.js';
 import { requestContext } from './middleware/request-context.js';
+import { installBodyParsers } from './middleware/body-parsers.js';
 import { errorHandler } from './middleware/error.js';
 import { accountRouter } from './routes/account.routes.js';
 import { adminRouter } from './routes/admin.routes.js';
@@ -76,19 +77,7 @@ export function createApp() {
       exposedHeaders: ['X-Request-ID', 'Content-Disposition'],
     }),
   );
-  app.use(express.json({ limit: '1mb', strict: true }));
-  // /webhooks/* receives signed payloads from upstream providers (Resend,
-  // Stripe, etc.) — the signature must be verified against the exact raw
-  // bytes the provider sent. Mount express.raw() here BEFORE the global
-  // JSON parser consumes the body, and the per-route handler reads
-  // req.body as a Buffer.
-  app.use(
-    '/webhooks',
-    express.raw({
-      type: () => true,
-      limit: '1mb',
-    }),
-  );
+  installBodyParsers(app);
   app.use(cookieParser());
   app.use((_req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');

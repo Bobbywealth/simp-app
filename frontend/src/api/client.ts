@@ -5,7 +5,7 @@ import {
   persistRefreshTokenNative,
 } from '../capacitor';
 
-const BASE_URL = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:4000').replace(/\/$/, '');
+const BASE_URL = ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://api.mysimp.com' : 'http://localhost:4000')).replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 15_000;
 
 let accessToken: string | null = null;
@@ -133,7 +133,8 @@ async function toError(response: Response) {
   } catch {
     // Non-JSON provider/proxy errors are normalized below.
   }
-  const error = new ApiError(body.message || body.error || `Request failed (${response.status})`);
+  const message = typeof body.message === 'string' ? body.message : typeof body.error === 'string' ? body.error : response.status >= 500 ? 'SIMP is temporarily unavailable. Please try again in a moment.' : `Request failed (${response.status})`;
+  const error = new ApiError(message);
   error.status = response.status;
   error.code = body.error;
   error.fieldErrors = body.fieldErrors ?? {};

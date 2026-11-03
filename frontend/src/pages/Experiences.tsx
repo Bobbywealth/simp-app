@@ -142,6 +142,7 @@ export default function Experiences() {
 
         <div className="mb-6 flex flex-wrap gap-2">
           <button
+            aria-pressed={category === null}
             onClick={() => selectCategory(null)}
             className={`min-h-10 rounded-full border px-4 py-2 text-sm transition ${
               category === null
@@ -154,6 +155,7 @@ export default function Experiences() {
           {EXPERIENCE_CATEGORY_OPTIONS.map((opt) => (
             <button
               key={opt.value}
+              aria-pressed={category === opt.value}
               onClick={() => selectCategory(category === opt.value ? null : opt.value)}
               className={`min-h-10 rounded-full border px-4 py-2 text-sm transition ${
                 category === opt.value
@@ -167,7 +169,7 @@ export default function Experiences() {
         </div>
 
         {loading && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="experience-grid grid grid-cols-1 gap-4 sm:grid-cols-2">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="animate-pulse overflow-hidden rounded-2xl border border-white/10 bg-ink-900/60">
                 <div className="aspect-[16/10] bg-ink-800" />
@@ -212,7 +214,7 @@ export default function Experiences() {
 
         {!loading && !error && experiences.length > 0 && (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="experience-grid grid grid-cols-1 gap-4 sm:grid-cols-2">
               {experiences.map((exp, i) => (
                 <ExperienceCard key={exp.id} experience={exp} index={i} onOpen={() => navigate(`/experiences/${exp.id}`)} />
               ))}
@@ -235,7 +237,7 @@ export default function Experiences() {
       <button
         onClick={() => navigate('/experiences/new')}
         aria-label="Host a new experience"
-        className="fixed bottom-6 right-6 z-30 flex h-14 items-center gap-2 rounded-full bg-gold-gradient px-5 text-sm font-bold text-ink-950 shadow-[0_18px_40px_-12px_rgba(214,172,63,0.6)] transition active:scale-95"
+        className="simp-host-fab fixed right-6 z-30 flex h-14 items-center gap-2 rounded-full bg-gold-gradient px-5 text-sm font-bold text-ink-950 shadow-[0_18px_40px_-12px_rgba(214,172,63,0.6)] transition active:scale-95"
       >
         <span className="text-xl leading-none">+</span> Host
       </button>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { Button } from "../components/Button";
@@ -9,6 +9,7 @@ import AppleSignInButton, {
   type AppleCredential,
 } from "../components/AppleSignInButton";
 import { appleSignIn, login, me } from "../api/auth";
+import { loginDestination } from '../lib/login-destination';
 import { useAuth } from "../store/auth";
 
 type FormValues = { email: string; password: string };
@@ -16,6 +17,7 @@ const LAST_EMAIL_KEY = "simp_last_login_email";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { setUser } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,11 +46,7 @@ export default function Login() {
       await login(data);
       const meData = await me();
       setUser(meData);
-      if (!meData.emailVerified)
-        navigate("/verify-email-pending", { replace: true });
-      else if (!meData.profile || !meData.onboardingCompletedAt)
-        navigate("/profile-setup", { replace: true });
-      else navigate("/home", { replace: true });
+      navigate(loginDestination((location.state as { from?: string } | null)?.from, Boolean(meData.profile && meData.onboardingCompletedAt), meData.emailVerified), { replace: true });
     } catch (e) {
       setError((e as Error).message || "Log in failed");
     } finally {
@@ -85,7 +83,7 @@ export default function Login() {
   const appleClientIdValue = appleClientId ?? "";
 
   return (
-    <div className="relative flex min-h-screen overflow-hidden bg-black text-white">
+    <div className="simp-login relative flex min-h-screen overflow-hidden bg-black text-white">
       <img
         src="/editorial/welcome.jpg"
         alt=""

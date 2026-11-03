@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
@@ -22,7 +22,8 @@ import {
 
 export const webhooksRouter = Router();
 
-webhooksRouter.post('/webhooks/resend', async (req: Request, res: Response) => {
+webhooksRouter.post('/webhooks/resend', async (req: Request, res: Response, next: NextFunction) => {
+  try {
   // The /webhooks mount point in app.ts uses express.raw(), so req.body
   // arrives here as a Buffer (not a parsed object). That preserves the
   // exact bytes Resend signed, which we need for HMAC verification.
@@ -53,6 +54,7 @@ webhooksRouter.post('/webhooks/resend', async (req: Request, res: Response) => {
 
   await recordEvent(event);
   return res.status(200).json({ received: true, type: event.type });
+  } catch (error) { next(error); }
 });
 
 async function recordEvent(event: EmailEventPayload): Promise<void> {

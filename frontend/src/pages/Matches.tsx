@@ -5,31 +5,30 @@ import { getMatches } from '../api/matches';
 import type { MatchSummary } from '../types';
 import { SimpLogo } from '../components/SimpLogo';
 
-const editorialProfiles = [
-  '/editorial/profiles/women-01.jpg',
-  '/editorial/profiles/men-02.jpg',
-  '/editorial/profiles/women-04.jpg',
-  '/editorial/profiles/men-06.jpg',
-];
-
 export default function Matches() {
   const navigate = useNavigate();
   const [matches, setMatches] = useState<MatchSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => { void loadMatches(); }, []);
 
-  async function loadMatches() {
-    setLoading(true);
+  async function loadMatches(append = false) {
+    if (append) setLoadingMore(true); else setLoading(true);
     setError(null);
     try {
-      const res = await getMatches();
-      setMatches(res.matches);
+      const res = await getMatches(append ? nextCursor ?? undefined : undefined);
+      setMatches(current => append ? [...new Map([...current, ...res.matches].map(item => [item.matchId, item])).values()] : res.matches);
+      setNextCursor(res.nextCursor);
+      setHasMore(res.hasMore);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }
 
@@ -48,7 +47,7 @@ export default function Matches() {
           <div className="py-24 text-center"><p className="text-sm text-white/65">{error}</p><button onClick={() => void loadMatches()} className="btn-gold-outline mt-5 px-5 py-2 text-xs uppercase tracking-[0.18em]">Try again</button></div>
         )}
         {!loading && !error && matches.length === 0 && <EmptyMatches />}
-        {!loading && !error && matches.length > 0 && (
+        {!loading && matches.length > 0 && (
           <>
             <section className="relative mb-8 min-h-[245px] overflow-hidden rounded-[2rem] border border-white/10">
               <img src="/editorial/matches.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" />
@@ -60,12 +59,13 @@ export default function Matches() {
               </div>
             </section>
             <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
-              <p className="text-xs text-white/50">{matches.length} {matches.length === 1 ? 'invitation' : 'invitations'} waiting</p>
+              <p className="text-xs text-white/50">{matches.length}{hasMore ? '+' : ''} {matches.length === 1 ? 'invitation' : 'invitations'} waiting</p>
               <p className="text-[10px] uppercase tracking-[0.2em] text-white/35">Take your time</p>
             </div>
             <ul className="grid gap-5 sm:grid-cols-2">
               {matches.map((m, index) => <MatchInvitation key={m.matchId} match={m} index={index} onOpen={() => navigate(`/matches/${m.matchId}`)} />)}
             </ul>
+            {hasMore && <button className="btn-gold-outline mx-auto mt-7 flex" disabled={loadingMore} onClick={() => void loadMatches(true)}>{loadingMore ? 'Loading…' : 'Load more matches'}</button>}
           </>
         )}
       </main>
@@ -75,13 +75,13 @@ export default function Matches() {
 
 function MatchInvitation({ match, index, onOpen }: { match: MatchSummary; index: number; onOpen: () => void }) {
   const { otherUser } = match;
-  const photo = otherUser.photoUrl || otherUser.thumbnailUrl || editorialProfiles[index % editorialProfiles.length];
+  const photo = otherUser.photoUrl || otherUser.thumbnailUrl;
   const context = otherUser.occupation ? `${otherUser.occupation}${otherUser.city ? ` · ${otherUser.city}` : ''}` : otherUser.city ?? 'A new shared energy';
   return (
     <motion.li initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.06, 0.3) }}>
       <button onClick={onOpen} className="group block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold-400">
         <div className="relative aspect-[4/4.4] overflow-hidden rounded-[1.65rem] bg-ink-800">
-          <img src={photo} alt={otherUser.displayName} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+          {photo ? <img src={photo} alt={otherUser.displayName} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" /> : <div className="flex h-full items-center justify-center bg-ink-800 font-display text-7xl text-gold-200/50" aria-label="No profile photo">{otherUser.displayName.slice(0,1)}</div>}
           <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/10 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 p-5">
             <div className="flex items-end justify-between gap-3">

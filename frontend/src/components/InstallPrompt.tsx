@@ -123,7 +123,7 @@ export function InstallPrompt() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            className="pointer-events-auto fixed inset-x-0 bottom-0 z-40 mx-auto w-full max-w-md px-4 pb-safe"
+            className="simp-install-prompt pointer-events-auto fixed inset-x-0 z-40 mx-auto w-full max-w-md px-4 pb-safe"
             style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
           >
             <div className="flex items-center gap-3 rounded-2xl border border-gold-400/30 bg-ink-900/95 p-3 shadow-soft backdrop-blur-xl">
@@ -141,7 +141,7 @@ export function InstallPrompt() {
               <button
                 type="button"
                 onClick={dismiss}
-                className="rounded-full p-2 text-white/50 hover:bg-white/5 hover:text-white"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 text-white/50 hover:bg-white/5 hover:text-white"
                 aria-label="Dismiss"
               >
                 <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2">

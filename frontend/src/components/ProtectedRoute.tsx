@@ -21,7 +21,7 @@ export function ProtectedRoute({
   const location = useLocation();
 
   if (!ready) return <SkeletonScreen label="Loading" />;
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search + location.hash }} />;
   if (!user.emailVerified && location.pathname !== '/verify-email-pending') {
     return <Navigate to="/verify-email-pending" replace />;
   }

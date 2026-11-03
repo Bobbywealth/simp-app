@@ -12,45 +12,6 @@ import { DiscoverFilters } from '../components/DiscoverFilters';
 import { ShareButton } from '../components/ShareButton';
 import { useAuth } from '../store/auth';
 
-const SWIPE_QUEUE_KEY = 'simp:swipe-queue';
-
-interface QueuedSwipe {
-  swipedId: string;
-  action: SwipeAction;
-  note: string | null;
-  timestamp: number;
-}
-
-async function queueSwipe(swipe: QueuedSwipe): Promise<void> {
-  const existing = JSON.parse(localStorage.getItem(SWIPE_QUEUE_KEY) || '[]') as QueuedSwipe[];
-  existing.push(swipe);
-  localStorage.setItem(SWIPE_QUEUE_KEY, JSON.stringify(existing));
-
-  const cache = await caches.open('simp-queue');
-  const url = `${window.location.origin}/api/swipes?timestamp=${swipe.timestamp}`;
-  const req = new Request(url, {
-    method: 'POST',
-    body: JSON.stringify(swipe),
-    headers: { 'content-type': 'application/json' },
-    credentials: 'include',
-  });
-  const resp = new Response(JSON.stringify(swipe), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  });
-  await cache.put(req, resp);
-}
-
-async function registerSwipeReplay(): Promise<void> {
-  if (!('serviceWorker' in navigator) || !('sync' in ServiceWorkerRegistration.prototype)) return;
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    await (reg as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register('simp-replay');
-  } catch {
-    // sync not supported or failed
-  }
-}
-
 type DeckState = 'loading' | 'ready' | 'empty' | 'error';
 
 interface SwipedRecord {
@@ -100,21 +61,6 @@ export default function Discover() {
       .catch(() => loadDeck(true));
     // Initial load only; applying filters explicitly reloads the deck.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
-    const handler = (event: MessageEvent) => {
-      if (event.data?.type === 'simp:swipes-replayed') {
-        const timestamps = event.data.timestamps as number[];
-        if (!timestamps.length) return;
-        const existing = JSON.parse(localStorage.getItem(SWIPE_QUEUE_KEY) || '[]') as QueuedSwipe[];
-        const remaining = existing.filter((s) => !timestamps.includes(s.timestamp));
-        localStorage.setItem(SWIPE_QUEUE_KEY, JSON.stringify(remaining));
-      }
-    };
-    navigator.serviceWorker.addEventListener('message', handler);
-    return () => navigator.serviceWorker.removeEventListener('message', handler);
   }, []);
 
   async function loadDeck(reset: boolean, activeFilters: DiscoveryPreferences = filters) {
@@ -202,15 +148,6 @@ export default function Discover() {
         (err as Error).message.includes('fetch') ||
         !navigator.onLine;
 
-      if (isOffline) {
-        await queueSwipe({ swipedId: profile.userId, action, note: note ?? null, timestamp: Date.now() });
-        await registerSwipeReplay();
-        setSwipeHistory((prev) =>
-          prev.map((entry) => (entry.swipeId === tempSwipeId ? { swipeId: `offline_${tempSwipeId}`, profile } : entry)),
-        );
-        return;
-      }
-
       // 3b. Rollback: restore deck position + remove the temp swipe from
       // history so a rewind doesn't surface a swipe the server never saw.
       setTopIndex(priorTopIndex);
@@ -218,7 +155,7 @@ export default function Discover() {
         if (prev.length !== priorHistoryLength + 1) return prev;
         return prev.slice(0, priorHistoryLength);
       });
-      const message = (err as Error).message || 'Could not save your swipe. Please try again.';
+      const message = isOffline ? 'You’re offline. Your swipe was not sent. Reconnect and try again.' : (err as Error).message || 'Could not save your swipe. Please try again.';
       setError(message);
       window.setTimeout(() => setError(null), 4000);
     }
@@ -446,7 +383,7 @@ export default function Discover() {
       hasFilters={filters.minAge !== 18 || filters.maxAge !== 99 || filters.maxDistanceKm !== null || filters.verifiedOnly || filters.interestSlugs.length > 0}
     >
       <div className="flex flex-col flex-1 pb-20">
-        <div className="relative mx-auto w-full flex-1 max-w-md px-4">
+        <div className="discovery-deck relative mx-auto w-full flex-1 max-w-md px-4">
           {stack
             .slice()
             .reverse()

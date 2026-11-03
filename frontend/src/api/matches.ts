@@ -1,8 +1,8 @@
 import { apiFetch } from './client';
 import type { MatchDetail, MatchSummary } from '../types';
 
-export function getMatches() {
-  return apiFetch<{ matches: MatchSummary[] }>('/matches');
+export function getMatches(cursor?: string) {
+  return apiFetch<{ matches: MatchSummary[]; nextCursor: string | null; hasMore: boolean }>(`/matches${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
 }
 
 export function getMatch(id: string) {

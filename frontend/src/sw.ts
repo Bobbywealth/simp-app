@@ -57,7 +57,7 @@ self.addEventListener('push', (event: PushEvent) => {
 self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close();
   const data = (event.notification.data ?? {}) as { route?: string };
-  const target = typeof data.route === 'string' && data.route.startsWith('/') ? data.route : '/';
+  const target = typeof data.route === 'string' && data.route.startsWith('/') && !data.route.startsWith('//') && !data.route.includes('\\') ? data.route : '/';
   event.waitUntil(
     (async () => {
       const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
@@ -85,77 +85,10 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
   );
 });
 
-self.addEventListener('install', () => {
-  self.skipWaiting();
+// Updates activate only after the user chooses Refresh, preserving in-progress forms.
+self.addEventListener('message', (event: ExtendableMessageEvent) => {
+  if (event.data?.type === 'SKIP_WAITING') event.waitUntil(self.skipWaiting());
 });
-
 self.addEventListener('activate', (event: ExtendableEvent) => {
-  event.waitUntil(
-    (async () => {
-      if ('periodicSync' in self.registration) {
-        try {
-          await (self.registration as any).periodicSync.register('simp-refresh', {
-            minInterval: 60 * 60 * 1000,
-          });
-        } catch {
-          // periodic sync not supported or permission denied
-        }
-      }
-      await self.clients.claim();
-    })(),
-  );
-});
-
-// Periodic Background Sync — let the browser wake the SW on a schedule
-// to refresh cached data. Tagged so we can register from the app.
-(self as unknown as {
-  addEventListener(type: string, listener: (event: ExtendableEvent & { tag?: string }) => void): void;
-}).addEventListener('periodicsync', (event) => {
-  if (event.tag === 'simp-refresh') {
-    event.waitUntil(
-      (async () => {
-        try {
-          const fresh = await fetch('/api/discovery?refresh=1', { credentials: 'include' });
-          const cache = await caches.open('simp-data');
-          await cache.put('/api/discovery', fresh.clone());
-        } catch {
-          // best-effort; no-op on failure
-        }
-      })(),
-    );
-  }
-});
-
-// Background Sync — replay queued writes when the device comes back online.
-(self as unknown as {
-  addEventListener(type: string, listener: (event: ExtendableEvent & { tag?: string }) => void): void;
-}).addEventListener('sync', (event) => {
-  if (event.tag === 'simp-replay') {
-    event.waitUntil(
-      (async () => {
-        const cache = await caches.open('simp-queue');
-        const queued = await cache.keys();
-        const replayedTimestamps: number[] = [];
-        for (const req of queued) {
-          try {
-            const body = await cache.match(req);
-            if (!body) continue;
-            await fetch(req.clone(), { method: req.method, body: await body.text(), credentials: 'include' });
-            await cache.delete(req);
-            const url = new URL(req.url);
-            const timestamp = parseInt(url.searchParams.get('timestamp') || '0', 10);
-            if (timestamp) replayedTimestamps.push(timestamp);
-          } catch {
-            // leave in queue for next attempt
-          }
-        }
-        if (replayedTimestamps.length > 0) {
-          const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-          for (const client of allClients) {
-            client.postMessage({ type: 'simp:swipes-replayed', timestamps: replayedTimestamps });
-          }
-        }
-      })(),
-    );
-  }
+  event.waitUntil(self.clients.claim());
 });
