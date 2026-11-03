@@ -120,6 +120,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NavLink
               key={link.to}
               to={link.to}
+              aria-label={`${link.label}${link.to === "/messages" && unread > 0 ? `, ${unread} unread` : ""}`}
               className={({ isActive }) =>
                 `simp-sidebar-link${isActive ? " is-active" : ""}`
               }
@@ -139,7 +140,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               {link.to === "/messages" && unread > 0 && (
                 <span
                   className="simp-nav-badge"
-                  aria-label={`${unread} unread`}
+                  aria-hidden="true"
                 >
                   {unread > 99 ? "99+" : unread}
                 </span>

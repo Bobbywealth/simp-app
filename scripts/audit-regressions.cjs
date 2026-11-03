@@ -860,3 +860,8 @@ test("one failed home API does not discard other account data", async () => {
   assert.ok(screen.getByText("0% complete"));
   assert.ok(screen.getByRole("button", { name: "Discover people" }));
 });
+
+test('desktop message link keeps its name with unread badge', async () => {
+  showShell(shell());
+  assert.ok(await screen.findByRole('link', { name: 'Messages, 2 unread' }));
+});
