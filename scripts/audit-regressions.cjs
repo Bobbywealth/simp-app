@@ -865,3 +865,11 @@ test('desktop message link keeps its name with unread badge', async () => {
   showShell(shell());
   assert.ok(await screen.findByRole('link', { name: 'Messages, 2 unread' }));
 });
+
+test('mobile Profile icon contains complete head and body paths', async () => {
+  showShell(shell());
+  const link = await screen.findByRole('link', {name: 'Profile', exact: true});
+  const d = link.querySelector('svg path').getAttribute('d');
+  assert.ok(d.includes('a4 4 0 0 0 0 8Z'));
+  assert.ok(d.includes('M5 21'));
+});

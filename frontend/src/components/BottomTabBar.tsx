@@ -5,7 +5,7 @@ const TABS = [
   { to: '/discover', label: 'Explore', path: 'M12 21s7-4.35 7-11V5l-7-3-7 3v5c0 6.65 7 11 7 11Zm0-5.5 3-3-3-3-3 3 3 3Z' },
   { to: '/live', label: 'Live', path: 'M9 8.5v7l6-3.5-6-3.5ZM5.5 5.5h13v13h-13v-13Z' },
   { to: '/messages', label: 'Chats', path: 'M4 5.5h16v11H8l-4 3v-14Z' },
-  { to: '/profile', label: 'Profile', path: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 8Zm-7 8c.8-4 3.1-6 7-6s6.2 2 7 6H5Z' },
+  { to: '/profile', label: 'Profile', path: 'M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8ZM5 21c.8-4 3.1-6 7-6s6.2 2 7 6H5Z' },
 ] as const;
 
 const PRIMARY_PATHS = new Set(['/home', '/discover', '/matches', '/messages', '/live', '/profile', '/experiences', '/experiences/mine']);
