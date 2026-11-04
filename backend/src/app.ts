@@ -10,6 +10,7 @@ import { requestContext } from './middleware/request-context.js';
 import { installBodyParsers } from './middleware/body-parsers.js';
 import { errorHandler } from './middleware/error.js';
 import { accountRouter } from './routes/account.routes.js';
+import { adminOperationsRouter } from './routes/admin-operations.routes.js';
 import { adminRouter } from './routes/admin.routes.js';
 import { analyticsRouter } from './routes/analytics.routes.js';
 import { authRouter } from './routes/auth.routes.js';
@@ -134,6 +135,7 @@ export function createApp() {
   app.use(experiencesRouter);
   app.use(analyticsRouter);
   app.use(adminRouter);
+  app.use(adminOperationsRouter);
   app.use(legalRouter);
   app.use(configRouter);
   app.use(publicRouter);

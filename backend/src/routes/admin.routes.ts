@@ -3,12 +3,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { prisma } from '../config/db.js';
-import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
+import { requireAuth, requireRole, invalidateUserAuthCache, type AuthedRequest } from '../middleware/auth.js';
 import { deleteStoredPhoto } from '../services/photo.service.js';
 import { deleteVerificationSelfie } from '../services/verification.service.js';
 import { cloudinaryDeliveryUrl, cloudinarySignedDeliveryUrl } from '../services/cloudinary.service.js';
 import { getFunnelCounts } from '../services/analytics.service.js';
-import { listRecordings as listLiveRecordings } from '../services/livekit.service.js';
+import { listRecordings as listLiveRecordings, deleteRoomForModeration, stopRecording } from '../services/livekit.service.js';
 import { lastLivekitUsage, snapshotLivekitUsage } from '../services/livekit-usage.service.js';
 import { AppError } from '../utils/errors.js';
 import { getRealtimeServer } from '../sockets/realtime.js';
@@ -109,15 +109,20 @@ adminRouter.patch('/admin/users/:id/status', requireRole('ADMIN', 'SUPER_ADMIN')
         suspendedUntil: z.string().datetime().optional().nullable(),
       })
       .parse(req.body);
-    if (input.status === 'SUSPENDED' && !input.suspendedUntil) {
+    if (input.status === 'SUSPENDED' && (!input.suspendedUntil || new Date(input.suspendedUntil) <= new Date())) {
       throw new AppError('suspension_end_required', 400, 'Choose when the suspension ends.');
     }
     const target = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!target) throw new AppError('user_not_found', 404, 'User not found.');
+    if (target.status === 'DELETED') throw new AppError('deleted_account', 409, 'Deleted accounts cannot be restored.');
     if (target.role === 'SUPER_ADMIN' && req.userRole !== 'SUPER_ADMIN') {
       throw new AppError('insufficient_role', 403, 'Only a Super Admin can moderate this account.');
     }
 
+    if (input.status !== 'ACTIVE' && env.LIVEKIT_URL) {
+      const streams = await prisma.liveStream.findMany({ where: { broadcasterId: target.id, status: 'LIVE' }, select: { id: true, recordingEgressId: true } });
+      for (const stream of streams) { await deleteRoomForModeration(stream.id); await stopRecording(stream.id, stream.recordingEgressId); }
+    }
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: target.id },
@@ -159,7 +164,9 @@ adminRouter.patch('/admin/users/:id/status', requireRole('ADMIN', 'SUPER_ADMIN')
         },
       });
     });
+    invalidateUserAuthCache(target.id);
     getRealtimeServer()?.to(`user:${target.id}`).emit('account:status', { status: input.status });
+    if (input.status !== 'ACTIVE') getRealtimeServer()?.in(`user:${target.id}`).disconnectSockets(true);
     res.json({ ok: true, status: input.status });
   } catch (error) {
     next(error);
@@ -174,17 +181,17 @@ adminRouter.patch('/admin/users/:id/role', requireRole('SUPER_ADMIN'), async (re
         reason: z.string().trim().min(3).max(500),
       })
       .parse(req.body);
-    const target = await prisma.user.update({ where: { id: req.params.id }, data: { role } });
-    await prisma.moderationAction.create({
-      data: {
-        moderatorId: req.userId!,
-        targetUserId: target.id,
-        targetFingerprint: fingerprint(target.id),
-        action: 'WARN',
-        reason,
-        metadata: { role },
-      },
+    if (req.params.id === req.userId) throw new AppError('cannot_change_own_role', 400, 'Another Super Admin must change your role.');
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE role = 'SUPER_ADMIN' FOR UPDATE`;
+      const target = await tx.user.findUnique({ where: { id: req.params.id } });
+      if (!target) throw new AppError('user_not_found', 404, 'User not found.');
+      if (target.status === 'DELETED') throw new AppError('deleted_account', 409, 'Deleted accounts cannot be edited.');
+      if (target.role === 'SUPER_ADMIN' && role !== 'SUPER_ADMIN' && await tx.user.count({ where: { role: 'SUPER_ADMIN', status: 'ACTIVE' } }) <= 1) throw new AppError('last_super_admin', 409, 'Keep at least one active Super Admin.');
+      await tx.user.update({ where: { id: target.id }, data: { role } });
+      await tx.moderationAction.create({ data: { moderatorId: req.userId!, targetUserId: target.id, targetFingerprint: fingerprint(target.id), action: 'WARN', reason, metadata: { operation: 'ROLE_CHANGE', previousRole: target.role, role } } });
     });
+    invalidateUserAuthCache(String(req.params.id));
     res.json({ ok: true, role });
   } catch (error) {
     next(error);
@@ -224,7 +231,7 @@ adminRouter.get('/admin/reports/:id', async (req: AuthedRequest, res, next) => {
   try {
     const report = await prisma.report.findUnique({
       where: { id: req.params.id },
-      include: { reporter: { include: { profile: true } }, reported: { include: { profile: true } }, stream: true },
+      include: { reporter: { select: { id: true, profile: true } }, reported: { select: { id: true, profile: true } }, stream: true },
     });
     if (!report) throw new AppError('report_not_found', 404, 'Report not found.');
     res.json(report);
@@ -329,20 +336,14 @@ adminRouter.delete('/admin/photos/:id', async (req: AuthedRequest, res, next) =>
     const { reason } = z.object({ reason: z.string().trim().min(3).max(500) }).parse(req.body);
     const photo = await prisma.photo.findUnique({ where: { id: req.params.id } });
     if (!photo) throw new AppError('photo_not_found', 404, 'Photo not found.');
-    await prisma.$transaction([
-      prisma.photo.delete({ where: { id: photo.id } }),
-      prisma.moderationAction.create({
-        data: {
-          moderatorId: req.userId!,
-          targetUserId: photo.userId,
-          targetFingerprint: fingerprint(photo.userId),
-          action: 'REMOVE_PHOTO',
-          reason,
-          metadata: { photoId: photo.id },
-        },
-      }),
-    ]);
-    await deleteStoredPhoto(photo);
+    const cleanupKey = photo.publicId ?? `url_${crypto.createHash('sha256').update(photo.url).digest('hex')}`;
+    await prisma.$transaction(async tx => {
+      await tx.assetDeletionJob.upsert({ where: { publicId: cleanupKey }, create: { publicId: cleanupKey, url: photo.url }, update: { completedAt: null, nextAttemptAt: new Date() } });
+      await tx.photo.delete({ where: { id: photo.id } });
+      await tx.moderationAction.create({ data: { moderatorId: req.userId!, targetUserId: photo.userId, targetFingerprint: fingerprint(photo.userId), action: 'REMOVE_PHOTO', reason, metadata: { photoId: photo.id } } });
+    });
+    const deleted = await deleteStoredPhoto(photo).catch(() => false);
+    if (deleted) await prisma.assetDeletionJob.update({ where: { publicId: cleanupKey }, data: { completedAt: new Date() } });
     res.json({ ok: true });
   } catch (error) {
     next(error);
@@ -354,6 +355,10 @@ adminRouter.post('/admin/live/:id/end', async (req: AuthedRequest, res, next) =>
     const { reason } = z.object({ reason: z.string().trim().min(3).max(500) }).parse(req.body);
     const stream = await prisma.liveStream.findUnique({ where: { id: req.params.id } });
     if (!stream) throw new AppError('stream_not_found', 404, 'Stream not found.');
+    if (env.LIVEKIT_URL) {
+      await deleteRoomForModeration(stream.id);
+      await stopRecording(stream.id, stream.recordingEgressId);
+    }
     await prisma.$transaction([
       prisma.liveStream.update({ where: { id: stream.id }, data: { status: 'ENDED', endedAt: new Date() } }),
       prisma.moderationAction.create({
@@ -377,14 +382,17 @@ adminRouter.post('/admin/live/:id/end', async (req: AuthedRequest, res, next) =>
 adminRouter.get('/admin/verifications', async (req: AuthedRequest, res, next) => {
   try {
     const status = z.enum(['PENDING', 'APPROVED', 'REJECTED']).catch('PENDING').parse(req.query.status);
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
     const requests = await prisma.profileVerificationRequest.findMany({
       where: { status },
-      include: { user: { include: { profile: true, photos: { orderBy: { position: 'asc' } } } } },
-      orderBy: { createdAt: 'asc' },
-      take: 100,
+      include: { user: { select: { id: true, email: true, profile: true, photos: { orderBy: { position: 'asc' } } } } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 51,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
     res.json({
-      requests: requests.map((row) => ({
+      nextCursor: requests.length > 50 ? requests[49]!.id : null,
+      requests: requests.slice(0,50).map((row) => ({
         ...row,
         // Private selfies (new) need signed URLs; old public selfies use the regular transform.
         selfieUrl: row.selfiePublicId
@@ -733,7 +741,7 @@ adminRouter.post('/admin/notifications/broadcast', async (req: AuthedRequest, re
           .trim()
           .min(1)
           .max(200)
-          .refine((value) => value.startsWith('/'), 'Route must start with "/"')
+          .refine((value) => value.startsWith('/') && !value.startsWith('//') && !value.includes('\\'), 'Use an internal app route')
           .optional(),
       })
       .parse(req.body);

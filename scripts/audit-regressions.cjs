@@ -861,15 +861,762 @@ test("one failed home API does not discard other account data", async () => {
   assert.ok(screen.getByRole("button", { name: "Discover people" }));
 });
 
-test('desktop message link keeps its name with unread badge', async () => {
+test("desktop message link keeps its name with unread badge", async () => {
   showShell(shell());
-  assert.ok(await screen.findByRole('link', { name: 'Messages, 2 unread' }));
+  assert.ok(await screen.findByRole("link", { name: "Messages, 2 unread" }));
 });
 
-test('mobile Profile icon contains complete head and body paths', async () => {
+test("mobile Profile icon contains complete head and body paths", async () => {
   showShell(shell());
-  const link = await screen.findByRole('link', {name: 'Profile', exact: true});
-  const d = link.querySelector('svg path').getAttribute('d');
-  assert.ok(d.includes('a4 4 0 0 0 0 8Z'));
-  assert.ok(d.includes('M5 21'));
+  const link = await screen.findByRole("link", {
+    name: "Profile",
+    exact: true,
+  });
+  const d = link.querySelector("svg path").getAttribute("d");
+  assert.ok(d.includes("a4 4 0 0 0 0 8Z"));
+  assert.ok(d.includes("M5 21"));
+});
+
+// Admin suite: production route handlers, isolated in-memory databases/providers.
+const realAuth = source("backend/src/middleware/auth.ts", {
+  "../config/db.js": { prisma: {} },
+  "../utils/jwt.js": { verifyAccessToken: () => ({}) },
+});
+function adminFixture(extra = {}, legacy = false) {
+  const state = { writes: [], queries: [] };
+  const target = {
+    id: "member1",
+    role: "USER",
+    status: "ACTIVE",
+    email: "member@example.invalid",
+    profile: { displayName: "Member" },
+    photos: [],
+    refreshTokens: [],
+  };
+  const prisma = {
+    user: {
+      findUnique: async () => ({ ...target, ...extra.target }),
+      findMany: async () => [{ ...target }],
+      count: async () => extra.superCount ?? 2,
+      update: async (args) => {
+        state.writes.push(args);
+        return { ...target, ...args.data };
+      },
+    },
+    refreshToken: {
+      updateMany: async (args) => {
+        state.writes.push(args);
+        return { count: 2 };
+      },
+    },
+    moderationAction: {
+      create: async (args) => {
+        state.writes.push(args);
+        return { id: "audit1" };
+      },
+      findMany: async () => [],
+      count: async () => 0,
+    },
+    experience: {
+      findMany: async (args) => {
+        state.queries.push(args);
+        return [
+          {
+            id: "exp1",
+            title: "Dinner",
+            isActive: true,
+            status: "OPEN",
+            hostId: "member1",
+          },
+        ];
+      },
+      findUnique: async () =>
+        extra.experience ?? {
+          id: "exp1",
+          hostId: "member1",
+          status: "OPEN",
+          isActive: true,
+        },
+      update: async (args) => {
+        state.writes.push(args);
+        return args.data;
+      },
+    },
+    waitlistEntry: {
+      findMany: async (args) => {
+        state.queries.push(args);
+        return [{ id: "w1", name: "QA", email: "qa@example.invalid" }];
+      },
+    },
+    emailEvent: {
+      findMany: async (args) => {
+        state.queries.push(args);
+        return [];
+      },
+    },
+    photo: {
+      findUnique: async () => ({
+        id: "photo1",
+        userId: "member1",
+        publicId: "image1",
+        url: "https://example.invalid/photo.jpg",
+      }),
+      delete: async (args) => {
+        state.writes.push({ photoDelete: args });
+        return {};
+      },
+    },
+    assetDeletionJob: {
+      upsert: async (args) => {
+        state.writes.push({ cleanupJob: args });
+        return {};
+      },
+      update: async (args) => {
+        state.writes.push({ cleanupDone: args });
+        return {};
+      },
+    },
+    liveStream: {
+      findUnique: async () => ({
+        id: "stream1",
+        broadcasterId: "member1",
+        status: "LIVE",
+        recordingEgressId: null,
+      }),
+      update: async (args) => {
+        state.writes.push(args);
+        return {};
+      },
+      findMany: async () => [],
+      count: async () => 0,
+      updateMany: async () => ({ count: 0 }),
+    },
+    match: { count: async () => 0, updateMany: async () => ({ count: 0 }) },
+    message: { count: async () => 0 },
+    report: { count: async () => 0, findMany: async () => [] },
+    profileVerificationRequest: {
+      count: async () => 0,
+      findMany: async (args) => {
+        state.queries.push(args);
+        return [];
+      },
+    },
+    $queryRaw: async () => [],
+  };
+  prisma.$transaction = async (fn) =>
+    typeof fn === "function" ? fn(prisma) : Promise.all(fn);
+  const middleware = {
+    requireAuth: (req, res, next) => {
+      if (!req.headers["x-test-role"])
+        return res.status(401).json({ error: "missing_token" });
+      req.userId = "operator1";
+      req.userRole = req.headers["x-test-role"];
+      next();
+    },
+    requireRole: realAuth.requireRole,
+    invalidateUserAuthCache: () => {},
+  };
+  const mocks = {
+    "../config/db.js": { prisma },
+    "../config/env.js": {
+      env: {
+        JWT_ACCESS_SECRET: "test-only-secret-not-production",
+        LIVEKIT_URL: extra.liveConfigured
+          ? "https://example.invalid"
+          : undefined,
+      },
+    },
+    "../middleware/auth.js": middleware,
+    "../utils/errors.js": errors,
+    "../services/photo.service.js": { deleteStoredPhoto: async () => {} },
+    "../services/verification.service.js": {
+      deleteVerificationSelfie: async () => {},
+    },
+    "../services/cloudinary.service.js": {
+      cloudinaryDeliveryUrl: (x) => x,
+      cloudinarySignedDeliveryUrl: (x) => x,
+    },
+    "../services/analytics.service.js": { getFunnelCounts: async () => ({}) },
+    "../services/livekit.service.js": {
+      listRecordings: async () => [],
+      deleteRoomForModeration: async () => {
+        if (extra.providerFailure)
+          throw new errors.AppError(
+            "live_termination_failed",
+            502,
+            "Provider failed",
+          );
+      },
+      stopRecording: async () => null,
+    },
+    "../services/livekit-usage.service.js": {
+      lastLivekitUsage: () => null,
+      snapshotLivekitUsage: async () => null,
+    },
+    "../sockets/realtime.js": { getRealtimeServer: () => null },
+    "../services/notification.service.js": {
+      BROADCAST_AUDIENCES: ["all", "verified", "pushable"],
+      broadcastToUsers: async () => ({}),
+    },
+  };
+  const router = legacy
+    ? source("backend/src/routes/admin.routes.ts", mocks).adminRouter
+    : source("backend/src/routes/admin-operations.routes.ts", mocks)
+        .adminOperationsRouter;
+  const app = express();
+  app.use(express.json());
+  app.use(router);
+  app.use((e, _req, res, _next) =>
+    res
+      .status(e instanceof errors.AppError ? e.status : 400)
+      .json({ error: e.code ?? "validation_error", message: e.message }),
+  );
+  return { app, state };
+}
+for (const path of [
+  "/admin/users/member1",
+  "/admin/waitlist",
+  "/admin/email-events",
+  "/admin/experiences",
+  "/admin/live/streams",
+]) {
+  test(`admin endpoint ${path} rejects signed-out callers`, async () => {
+    const f = adminFixture();
+    assert.equal((await request(f.app).get(path)).status, 401);
+  });
+  test(`admin endpoint ${path} rejects standard members`, async () => {
+    const f = adminFixture();
+    assert.equal(
+      (await request(f.app).get(path).set("x-test-role", "USER")).status,
+      403,
+    );
+  });
+  test(`admin endpoint ${path} permits administrators`, async () => {
+    const f = adminFixture();
+    assert.equal(
+      (await request(f.app).get(path).set("x-test-role", "ADMIN")).status,
+      200,
+    );
+  });
+}
+test("moderator cannot use owner administration APIs", async () => {
+  const f = adminFixture();
+  assert.equal(
+    (
+      await request(f.app)
+        .get("/admin/waitlist")
+        .set("x-test-role", "MODERATOR")
+    ).status,
+    403,
+  );
+});
+test("waitlist supports cursor and excludes IP/user-agent payloads", async () => {
+  const f = adminFixture();
+  const r = await request(f.app)
+    .get("/admin/waitlist?cursor=old1&query=qa")
+    .set("x-test-role", "ADMIN");
+  assert.equal(r.status, 200);
+  assert.equal(f.state.queries[0].cursor.id, "old1");
+  assert.equal(f.state.queries[0].select.ipAddress, undefined);
+});
+test("user detail query excludes password hashes and refresh-token secrets", async () => {
+  const f = adminFixture();
+  const r = await request(f.app)
+    .get("/admin/users/member1")
+    .set("x-test-role", "ADMIN");
+  assert.equal(r.status, 200);
+  assert.equal(r.body.passwordHash, undefined);
+  assert.equal(r.body.refreshTokens[0]?.tokenHash, undefined);
+});
+test("session revocation requires a moderation reason", async () => {
+  const f = adminFixture();
+  assert.equal(
+    (
+      await request(f.app)
+        .post("/admin/users/member1/revoke-sessions")
+        .set("x-test-role", "ADMIN")
+        .send({ reason: "x" })
+    ).status,
+    400,
+  );
+  assert.equal(f.state.writes.length, 0);
+});
+test("session revocation persists an audit record", async () => {
+  const f = adminFixture();
+  const r = await request(f.app)
+    .post("/admin/users/member1/revoke-sessions")
+    .set("x-test-role", "ADMIN")
+    .send({ reason: "Security investigation" });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.revoked, 2);
+  assert.equal(f.state.writes[1].data.metadata.operation, "REVOKE_SESSIONS");
+});
+test("admin cannot revoke a super-admin session", async () => {
+  const f = adminFixture({ target: { role: "SUPER_ADMIN" } });
+  assert.equal(
+    (
+      await request(f.app)
+        .post("/admin/users/member1/revoke-sessions")
+        .set("x-test-role", "ADMIN")
+        .send({ reason: "Security review" })
+    ).status,
+    403,
+  );
+  assert.equal(f.state.writes.length, 0);
+});
+test("experience visibility mutation is persisted and audited", async () => {
+  const f = adminFixture();
+  const r = await request(f.app)
+    .patch("/admin/experiences/exp1/visibility")
+    .set("x-test-role", "ADMIN")
+    .send({ reason: "Safety review", isActive: false });
+  assert.equal(r.status, 200);
+  assert.equal(f.state.writes[0].data.isActive, false);
+  assert.equal(f.state.writes[1].data.metadata.experienceId, "exp1");
+});
+test("closed experience cannot be republished through visibility toggle", async () => {
+  const f = adminFixture({
+    experience: { id: "exp1", hostId: "member1", status: "CANCELLED" },
+  });
+  assert.equal(
+    (
+      await request(f.app)
+        .patch("/admin/experiences/exp1/visibility")
+        .set("x-test-role", "ADMIN")
+        .send({ reason: "Restore", isActive: true })
+    ).status,
+    409,
+  );
+  assert.equal(f.state.writes.length, 0);
+});
+test("admin cannot change account roles", async () => {
+  const f = adminFixture({}, true);
+  assert.equal(
+    (
+      await request(f.app)
+        .patch("/admin/users/member1/role")
+        .set("x-test-role", "ADMIN")
+        .send({ role: "ADMIN", reason: "Team access" })
+    ).status,
+    403,
+  );
+});
+test("super admin cannot demote themselves", async () => {
+  const f = adminFixture({}, true);
+  assert.equal(
+    (
+      await request(f.app)
+        .patch("/admin/users/operator1/role")
+        .set("x-test-role", "SUPER_ADMIN")
+        .send({ role: "USER", reason: "Test" })
+    ).status,
+    400,
+  );
+});
+test("last super admin cannot be removed", async () => {
+  const f = adminFixture(
+    { target: { role: "SUPER_ADMIN" }, superCount: 1 },
+    true,
+  );
+  assert.equal(
+    (
+      await request(f.app)
+        .patch("/admin/users/member1/role")
+        .set("x-test-role", "SUPER_ADMIN")
+        .send({ role: "USER", reason: "Test change" })
+    ).status,
+    409,
+  );
+  assert.equal(f.state.writes.length, 0);
+});
+test("role changes are transactional and audited with prior role", async () => {
+  const f = adminFixture({}, true);
+  const r = await request(f.app)
+    .patch("/admin/users/member1/role")
+    .set("x-test-role", "SUPER_ADMIN")
+    .send({ role: "ADMIN", reason: "Authorized team access" });
+  assert.equal(r.status, 200);
+  assert.equal(f.state.writes[1].data.metadata.previousRole, "USER");
+});
+test("suspension rejects absent end date", async () => {
+  const f = adminFixture({}, true);
+  assert.equal(
+    (
+      await request(f.app)
+        .patch("/admin/users/member1/status")
+        .set("x-test-role", "ADMIN")
+        .send({ status: "SUSPENDED", reason: "Safety review" })
+    ).status,
+    400,
+  );
+});
+test("suspension rejects expired end date", async () => {
+  const f = adminFixture({}, true);
+  assert.equal(
+    (
+      await request(f.app)
+        .patch("/admin/users/member1/status")
+        .set("x-test-role", "ADMIN")
+        .send({
+          status: "SUSPENDED",
+          reason: "Safety review",
+          suspendedUntil: "2020-01-01T00:00:00Z",
+        })
+    ).status,
+    400,
+  );
+});
+test("valid suspension saves expiry and revokes refresh sessions", async () => {
+  const f = adminFixture({}, true);
+  const r = await request(f.app)
+    .patch("/admin/users/member1/status")
+    .set("x-test-role", "ADMIN")
+    .send({
+      status: "SUSPENDED",
+      reason: "Safety review",
+      suspendedUntil: new Date(Date.now() + 86400000).toISOString(),
+    });
+  assert.equal(r.status, 200);
+  assert.ok(f.state.writes[0].data.suspendedUntil instanceof Date);
+  assert.ok(f.state.writes.some((w) => w.data.revokedAt));
+});
+test("deleted accounts cannot be restored by admin", async () => {
+  const f = adminFixture({ target: { status: "DELETED" } }, true);
+  assert.equal(
+    (
+      await request(f.app)
+        .patch("/admin/users/member1/status")
+        .set("x-test-role", "ADMIN")
+        .send({ status: "ACTIVE", reason: "Restore" })
+    ).status,
+    409,
+  );
+});
+test("verification queue excludes authentication fields from user include", async () => {
+  const f = adminFixture({}, true);
+  assert.equal(
+    (
+      await request(f.app)
+        .get("/admin/verifications?cursor=old")
+        .set("x-test-role", "ADMIN")
+    ).status,
+    200,
+  );
+  assert.equal(f.state.queries[0].include.user.select.email, true);
+  assert.equal(f.state.queries[0].include.user.select.passwordHash, undefined);
+  assert.equal(f.state.queries[0].cursor.id, "old");
+});
+test("broadcast rejects protocol-relative external route", async () => {
+  const f = adminFixture({}, true);
+  assert.equal(
+    (
+      await request(f.app)
+        .post("/admin/notifications/broadcast")
+        .set("x-test-role", "ADMIN")
+        .send({
+          title: "Test",
+          body: "Body",
+          audience: "all",
+          route: "//evil.example",
+        })
+    ).status,
+    400,
+  );
+});
+
+function adminUiFixture(role = "SUPER_ADMIN", failure) {
+  const requests = [];
+  const row = {
+    id: "qa-member",
+    email: "member@example.invalid",
+    emailVerified: true,
+    role: "USER",
+    status: "ACTIVE",
+    statusReason: null,
+    suspendedUntil: null,
+    createdAt: "2026-11-01T12:00:00Z",
+    profile: {
+      displayName: "Test member",
+      isVerified: false,
+      verificationStatus: "NOT_REQUESTED",
+    },
+    _count: { photos: 0, reportsReceived: 0, moderationActionsReceived: 0 },
+  };
+  const apiFetch = async (url, init) => {
+    requests.push({ url, init });
+    if (failure && url.startsWith(failure))
+      throw Error("Simulated service failure");
+    if (url === "/admin/stats")
+      return {
+        users: 12,
+        activeMatches: 4,
+        messages: 23,
+        liveStreams: 0,
+        openReports: 1,
+        pendingVerification: 2,
+      };
+    if (url === "/health/ready")
+      return {
+        status: "ready",
+        database: true,
+        integrations: {
+          email: false,
+          push: true,
+          turn: true,
+          livekit: true,
+          persistentStorage: true,
+          apple: false,
+        },
+        degradedFeatures: ["Email provider needs configuration"],
+      };
+    if (url.startsWith("/admin/users?"))
+      return {
+        users: [
+          {
+            ...row,
+            id: url.includes("cursor=") ? "qa-older" : "qa-member",
+            email: url.includes("cursor=")
+              ? "older@example.invalid"
+              : row.email,
+          },
+        ],
+        nextCursor: url.includes("cursor=") ? null : "qa-member",
+        hasMore: !url.includes("cursor="),
+      };
+    if (url.startsWith("/admin/users/")) return { actions: [] };
+    if (url.startsWith("/admin/reports"))
+      return { reports: [], nextCursor: null };
+    if (url.startsWith("/admin/verifications"))
+      return { requests: [], nextCursor: null };
+    if (url.startsWith("/admin/live/streams")) return { streams: [] };
+    if (url.startsWith("/admin/live/recordings")) return { recordings: [] };
+    if (url.startsWith("/admin/notifications/broadcasts"))
+      return { broadcasts: [], nextCursor: null };
+    if (url.startsWith("/admin/analytics/funnel"))
+      return {
+        counts: {
+          signup_started: 10,
+          signup_completed: 8,
+          onboarding_completed: 6,
+          first_message: 2,
+        },
+        conversions: {},
+      };
+    if (url.startsWith("/admin/audit-log"))
+      return {
+        actions: [
+          {
+            id: "a1",
+            actionType: "WARN",
+            reason: "Test fixture entry",
+            moderator: { displayName: "Test operator" },
+            targetUser: { displayName: "Test member" },
+            createdAt: "2026-11-01",
+          },
+        ],
+        nextCursor: null,
+      };
+    return { items: [], nextCursor: null };
+  };
+  const api = source("frontend/src/api/admin.ts", { "./client": { apiFetch } });
+  const ops = source("frontend/src/components/admin/AdminOperations.tsx", {
+    "../../api/client": { apiFetch },
+    "../../api/admin": api,
+  });
+  const adminTestUser = { ...profileUser, id: "operator1", role };
+  const Admin = source("frontend/src/pages/Admin.tsx", {
+    "../api/admin": api,
+    "../api/live-moderation": {
+      listLiveRecordings: async () => ({ recordings: [] }),
+    },
+    "../components/admin/AdminOperations": ops,
+    "../store/auth": { useAuth: () => ({ ready: true, user: adminTestUser }) },
+  }).default;
+  return { Admin, requests };
+}
+async function showAdmin(route = "/admin", role = "SUPER_ADMIN", failure) {
+  const state = adminUiFixture(role, failure);
+  render(
+    React.createElement(
+      MemoryRouter,
+      { initialEntries: [route] },
+      React.createElement(state.Admin),
+    ),
+  );
+  await waitFor(() =>
+    assert.ok(screen.queryByRole("heading", { name: "Admin console" })),
+  );
+  return state;
+}
+for (const section of [
+  "overview",
+  "users",
+  "reports",
+  "verifications",
+  "live",
+  "broadcasts",
+  "experiences",
+  "waitlist",
+  "analytics",
+  "audit",
+  "email",
+  "health",
+])
+  test(`routed admin page ${section} loads its API-backed content`, async () => {
+    const state = await showAdmin(
+      section === "overview" ? "/admin" : `/admin/${section}`,
+    );
+    await waitFor(() => assert.ok(state.requests.length > 1));
+    if (["experiences", "waitlist", "email"].includes(section))
+      await waitFor(() =>
+        assert.ok(
+          state.requests.some((r) =>
+            r.url.startsWith(
+              "/admin/" + (section === "email" ? "email-events" : section),
+            ),
+          ),
+        ),
+      );
+    if (
+      process.env.SIMP_ADMIN_PREVIEW_DIR &&
+      ["overview", "users", "audit"].includes(section)
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      fs.mkdirSync(process.env.SIMP_ADMIN_PREVIEW_DIR, { recursive: true });
+      fs.writeFileSync(
+        path.join(process.env.SIMP_ADMIN_PREVIEW_DIR, section + ".html"),
+        document.body.innerHTML,
+      );
+    }
+  });
+test("admin users pagination calls next cursor", async () => {
+  const state = await showAdmin("/admin/users");
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Load more users" }),
+  );
+  await screen.findByText("older@example.invalid");
+  assert.ok(state.requests.some((r) => r.url.includes("cursor=qa-member")));
+});
+test("admin suspension UI reveals required expiry control", async () => {
+  await showAdmin("/admin/users");
+  await screen.findByText("member@example.invalid");
+  const status = screen
+    .getAllByRole("combobox")
+    .find((el) => el.value === "ACTIVE");
+  fireEvent.change(status, { target: { value: "SUSPENDED" } });
+  assert.ok(
+    await screen.findByLabelText("Suspension end for member@example.invalid"),
+  );
+});
+test("regular admin cannot save role changes in the UI", async () => {
+  await showAdmin("/admin/users", "ADMIN");
+  const button = await screen.findByRole("button", { name: "Save role" });
+  assert.equal(button.disabled, true);
+});
+test("failed dashboard stats do not prevent user management loading", async () => {
+  await showAdmin("/admin/users", "SUPER_ADMIN", "/admin/stats");
+  assert.ok(await screen.findByText("member@example.invalid"));
+  assert.ok(await screen.findByRole("alert"));
+});
+test("broadcast history is requested immediately on routed page load", async () => {
+  const state = await showAdmin("/admin/broadcasts");
+  await waitFor(() =>
+    assert.ok(
+      state.requests.some((r) =>
+        r.url.startsWith("/admin/notifications/broadcasts"),
+      ),
+    ),
+  );
+});
+test("admin section navigation changes the route-backed page", async () => {
+  const state = await showAdmin();
+  fireEvent.click(
+    screen.getByRole("button", { name: "waitlist", exact: true }),
+  );
+  await waitFor(() =>
+    assert.ok(state.requests.some((r) => r.url.startsWith("/admin/waitlist"))),
+  );
+});
+test("admin photo removal persists a cleanup job before removing the record", async () => {
+  const f = adminFixture({}, true);
+  const r = await request(f.app)
+    .delete("/admin/photos/photo1")
+    .set("x-test-role", "ADMIN")
+    .send({ reason: "Inappropriate content" });
+  assert.equal(r.status, 200);
+  assert.ok(f.state.writes[0].cleanupJob);
+  assert.ok(f.state.writes[1].photoDelete);
+  assert.equal(f.state.writes[2].data.action, "REMOVE_PHOTO");
+});
+test("provider refusing stream termination prevents a false success", async () => {
+  const f = adminFixture({ liveConfigured: true, providerFailure: true }, true);
+  const r = await request(f.app)
+    .post("/admin/live/stream1/end")
+    .set("x-test-role", "ADMIN")
+    .send({ reason: "Safety moderation" });
+  assert.equal(r.status, 502);
+  assert.equal(f.state.writes.length, 0);
+});
+test("confirmed media termination is persisted and audited", async () => {
+  const f = adminFixture({ liveConfigured: true }, true);
+  const r = await request(f.app)
+    .post("/admin/live/stream1/end")
+    .set("x-test-role", "ADMIN")
+    .send({ reason: "Safety moderation" });
+  assert.equal(r.status, 200);
+  assert.equal(f.state.writes[0].data.status, "ENDED");
+  assert.equal(f.state.writes[1].data.action, "END_STREAM");
+});
+test("suspension UI submits an ISO expiry to the actual API adapter", async () => {
+  const state = await showAdmin("/admin/users");
+  await screen.findByText("member@example.invalid");
+  fireEvent.change(
+    screen.getAllByRole("combobox").find((el) => el.value === "ACTIVE"),
+    { target: { value: "SUSPENDED" } },
+  );
+  fireEvent.change(
+    screen.getByLabelText("Suspension end for member@example.invalid"),
+    { target: { value: "2030-01-01T12:00" } },
+  );
+  fireEvent.change(screen.getByLabelText("Reason"), {
+    target: { value: "Safety review" },
+  });
+  window.confirm = () => true;
+  fireEvent.click(screen.getByRole("button", { name: "Save status" }));
+  await waitFor(() =>
+    assert.ok(state.requests.some((r) => r.init?.method === "PATCH")),
+  );
+  const req = state.requests.find((r) => r.init?.method === "PATCH");
+  assert.equal(req.url, "/admin/users/qa-member/status");
+  const body = JSON.parse(req.init.body);
+  assert.equal(body.status, "SUSPENDED");
+  assert.ok(body.suspendedUntil.endsWith("Z"));
+});
+test("canceling account moderation makes no mutation request", async () => {
+  const state = await showAdmin("/admin/users");
+  await screen.findByText("member@example.invalid");
+  fireEvent.change(screen.getByLabelText("Reason"), {
+    target: { value: "Safety review" },
+  });
+  window.confirm = () => false;
+  fireEvent.click(screen.getByRole("button", { name: "Save status" }));
+  assert.equal(
+    state.requests.filter((r) => r.init?.method === "PATCH").length,
+    0,
+  );
+});
+test("canceling broadcast confirmation sends nothing", async () => {
+  const state = await showAdmin("/admin/broadcasts");
+  fireEvent.change(screen.getByLabelText("Title"), {
+    target: { value: "Test title" },
+  });
+  fireEvent.change(screen.getByLabelText("Body"), {
+    target: { value: "Test message body" },
+  });
+  window.confirm = () => false;
+  fireEvent.click(screen.getByRole("button", { name: "Send broadcast" }));
+  assert.equal(
+    state.requests.filter((r) => r.init?.method === "POST").length,
+    0,
+  );
 });

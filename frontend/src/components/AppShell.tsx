@@ -50,7 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const enabled = Boolean(
     user?.emailVerified &&
       user.onboardingCompletedAt &&
-      !PUBLIC_PATHS.has(pathname),
+      !PUBLIC_PATHS.has(pathname) && !pathname.startsWith("/admin"),
   );
 
   useEffect(() => {

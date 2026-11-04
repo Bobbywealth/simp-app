@@ -218,3 +218,18 @@
   .simp-page-transition > div > main { max-width: 1180px; margin-inline: auto; padding: 24px 40px 64px; }
   .simp-page-transition .simp-constrained-form { max-width: 840px; }
 }
+/* Routed operations workspace */
+.admin-layout { display: grid; gap: 24px; }
+.admin-section-nav { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; }
+.admin-section-nav button { flex-shrink: 0; min-height: 44px; }
+.admin-panel { padding: 24px; border: 1px solid #ffffff14; border-radius: 20px; background: #ffffff03; }
+.admin-eyebrow { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: #d8bc83; }
+.admin-secondary { min-height: 44px; padding: 10px 16px; border: 1px solid #ffffff24; border-radius: 12px; font-size: 12px; color: #e3ca98; }
+.admin-secondary:disabled { opacity: .4; cursor: not-allowed; }
+.admin-record { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; background: #ffffff03; border: 1px solid #ffffff12; border-radius: 14px; overflow-wrap: anywhere; }
+.admin-error { margin: 20px 0; padding: 16px; color: #fecaca; background: #ef444410; border: 1px solid #ef444440; border-radius: 12px; }
+.simp-admin-console input, .simp-admin-console select, .simp-admin-console textarea { max-width: 100%; }
+@media(min-width:1024px) { .admin-layout { grid-template-columns: 200px minmax(0,1fr); gap: 30px; } .admin-section-nav { position: sticky; top: 24px; align-self: start; flex-direction: column; border-right: 1px solid #ffffff12; padding-right: 20px; } .admin-section-nav button { text-align: left; border-radius: 10px; } }
+.simp-admin-console .admin-user-grid > * { min-width: 0; }
+.simp-admin-console .admin-user-grid > div:last-child { grid-column: 1 / -1; }
+.simp-admin-console p { overflow-wrap: anywhere; }

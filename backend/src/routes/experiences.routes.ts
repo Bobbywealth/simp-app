@@ -216,6 +216,7 @@ experiencesRouter.post('/experiences', requireAuth, async (req: AuthedRequest, r
         imageUrl: input.imageUrl,
         hostId: req.userId!,
         status: 'OPEN',
+        isActive: true,
         // venue/logistics added in migration 20261016050000; cast until prisma generate runs on deploy.
         ...({ venue: input.venue, logistics: input.logistics } as object),
       } as Parameters<typeof prisma.experience.create>[0]['data'],

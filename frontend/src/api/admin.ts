@@ -152,8 +152,8 @@ export function endAdminLiveStream(id: string, reason: string) {
   });
 }
 
-export function listAdminVerifications(status: 'PENDING' | 'APPROVED' | 'REJECTED' = 'PENDING') {
-  return apiFetch<{ requests: AdminVerificationRow[] }>(`/admin/verifications?status=${encodeURIComponent(status)}`);
+export function listAdminVerifications(status: 'PENDING' | 'APPROVED' | 'REJECTED' = 'PENDING', cursor?: string) {
+  return apiFetch<{ requests: AdminVerificationRow[]; nextCursor: string | null }>(`/admin/verifications?status=${encodeURIComponent(status)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
 }
 
 export function reviewAdminVerification(id: string, input: { status: 'APPROVED' | 'REJECTED'; reviewNote: string }) {
@@ -174,7 +174,7 @@ export function getBackendHealth() {
 }
 
 export function listAdminLiveStreams() {
-  return apiFetch<{ streams: LiveStream[] }>('/live/streams');
+  return apiFetch<{ streams: LiveStream[] }>('/admin/live/streams');
 }
 
 // --- Custom broadcasts (admin → user push composer) -----------------------

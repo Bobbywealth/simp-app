@@ -158,3 +158,14 @@ export async function deleteRoom(streamId: string): Promise<void> {
     // Room may not exist yet; ignore.
   }
 }
+
+/** Moderation must not report success when the media provider refused termination. */
+export async function deleteRoomForModeration(streamId: string): Promise<void> {
+  assertConfigured();
+  try { await roomClient.deleteRoom(streamId); }
+  catch (error) {
+    const failure = error as { code?: string; status?: number; statusCode?: number };
+    if (failure.code === 'not_found' || failure.status === 404 || failure.statusCode === 404) return;
+    throw new AppError('live_termination_failed', 502, 'The video provider could not confirm termination. Retry before considering this stream ended.');
+  }
+}

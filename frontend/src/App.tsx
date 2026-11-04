@@ -192,7 +192,7 @@ export default function App() {
               <Route path="/experiences/mine" element={<PageTransition routeKey="/experiences/mine"><ProtectedRoute requireOnboarding><MyExperiences /></ProtectedRoute></PageTransition>} />
               <Route path="/experiences/:id" element={<PageTransition routeKey="/experiences/:id"><ProtectedRoute requireOnboarding><ExperienceDetail /></ProtectedRoute></PageTransition>} />
               <Route path="/licenses" element={<ProtectedRoute requireOnboarding><Licenses /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']}><Admin /></ProtectedRoute>} />
+              <Route path="/admin/*" element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']}><Admin /></ProtectedRoute>} />
               <Route path="/settings/blocked" element={<ProtectedRoute requireOnboarding><BlockedUsers /></ProtectedRoute>} />
               <Route path="*" element={<ProtectedRoute><NotFound /></ProtectedRoute>} />
             </Routes>

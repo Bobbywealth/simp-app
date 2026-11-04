@@ -44,7 +44,7 @@ type BlockedUser = { blockedId: string; displayName: string; photoUrl?: string |
 export default function Settings() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const isStaff = user?.role === 'MODERATOR' || user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isStaff = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const [profile, setProfile] = useState<Profile | null>(null);
   const [discovery, setDiscovery] = useState(DEFAULT_DISCOVERY);
   const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS);

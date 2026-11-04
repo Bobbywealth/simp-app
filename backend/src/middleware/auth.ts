@@ -21,6 +21,8 @@ type CachedUser = {
 const userCache = new Map<string, CachedUser>();
 const CACHE_TTL_MS = 30_000;
 
+export function invalidateUserAuthCache(userId: string) { userCache.delete(userId); }
+
 function getCachedUser(userId: string): CachedUser | null {
   const entry = userCache.get(userId);
   if (!entry) return null;
