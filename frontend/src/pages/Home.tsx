@@ -192,20 +192,20 @@ export default function Home() {
         </section>
         <section className="rounded-2xl border border-white/10 p-6">
           <p className="text-[10px] uppercase tracking-[.2em] text-gold-200">
-            People, not just profiles
+            Plans, not just profiles
           </p>
           <h2 className="display-heading mt-4 text-3xl">
-            Find your kind of energy.
+            Find a plan worth showing up for.
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-white/55">
-            Discover people, explore shared interests, and see who you connect
-            with.
+            Browse dinners, events and adventures hosted by real people, then
+            ask to join the ones that fit.
           </p>
           <button
             onClick={() => navigate("/discover")}
             className="btn-gold-outline mt-6 text-xs"
           >
-            Discover people <span aria-hidden="true">↗</span>
+            Browse experiences <span aria-hidden="true">↗</span>
           </button>
         </section>
         <section className="rounded-2xl border border-white/10 p-6">

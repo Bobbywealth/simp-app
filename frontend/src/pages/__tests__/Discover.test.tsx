@@ -2,94 +2,45 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Discover from '../Discover';
-import * as discovery from '../../api/discovery';
-import * as users from '../../api/users';
-import * as auth from '../../store/auth';
+import * as experiences from '../../api/experiences';
 
-vi.mock('../../api/discovery');
-vi.mock('../../api/swipes');
-vi.mock('../../api/moderation');
-vi.mock('../../api/users');
-vi.mock('../../api/analytics', () => ({
-  track: vi.fn(),
-  trackMilestone: vi.fn(),
-}));
+vi.mock('../../api/experiences');
 
-const mockNavigate = vi.fn();
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  };
-});
-
-const mockProfiles = [
-  {
-    profileId: '1',
-    userId: 'user-1',
-    displayName: 'Alice',
-    bio: 'Test bio',
-    age: 28,
-    gender: 'WOMAN' as const,
-    city: 'New York',
-    occupation: 'Designer',
-    heightCm: 170,
-    isVerified: true,
-    verificationStatus: 'APPROVED' as const,
-    isPremium: false,
-    distanceKm: 5,
-    photos: [{ id: 'p1', url: 'https://example.com/photo1.jpg', thumbnailUrl: 'https://example.com/photo1_thumb.jpg', position: 0 }],
-    prompts: [],
-    interests: [{ slug: 'music', label: 'Music' }],
-  },
-];
-
-const mockUser = {
-  id: 'user-1',
-  name: 'Test User',
-  email: 'test@example.com',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  photos: [],
-  entitlement: { tier: 'FREE' as const, status: 'ACTIVE' as const },
+const base = {
+  description: null,
+  city: 'Newark',
+  startsAt: '2030-01-05T23:30:00.000Z',
+  priceCents: 4500,
+  currency: 'USD',
+  capacity: 6,
+  imageUrl: null,
+  status: 'OPEN' as const,
+  approvedCount: 2,
+  venue: 'Ironbound',
+  logistics: null,
 };
 
-const mockFilters = {
-  minAge: 18,
-  maxAge: 99,
-  maxDistanceKm: null,
-  verifiedOnly: false,
-  interestSlugs: [],
-};
-
-describe('Discover', () => {
+describe('Discover (experience-first)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(discovery.getDiscovery).mockResolvedValue({
-      profiles: mockProfiles,
-      nextCursor: 'cursor-1',
-      hasMore: true,
-    });
-    vi.mocked(users.getDiscoveryPreferences).mockResolvedValue(mockFilters);
-    vi.spyOn(auth, 'useAuth').mockReturnValue({
-      user: mockUser,
-      setUser: vi.fn(),
-      initialize: vi.fn(),
-      refresh: vi.fn(),
-      logout: vi.fn(),
-      loading: false,
-      ready: true,
-      initialized: true,
+    vi.mocked(experiences.listExperiences).mockResolvedValue({
+      experiences: [
+        { ...base, id: 'e1', title: 'Rooftop Dinner', category: 'DINNER', host: { id: 'h1', displayName: 'Maya', photoUrl: null } },
+      ],
+      nextCursor: null,
+      hasMore: false,
     });
   });
 
-  it('renders Discover page', () => {
+  it('leads with the experience and shows the host as secondary', async () => {
     render(
       <BrowserRouter>
         <Discover />
-      </BrowserRouter>
+      </BrowserRouter>,
     );
-    expect(screen.queryByRole('main')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Rooftop Dinner' })).toBeInTheDocument();
+    expect(screen.getByText(/Hosted by/)).toBeInTheDocument();
+    expect(screen.getByText('Maya')).toBeInTheDocument();
+    expect(screen.getByText('4 spots left')).toBeInTheDocument();
   });
 });

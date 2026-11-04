@@ -8,7 +8,7 @@ const TABS = [
   { to: '/profile', label: 'Profile', path: 'M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8ZM5 21c.8-4 3.1-6 7-6s6.2 2 7 6H5Z' },
 ] as const;
 
-const PRIMARY_PATHS = new Set(['/home', '/discover', '/matches', '/messages', '/live', '/profile', '/experiences', '/experiences/mine']);
+const PRIMARY_PATHS = new Set(['/home', '/discover', '/people', '/matches', '/messages', '/live', '/profile', '/experiences', '/experiences/mine']);
 
 export function BottomTabBar({ messageCount = 0 }: { messageCount?: number }) {
   const location = useLocation();

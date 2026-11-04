@@ -102,7 +102,7 @@ export default function Messages() {
             <h2 className="display-heading mt-5 text-2xl font-light">A conversation starts with a match</h2>
             <p className="mt-2 text-sm leading-relaxed text-white/55">Match with someone and start a conversation.</p>
             <button type="button" onClick={() => navigate('/discover')} className="btn-gold mt-6 px-7 py-3 text-xs font-semibold uppercase tracking-[0.18em]">
-              Discover people
+              Browse experiences
             </button>
             <div className="mt-6">
               <ShareButton text="Join me on SIMP - let's chat!" />
