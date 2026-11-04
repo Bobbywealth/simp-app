@@ -33,7 +33,7 @@ export function ExperienceCover({
   const showImage = !!imageUrl && !failed;
 
   return (
-    <div className={`relative overflow-hidden bg-ink-900 ${className}`}>
+    <div className={`overflow-hidden bg-ink-900 ${className}`}>
       <div className={`absolute inset-0 bg-gradient-to-br ${categoryGradient(category)}`} aria-hidden />
       {!showImage && (
         <>

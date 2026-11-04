@@ -193,7 +193,7 @@ function DiscoverCard({ experience, index, onOpen }: { experience: Experience; i
       <button
         onClick={onOpen}
         aria-label={`${experience.title}, ${EXPERIENCE_CATEGORY_LABELS[experience.category]} in ${experience.city}. Hosted by ${hostName}`}
-        className="group relative block aspect-[4/5] w-full overflow-hidden rounded-3xl border border-white/10 text-left shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)] transition hover:border-gold-400/40"
+        className="group relative block aspect-[4/5] w-full md:aspect-[16/10] overflow-hidden rounded-3xl border border-white/10 text-left shadow-[0_24px_60px_-28px_rgba(0,0,0,0.9)] transition hover:border-gold-400/40"
       >
         <ExperienceCover
           imageUrl={experience.imageUrl}
