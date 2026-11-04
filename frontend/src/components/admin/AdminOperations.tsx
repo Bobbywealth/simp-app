@@ -7,6 +7,7 @@ type Item = { id: string; [key: string]: unknown };
 type Page = { items?: Item[]; actions?: Item[]; nextCursor: string | null };
 const PAGE_ENDPOINTS: Record<string, string> = {
   experiences: "/admin/experiences",
+  photos: "/admin/photos",
   waitlist: "/admin/waitlist",
   audit: "/admin/audit-log",
   email: "/admin/email-events",
@@ -64,6 +65,57 @@ export default function AdminOperations({ section }: { section: string }) {
       sequence.current++;
     };
   }, [load]);
+  const [guests, setGuests] = useState<Record<string, Item[]>>({});
+  async function cancelExperience(row: Item) {
+    const reason = window.prompt(
+      "Cancel this experience and notify all guests. Enter a reason:",
+    );
+    if (!reason || reason.trim().length < 3) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await apiFetch<{ guestsNotified: number }>(
+        `/admin/experiences/${encodeURIComponent(row.id)}/cancel`,
+        { method: "PATCH", body: JSON.stringify({ reason: reason.trim() }) },
+      );
+      setNotice(`Experience cancelled. ${r.guestsNotified} guest(s) notified.`);
+      await load(false, null, query);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function showGuests(row: Item) {
+    try {
+      const r = await apiFetch<{ items: Item[] }>(
+        `/admin/experiences/${encodeURIComponent(row.id)}/requests`,
+      );
+      setGuests((g) => ({ ...g, [row.id]: r.items }));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  async function reviewPhoto(row: Item, approve: boolean) {
+    let reason = "";
+    if (!approve) {
+      reason = window.prompt("Reject and remove this photo. Enter a reason:") ?? "";
+      if (reason.trim().length < 3) return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      if (approve)
+        await apiFetch(`/admin/photos/${encodeURIComponent(row.id)}/approve`, { method: "PATCH" });
+      else await deleteAdminPhoto(row.id, reason.trim());
+      setNotice(approve ? "Photo approved." : "Photo removed and audited.");
+      setItems((cur) => cur.filter((x) => x.id !== row.id));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function visibility(row: Item) {
     const reason = window.prompt(
       `${row.isActive ? "Hide" : "Show"} this experience. Enter a moderation reason:`,
@@ -98,6 +150,8 @@ export default function AdminOperations({ section }: { section: string }) {
           <h2 className="display-heading mt-2 text-3xl capitalize">
             {section === "email"
               ? "Email delivery events"
+              : section === "photos"
+                ? "Photo review"
               : section === "audit"
                 ? "Audit history"
                 : section}
@@ -178,13 +232,48 @@ export default function AdminOperations({ section }: { section: string }) {
                   </p>
                   <p className="mt-2 text-xs text-white/35">ID: {row.id}</p>
                 </div>
-                <button
-                  disabled={busy}
-                  onClick={() => void visibility(row)}
-                  className="admin-secondary"
-                >
-                  {row.isActive ? "Hide experience" : "Show experience"}
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    disabled={busy}
+                    onClick={() => void visibility(row)}
+                    className="admin-secondary"
+                  >
+                    {row.isActive ? "Hide experience" : "Show experience"}
+                  </button>
+                  <button onClick={() => void showGuests(row)} className="admin-secondary">
+                    Guests &amp; requests
+                  </button>
+                  {row.status !== "CANCELLED" && (
+                    <button disabled={busy} onClick={() => void cancelExperience(row)} className="admin-secondary">
+                      Cancel &amp; notify guests
+                    </button>
+                  )}
+                </div>
+                {guests[row.id] && (
+                  <ul className="mt-3 w-full text-xs text-white/60">
+                    {guests[row.id]!.length === 0 && <li>No requests yet.</li>}
+                    {guests[row.id]!.map((g) => (
+                      <li key={g.id}>
+                        {text((g.requester as { profile?: { displayName?: string } } | undefined)?.profile?.displayName)} · {text(g.status)}
+                        {g.note ? ` · "${text(g.note)}"` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : section === "photos" ? (
+              <>
+                <img src={text(row.url)} alt="Pending profile photo" className="h-40 w-32 rounded-xl object-cover" />
+                <div className="flex-1">
+                  <h3>
+                    {text((row.user as { profile?: { displayName?: string } } | undefined)?.profile?.displayName)}
+                  </h3>
+                  <p className="mt-2 text-xs text-white/45">{text(row.status)} · {date(row.createdAt)}</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <button disabled={busy} onClick={() => void reviewPhoto(row, true)} className="admin-secondary">Approve</button>
+                  <button disabled={busy} onClick={() => void reviewPhoto(row, false)} className="admin-secondary">Reject &amp; remove</button>
+                </div>
               </>
             ) : section === "waitlist" ? (
               <>

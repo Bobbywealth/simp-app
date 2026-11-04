@@ -9,6 +9,9 @@ import {
 } from "../middleware/auth.js";
 import { AppError } from "../utils/errors.js";
 import crypto from "node:crypto";
+import { notify } from "../services/notification.service.js";
+import { logger } from "../utils/logger.js";
+import { getRealtimeServer } from "../sockets/realtime.js";
 
 export const adminOperationsRouter = Router();
 adminOperationsRouter.use(
@@ -208,6 +211,101 @@ adminOperationsRouter.patch(
     }
   },
 );
+
+// Guests/requests for one experience.
+adminOperationsRouter.get("/admin/experiences/:id/requests", async (req, res, next) => {
+  try {
+    const rows = await prisma.experienceRequest.findMany({
+      where: { experienceId: req.params.id },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: {
+        id: true, status: true, note: true, createdAt: true,
+        requester: { select: { id: true, profile: { select: { displayName: true } } } },
+      },
+    });
+    res.json({ items: rows });
+  } catch (e) { next(e); }
+});
+
+// Cancel an experience, close pending/approved requests and notify guests.
+adminOperationsRouter.patch("/admin/experiences/:id/cancel", async (req: AuthedRequest, res, next) => {
+  try {
+    const { reason } = reasonSchema.parse(req.body);
+    const target = await prisma.experience.findUnique({
+      where: { id: req.params.id },
+      include: { requests: { where: { status: { in: ["PENDING", "APPROVED"] } }, select: { requesterId: true } } },
+    });
+    if (!target) throw new AppError("experience_not_found", 404, "Experience not found.");
+    if (target.status === "CANCELLED") throw new AppError("already_cancelled", 409, "Experience is already cancelled.");
+    await prisma.$transaction(async (tx) => {
+      await tx.experience.update({ where: { id: target.id }, data: { status: "CANCELLED", isActive: false } });
+      await tx.experienceRequest.updateMany({
+        where: { experienceId: target.id, status: { in: ["PENDING", "APPROVED"] } },
+        data: { status: "CANCELLED" },
+      });
+      await tx.moderationAction.create({
+        data: {
+          moderatorId: req.userId!, targetUserId: target.hostId, targetFingerprint: fingerprint(target.hostId),
+          action: "WARN", reason,
+          metadata: { operation: "EXPERIENCE_CANCELLED", experienceId: target.id, guestsNotified: target.requests.length },
+        },
+      });
+    });
+    for (const guest of target.requests) {
+      void notify({
+        userId: guest.requesterId, actorId: null, type: "EXPERIENCE" as never,
+        entityId: target.id, title: "Experience cancelled", body: `"${target.title}" was cancelled.`,
+        data: { experienceId: target.id, route: `/experiences/${target.id}` },
+      }).catch(() => {});
+      getRealtimeServer()?.to(`user:${guest.requesterId}`).emit("experience:cancelled", { experienceId: target.id });
+    }
+    res.json({ ok: true, guestsNotified: target.requests.length });
+  } catch (e) { next(e); }
+});
+
+// Photo review queue. Rejecting uses the existing audited DELETE /admin/photos/:id.
+adminOperationsRouter.get("/admin/photos", async (req, res, next) => {
+  try {
+    const input = pageSchema.extend({ status: z.enum(["PENDING", "APPROVED", "REJECTED"]).default("PENDING") }).parse(req.query);
+    const rows = await prisma.photo.findMany({
+      where: { status: input.status },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: input.limit + 1,
+      ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+      select: { id: true, url: true, status: true, createdAt: true, userId: true, user: { select: { profile: { select: { displayName: true } } } } },
+    });
+    res.json(page(rows, input.limit));
+  } catch (e) { next(e); }
+});
+adminOperationsRouter.patch("/admin/photos/:id/approve", async (req: AuthedRequest, res, next) => {
+  try {
+    const photo = await prisma.photo.findUnique({ where: { id: req.params.id } });
+    if (!photo) throw new AppError("photo_not_found", 404, "Photo not found.");
+    await prisma.photo.update({ where: { id: photo.id }, data: { status: "APPROVED" } });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Conversation context for a report (both parties, last 50 messages). Access is logged.
+adminOperationsRouter.get("/admin/reports/:id/messages", async (req: AuthedRequest, res, next) => {
+  try {
+    const report = await prisma.report.findUnique({ where: { id: req.params.id }, select: { id: true, reporterId: true, reportedId: true } });
+    if (!report) throw new AppError("report_not_found", 404, "Report not found.");
+    if (!report.reporterId || !report.reportedId)
+      return res.json({ items: [], note: "One account was deleted; messages are not retained." });
+    const [a, b] = [report.reporterId, report.reportedId].sort();
+    const match = await prisma.match.findFirst({ where: { userAId: a, userBId: b }, select: { conversation: { select: { id: true } } } });
+    logger.info({ event: "admin_report_evidence_viewed", moderatorId: req.userId, reportId: report.id });
+    if (!match?.conversation) return res.json({ items: [], note: "These accounts have no conversation." });
+    const rows = await prisma.message.findMany({
+      where: { conversationId: match.conversation.id, deletedAt: null },
+      orderBy: { createdAt: "desc" }, take: 50,
+      select: { id: true, senderId: true, body: true, createdAt: true },
+    });
+    res.json({ items: rows.reverse(), reporterId: report.reporterId, reportedId: report.reportedId });
+  } catch (e) { next(e); }
+});
 adminOperationsRouter.get("/admin/waitlist", async (req, res, next) => {
   try {
     const input = pageSchema.parse(req.query);

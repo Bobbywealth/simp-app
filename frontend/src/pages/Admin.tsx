@@ -1,3 +1,4 @@
+import { apiFetch } from "../api/client";
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -68,6 +69,7 @@ const TABS = [
   "live",
   "broadcasts",
   "experiences",
+  "photos",
   "waitlist",
   "analytics",
   "audit",
@@ -144,6 +146,15 @@ export default function Admin() {
   const [verificationStatus, setVerificationStatus] =
     useState<VerificationStatusFilter>("PENDING");
   const [userDrafts, setUserDrafts] = useState<Record<string, UserDraft>>({});
+  const [evidence, setEvidence] = useState<Record<string, { id: string; senderId: string; body: string; createdAt: string }[] | string>>({});
+  async function loadEvidence(reportId: string) {
+    try {
+      const r = await apiFetch<{ items: { id: string; senderId: string; body: string; createdAt: string }[]; note?: string }>(`/admin/reports/${encodeURIComponent(reportId)}/messages`);
+      setEvidence((cur) => ({ ...cur, [reportId]: r.items.length ? r.items : (r.note ?? "No messages.") }));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
   const [reportNotes, setReportNotes] = useState<Record<string, string>>({});
   const [verificationNotes, setVerificationNotes] = useState<
     Record<string, string>
@@ -631,7 +642,7 @@ export default function Admin() {
                 Loading dashboard status…
               </p>
             )}
-            {["experiences", "waitlist", "audit", "email"].includes(
+            {["experiences", "photos", "waitlist", "audit", "email"].includes(
               activeTab,
             ) && <AdminOperations key={activeTab} section={activeTab} />}
             {activeTab === "analytics" && <AdminAnalytics />}
@@ -1080,6 +1091,21 @@ export default function Admin() {
                           · Reported:{" "}
                           {row.reported.profile?.displayName ?? row.reported.id}
                         </p>
+                        <button type="button" onClick={() => void loadEvidence(row.id)} className="mt-3 text-xs uppercase tracking-[0.14em] text-gold-200 underline">
+                          View conversation (logged)
+                        </button>
+                        {evidence[row.id] !== undefined &&
+                          (typeof evidence[row.id] === "string" ? (
+                            <p className="mt-2 text-xs text-white/45">{evidence[row.id] as string}</p>
+                          ) : (
+                            <ul className="mt-2 max-h-60 space-y-1 overflow-y-auto rounded-xl bg-black/40 p-3 text-xs text-white/70">
+                              {(evidence[row.id] as { id: string; senderId: string; body: string; createdAt: string }[]).map((m) => (
+                                <li key={m.id}>
+                                  <span className="text-gold-200">{m.senderId === row.reported.id ? "Reported" : "Reporter"}:</span> {m.body}
+                                </li>
+                              ))}
+                            </ul>
+                          ))}
                         <label className="mt-4 block text-xs uppercase tracking-[0.14em] text-white/35">
                           Moderator note
                           <textarea

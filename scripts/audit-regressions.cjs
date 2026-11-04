@@ -858,7 +858,7 @@ test("one failed home API does not discard other account data", async () => {
   render(React.createElement(MemoryRouter, null, React.createElement(C)));
   assert.ok(await screen.findByRole("status"));
   assert.ok(screen.getByText("0% complete"));
-  assert.ok(screen.getByRole("button", { name: "Discover people" }));
+  assert.ok(screen.getByRole("button", { name: "Browse experiences" }));
 });
 
 test("desktop message link keeps its name with unread badge", async () => {
@@ -1057,7 +1057,9 @@ function adminFixture(extra = {}, legacy = false) {
     "../services/notification.service.js": {
       BROADCAST_AUDIENCES: ["all", "verified", "pushable"],
       broadcastToUsers: async () => ({}),
+      notify: async () => ({}),
     },
+    "../utils/logger.js": { logger: { info() {}, warn() {}, error() {} } },
   };
   const router = legacy
     ? source("backend/src/routes/admin.routes.ts", mocks).adminRouter
@@ -1426,6 +1428,7 @@ function adminUiFixture(role = "SUPER_ADMIN", failure) {
   const adminTestUser = { ...profileUser, id: "operator1", role };
   const Admin = source("frontend/src/pages/Admin.tsx", {
     "../api/admin": api,
+    "../api/client": { apiFetch: async () => ({}) },
     "../api/live-moderation": {
       listLiveRecordings: async () => ({ recordings: [] }),
     },
@@ -1634,3 +1637,9 @@ function landingComponent(){return source('frontend/src/pages/Landing.tsx',{'../
 test('public landing renders approved copy without the preview banner',()=>{const Landing=landingComponent();render(React.createElement(MemoryRouter,null,React.createElement(Landing)));assert.ok(screen.getByRole('heading',{level:1}).textContent.includes('Your kind of people.'));assert.ok(screen.getByText('Meet someone who matches your energy, start a conversation, and make a plan worth showing up for.'));assert.equal(screen.queryByText(/DESIGN CONCEPT/),null);});
 test('public landing signup action routes into the existing app',()=>{const {Routes,Route}=frontendRequire('react-router-dom');const Landing=landingComponent();render(React.createElement(MemoryRouter,null,React.createElement(Routes,null,React.createElement(Route,{path:'/',element:React.createElement(Landing)}),React.createElement(Route,{path:'/signup',element:React.createElement('h1',null,'Existing signup flow')}))));fireEvent.click(screen.getAllByRole('link',{name:/Find your connection/})[0]);assert.ok(screen.getByRole('heading',{name:'Existing signup flow'}));});
 test('public landing assets exist and are no longer embedded in the JavaScript payload',()=>{const html=fs.readFileSync('frontend/src/content/landing.html','utf8');assert.equal(html.includes('data:image'),false);for(const match of html.matchAll(/src="(\/landing\/[^"]+)"/g))assert.ok(fs.existsSync("frontend/public"+match[1]));assert.ok(html.includes('Real people. Real connections.'));});
+
+const adminOpsSrc=fs.readFileSync('backend/src/routes/admin-operations.routes.ts','utf8');
+test('admin experience cancel, photo review and report evidence routes exist behind admin guard',()=>{for(const r of ['/admin/experiences/:id/cancel','/admin/experiences/:id/requests','/admin/photos','/admin/photos/:id/approve','/admin/reports/:id/messages'])assert.ok(adminOpsSrc.includes(r),r);assert.ok(/adminOperationsRouter\.use\(\s*"\/admin",\s*requireAuth,\s*requireRole\("ADMIN", "SUPER_ADMIN"\)/.test(adminOpsSrc));});
+test('admin cancel requires a reason, audits, and notifies guests',()=>{const seg=adminOpsSrc.slice(adminOpsSrc.indexOf('/admin/experiences/:id/cancel'),adminOpsSrc.indexOf('/admin/photos"'));assert.ok(seg.includes('reasonSchema.parse'));assert.ok(seg.includes('moderationAction.create'));assert.ok(seg.includes('notify('));});
+test('report evidence access is logged and never exposes deleted-account messages',()=>{assert.ok(adminOpsSrc.includes('admin_report_evidence_viewed'));assert.ok(adminOpsSrc.includes('deletedAt: null'));});
+test('admin UI exposes photo review, cancel and conversation evidence',()=>{const ui=fs.readFileSync('frontend/src/components/admin/AdminOperations.tsx','utf8')+fs.readFileSync('frontend/src/pages/Admin.tsx','utf8');for(const t of ['Photo review','Cancel &amp; notify guests','View conversation (logged)','/approve'])assert.ok(ui.includes(t),t);});
