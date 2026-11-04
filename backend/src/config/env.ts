@@ -75,6 +75,9 @@ const schema = z
 
     FEATURE_EXPERIENCES: booleanFromString.default('false'),
     NSFWJS_ENABLED: booleanFromString.default('false'),
+    // When true, only APPROVED photos are shown to other users; photos that
+    // automated screening could not clear wait in the admin photo queue.
+    PHOTO_REQUIRE_APPROVAL: booleanFromString.default('false'),
     SENTRY_DSN: z.string().url().optional(),
     ANALYTICS_ENDPOINT: z.string().url().optional(),
     ANALYTICS_WRITE_KEY: z.string().optional(),

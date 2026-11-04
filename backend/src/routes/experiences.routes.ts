@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { NotificationType } from '@prisma/client';
+import { publicPhotoWhere } from '../services/photo-visibility.js';
 import { prisma } from '../config/db.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { AppError } from '../utils/errors.js';
@@ -35,7 +36,7 @@ function calculateAge(birthDate: Date): number {
 const hostSelect = {
   id: true,
   profile: { select: { displayName: true, birthDate: true } },
-  photos: { orderBy: { position: 'asc' as const }, take: 1, select: { url: true } },
+  photos: { where: publicPhotoWhere(), orderBy: { position: 'asc' as const }, take: 1, select: { url: true } },
 };
 
 type HostRow = {
@@ -672,7 +673,7 @@ experiencesRouter.get('/experiences/:id/requests', requireAuth, async (req: Auth
           select: {
             id: true,
             profile: { select: { displayName: true, birthDate: true } },
-            photos: { orderBy: { position: 'asc' as const }, take: 1, select: { url: true } },
+            photos: { where: publicPhotoWhere(), orderBy: { position: 'asc' as const }, take: 1, select: { url: true } },
           },
         },
       },

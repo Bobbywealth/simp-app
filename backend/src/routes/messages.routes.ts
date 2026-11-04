@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/db.js';
+import { publicPhotoWhere } from '../services/photo-visibility.js';
 import { requireAuth, requireVerifiedEmail, type AuthedRequest } from '../middleware/auth.js';
 import { AppError } from '../utils/errors.js';
 import { getRealtimeServer } from '../sockets/realtime.js';
@@ -51,8 +52,8 @@ messagesRouter.get('/conversations', requireAuth, async (req: AuthedRequest, res
       include: {
         match: {
           include: {
-            userA: { select: { id: true, profile: true, photos: { take: 1, orderBy: { position: 'asc' } } } },
-            userB: { select: { id: true, profile: true, photos: { take: 1, orderBy: { position: 'asc' } } } },
+            userA: { select: { id: true, profile: true, photos: { where: publicPhotoWhere(), take: 1, orderBy: { position: 'asc' } } } },
+            userB: { select: { id: true, profile: true, photos: { where: publicPhotoWhere(), take: 1, orderBy: { position: 'asc' } } } },
           },
         },
         messages: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1, include: { sender: { select: { status: true, deletedAt: true } } } },
@@ -147,7 +148,7 @@ messagesRouter.get('/conversations/:id', requireAuth, async (req: AuthedRequest,
   try {
     const result = await prisma.$transaction(async (tx) => authorizeConversation(tx, req.params.id!, req.userId!));
     const other = result.other;
-    const photo = await prisma.photo.findFirst({ where: { userId: other.id }, orderBy: { position: 'asc' } });
+    const photo = await prisma.photo.findFirst({ where: { userId: other.id, ...publicPhotoWhere() }, orderBy: { position: 'asc' } });
     res.json({
       id: result.conversation.id,
       matchId: result.conversation.matchId,

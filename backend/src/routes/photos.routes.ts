@@ -94,9 +94,15 @@ photosRouter.post(
             await deleteStoredPhoto(storedPhoto).catch(() => {});
             await enqueueAssetDeletion(storedPhoto).catch(() => {});
             logger.info({ event: 'photo_auto_rejected', photoId: photo.id, categories: result.categories });
-          } else {
+          } else if (result.screened) {
             await prisma.photo.update({ where: { id: photo.id }, data: { status: 'APPROVED' } }).catch(() => {});
+          } else {
+            // Nobody screened this photo: leave it PENDING for the admin photo queue
+            // instead of silently approving it.
+            logger.info({ event: 'photo_left_pending', photoId: photo.id });
           }
+        }).catch((error) => {
+          logger.error({ event: 'photo_moderation_failed', photoId: photo.id, error: error instanceof Error ? error.message : String(error) });
         });
       }
 

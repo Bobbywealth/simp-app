@@ -1,5 +1,6 @@
 import { discoveryAudience, isDemoAccount } from '../utils/demo-accounts.js';
 import type { Gender, LookingFor, Prisma } from '@prisma/client';
+import { publicPhotoWhere } from '../services/photo-visibility.js';
 import { Router } from 'express';
 import { prisma } from '../config/db.js';
 import { requireAuth, requireVerifiedEmail, type AuthedRequest } from '../middleware/auth.js';
@@ -100,7 +101,7 @@ discoveryRouter.get(
           birthDate: { gte: earliestBirthDate, lte: latestBirthDate },
           ...(preferences.verifiedOnly ? { isVerified: true } : {}),
         },
-        photos: { some: {} },
+        photos: { some: publicPhotoWhere() },
         ...(preferences.interestSlugs.length
           ? { interests: { some: { interest: { slug: { in: preferences.interestSlugs } } } } }
           : {}),
@@ -111,7 +112,7 @@ discoveryRouter.get(
         include: {
           profile: true,
           discoveryPreference: true,
-          photos: { orderBy: { position: 'asc' } },
+          photos: { where: publicPhotoWhere(), orderBy: { position: 'asc' } },
           prompts: { orderBy: { position: 'asc' }, take: 3 },
           interests: { include: { interest: true } },
         },
@@ -259,7 +260,7 @@ discoveryRouter.get(
           gender: { in: gendersFor(me.profile.lookingFor) },
           lookingFor: { in: lookingForMyGender(me.profile.gender) },
         },
-        photos: { some: {} },
+        photos: { some: publicPhotoWhere() },
         ...(interestSlug ? { interests: { some: { interest: { slug: interestSlug } } } } : {}),
       };
 
@@ -267,7 +268,7 @@ discoveryRouter.get(
         where,
         include: {
           profile: true,
-          photos: { orderBy: { position: 'asc' } },
+          photos: { where: publicPhotoWhere(), orderBy: { position: 'asc' } },
           prompts: { orderBy: { position: 'asc' }, take: 3 },
           interests: { include: { interest: true } },
         },

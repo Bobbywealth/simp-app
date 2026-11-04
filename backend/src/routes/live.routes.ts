@@ -1,4 +1,5 @@
 import type { ReportCategory } from '@prisma/client';
+import { publicPhotoWhere } from '../services/photo-visibility.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/db.js';
@@ -57,7 +58,7 @@ liveRouter.get('/live/streams', requireAuth, async (req: AuthedRequest, res, nex
           select: {
             id: true,
             profile: true,
-            photos: { take: 1, orderBy: { position: 'asc' } },
+            photos: { where: publicPhotoWhere(), take: 1, orderBy: { position: 'asc' } },
           },
         },
       },
@@ -105,7 +106,7 @@ liveRouter.get('/live/streams/:id', requireAuth, async (req: AuthedRequest, res,
         broadcaster: { status: 'ACTIVE' },
       },
       include: {
-        broadcaster: { select: { id: true, profile: true, photos: { take: 1, orderBy: { position: 'asc' } } } },
+        broadcaster: { select: { id: true, profile: true, photos: { where: publicPhotoWhere(), take: 1, orderBy: { position: 'asc' } } } },
       },
     });
     if (!stream?.broadcaster.profile) throw new AppError('stream_not_found', 404, 'Stream not found.');
