@@ -549,7 +549,7 @@ describe('GET /experiences/:id', () => {
   it('404s a DRAFT experience for non-hosts', async () => {
     authState.userId = 'stranger-1';
     prismaMock.experience.findUnique.mockResolvedValue(
-      openExperience({ hostId: 'host-1', status: 'DRAFT' }),
+      openExperience({ hostId: 'host-1', status: 'DRAFT', host: { email: 'host@example.com' } }),
     );
 
     const res = await request(app).get('/experiences/exp-1');
