@@ -282,10 +282,11 @@ export async function deleteVerificationSelfie(selfie: {
   url: string;
 }): Promise<boolean> {
   if (!selfie.publicId && !selfie.url) return false;
-  // Selfies are private assets — destroy must specify type=private.
+  // Current selfies are private assets (destroy needs type=private); older ones
+  // were stored as public uploads and must be destroyed as such.
   const deleted = await deleteCloudinaryAsset(selfie.publicId ?? selfie.url, {
     isPublicId: Boolean(selfie.publicId),
-    private: true,
+    private: !selfie.url || /\/image\/(private|authenticated)\//.test(selfie.url),
   });
   if (!deleted) {
     await enqueueAssetDeletion({ publicId: selfie.publicId, url: selfie.url });

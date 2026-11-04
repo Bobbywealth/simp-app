@@ -88,6 +88,14 @@
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   }
 
+  /* Native dropdown lists render on an opaque popup; the translucent field
+     background made white option text invisible until hovered. */
+  select.input-luxe option,
+  select.input-luxe optgroup {
+    background-color: #14110c;
+    color: #f5efe2;
+  }
+
   .input-luxe:hover {
     @apply border-white/[0.15] bg-white/[0.07];
   }

@@ -99,7 +99,14 @@ export function cloudinarySignedDeliveryUrl(publicId: string, width = 1_280): st
   if (!cloudinaryConfigured()) return '';
   const transformation = `f_auto,q_auto,c_limit,w_${width}`;
   const toSign = `${transformation}/${publicId}`;
-  const sig = crypto.createHash('sha1').update(toSign + env.CLOUDINARY_API_SECRET).digest('hex').slice(0, 8);
+  // Cloudinary expects the first 8 chars of the URL-safe base64 SHA-1, not hex.
+  const sig = crypto
+    .createHash('sha1')
+    .update(toSign + env.CLOUDINARY_API_SECRET)
+    .digest('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .slice(0, 8);
   return `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/image/private/s--${sig}--/${transformation}/${publicId}`;
 }
 

@@ -394,12 +394,15 @@ adminRouter.get('/admin/verifications', async (req: AuthedRequest, res, next) =>
       nextCursor: requests.length > 50 ? requests[49]!.id : null,
       requests: requests.slice(0,50).map((row) => ({
         ...row,
-        // Private selfies (new) need signed URLs; old public selfies use the regular transform.
-        selfieUrl: row.selfiePublicId
-          ? cloudinarySignedDeliveryUrl(row.selfiePublicId, 1_280)
-          : row.selfieUrl
-            ? cloudinaryDeliveryUrl(row.selfieUrl, 1_280)
-            : null,
+        // Private selfies need signed URLs; selfies uploaded before the private
+        // switch live under /image/upload/ and use the regular transform. The
+        // stored URL tells us which kind it is.
+        selfieUrl:
+          row.selfiePublicId && /\/image\/(private|authenticated)\//.test(row.selfieUrl ?? "")
+            ? cloudinarySignedDeliveryUrl(row.selfiePublicId, 1_280)
+            : row.selfieUrl
+              ? cloudinaryDeliveryUrl(row.selfieUrl, 1_280)
+              : null,
       })),
     });
   } catch (error) {
