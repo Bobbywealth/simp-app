@@ -158,14 +158,6 @@ export default function Discover() {
           </div>
         )}
 
-        <div className="mt-10 text-center">
-          <button
-            onClick={() => navigate('/people')}
-            className="text-xs uppercase tracking-[0.2em] text-white/40 underline-offset-4 hover:text-white/70 hover:underline"
-          >
-            Prefer to meet people first?
-          </button>
-        </div>
       </div>
 
       <button

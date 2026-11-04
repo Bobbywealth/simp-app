@@ -397,8 +397,18 @@ model Swipe {
   @@index([swipedId, action, createdAt])
 }
 
+/// PLAN = host and an approved guest connected through an experience (chat + profile unlocked,
+/// not a dating match). MUTUAL = a real match: mutual swipe, or a mutual "see again" after a plan.
+enum MatchKind {
+  MUTUAL
+  PLAN
+}
+
 model Match {
   id              String    @id @default(cuid())
+  kind            MatchKind @default(MUTUAL)
+  /// The experience that brought these two together, when there is one.
+  experienceId    String?
   userAId         String
   userBId         String
   createdAt       DateTime  @default(now())
@@ -913,4 +923,17 @@ model WaitlistEntry {
   updatedAt   DateTime @updatedAt
 
   @@index([createdAt])
+}
+
+/// Private post-plan signal: "I'd like to see this person again". Only a mutual pair is ever
+/// revealed (it becomes a MUTUAL match); a one-sided choice is never shown to the other person.
+model ExperienceSeeAgain {
+  id           String   @id @default(cuid())
+  experienceId String
+  fromUserId   String
+  toUserId     String
+  createdAt    DateTime @default(now())
+
+  @@unique([experienceId, fromUserId, toUserId])
+  @@index([experienceId, toUserId])
 }

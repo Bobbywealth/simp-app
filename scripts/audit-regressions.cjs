@@ -581,7 +581,7 @@ test("tampered token is rejected", () =>
 test("refresh cookie TTL matches 30 day setting", () =>
   assert.equal(jwtUtils.refreshTtlMs(), 30 * 86400000));
 function experiencesFixture(overrides = {}) {
-  const state = { created: [], listQuery: null };
+  const state = { created: [], listQuery: null, matchesCreated: [], seeAgain: [] };
   const host = {
     id: "host1",
     profile: { displayName: "Host", birthDate: new Date("1990-01-01") },
@@ -604,6 +604,33 @@ function experiencesFixture(overrides = {}) {
     user: {
       findUnique: async () =>
         overrides.user ?? { status: "ACTIVE", emailVerified: true },
+      findMany: async () => overrides.planUsers ?? [],
+    },
+    profile: {
+      findMany: async () => [],
+    },
+    match: {
+      findMany: async () => overrides.planMatches ?? [],
+      findUnique: async () => overrides.existingMatch ?? null,
+      create: async ({ data }) => {
+        state.matchesCreated.push(data);
+        return { id: "m-new", ...data };
+      },
+      update: async ({ data }) => ({ id: "m1", ...data }),
+      upsert: async () => ({ id: "m1" }),
+    },
+    conversation: {
+      findUnique: async () => ({ id: "c1" }),
+      create: async () => ({ id: "c1" }),
+    },
+    experienceSeeAgain: {
+      findMany: async () => overrides.mySeeAgain ?? [],
+      findUnique: async () => (overrides.reciprocal ? { id: "sa1" } : null),
+      upsert: async ({ create }) => {
+        state.seeAgain.push(create);
+        return create;
+      },
+      deleteMany: async () => ({ count: 1 }),
     },
     block: {
       findMany: async () => overrides.blocks ?? [],
@@ -624,6 +651,7 @@ function experiencesFixture(overrides = {}) {
     experienceRequest: {
       groupBy: async () => [],
       count: async () => 0,
+      findMany: async () => overrides.approvedRequests ?? [],
       findUnique: async () => overrides.myRequest ?? null,
       findFirst: async () => overrides.existingRequest ?? null,
       upsert: async () => ({
@@ -733,6 +761,50 @@ test("host can read their own venue", async () => {
   const f = experiencesFixture({ userId: "host1" });
   const r = await request(f.app).get("/experiences/exp1");
   assert.equal(r.body.venue, "Private exact venue");
+});
+const PAST_PLAN = { startsAt: new Date(Date.now() - 5 * 3600000) };
+const guestUser = { id: "guest1", profile: { displayName: "Guest", birthDate: new Date("1994-01-01") }, photos: [] };
+test("plan people and see-again state are hidden from non-participants", async () => {
+  const f = experiencesFixture();
+  const r = await request(f.app).get("/experiences/exp1");
+  assert.equal(r.body.plan, null);
+});
+test("approved guest sees who is going and that see-again is closed before the plan", async () => {
+  const f = experiencesFixture({ myRequest: { id: "r1", status: "APPROVED" }, planUsers: [{ id: "host1", profile: { displayName: "Host", birthDate: new Date("1990-01-01") }, photos: [] }] });
+  const r = await request(f.app).get("/experiences/exp1");
+  assert.equal(r.body.plan.seeAgain.open, false);
+  assert.equal(r.body.plan.people[0].displayName, "Host");
+  assert.equal(r.body.plan.people[0].isHost, true);
+});
+test("see again is not allowed before the plan has happened", async () => {
+  const f = experiencesFixture({ userId: "host1", planUsers: [guestUser], approvedRequests: [{ requesterId: "guest1" }] });
+  const r = await request(f.app).post("/experiences/exp1/see-again").send({ userId: "guest1", again: true });
+  assert.equal(r.status, 400);
+  assert.equal(f.state.seeAgain.length, 0);
+});
+test("see again only works for people who were on the plan", async () => {
+  const f = experiencesFixture({ userId: "host1", experience: PAST_PLAN, planUsers: [guestUser], approvedRequests: [{ requesterId: "guest1" }] });
+  const r = await request(f.app).post("/experiences/exp1/see-again").send({ userId: "stranger", again: true });
+  assert.equal(r.status, 403);
+});
+test("one-sided see again stays private and creates no match", async () => {
+  const f = experiencesFixture({ userId: "host1", experience: PAST_PLAN, planUsers: [guestUser], approvedRequests: [{ requesterId: "guest1" }] });
+  const r = await request(f.app).post("/experiences/exp1/see-again").send({ userId: "guest1", again: true });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.matched, false);
+  assert.equal(f.state.matchesCreated.length, 0);
+});
+test("mutual see again creates a real match tied to the plan", async () => {
+  const f = experiencesFixture({ userId: "host1", experience: PAST_PLAN, planUsers: [guestUser], approvedRequests: [{ requesterId: "guest1" }], reciprocal: true });
+  const r = await request(f.app).post("/experiences/exp1/see-again").send({ userId: "guest1", again: true });
+  assert.equal(r.body.matched, true);
+  assert.equal(f.state.matchesCreated[0].kind, "MUTUAL");
+  assert.equal(f.state.matchesCreated[0].experienceId, "exp1");
+});
+test("see again cannot revive a match someone already ended", async () => {
+  const f = experiencesFixture({ userId: "host1", experience: PAST_PLAN, planUsers: [guestUser], approvedRequests: [{ requesterId: "guest1" }], reciprocal: true, existingMatch: { id: "m1", isActive: false, kind: "PLAN" } });
+  const r = await request(f.app).post("/experiences/exp1/see-again").send({ userId: "guest1", again: true });
+  assert.equal(r.body.matched, false);
 });
 test("blocked viewer cannot bypass browse exclusion with direct detail URL", async () => {
   const f = experiencesFixture({ blocked: true });

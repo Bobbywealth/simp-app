@@ -31,6 +31,8 @@ matchesRouter.get('/matches', requireAuth, async (req: AuthedRequest, res, next)
     const rows = await prisma.match.findMany({
       where: {
         isActive: true,
+        // Plan connections (host <-> approved guest) live in Chats; only real matches show here.
+        kind: 'MUTUAL',
         OR: [{ userAId: userId }, { userBId: userId }],
         userAId: { notIn: blockedIds },
         userBId: { notIn: blockedIds },
@@ -62,6 +64,11 @@ matchesRouter.get('/matches', requireAuth, async (req: AuthedRequest, res, next)
       where: { swiperId: { in: otherIds }, swipedId: userId, action: { in: ['LIKE', 'SUPERLIKE'] } },
     });
     const noteMap = new Map(notes.map((note) => [note.swiperId, note.note]));
+    const experienceIds = [...new Set(page.map((m) => m.experienceId).filter((v): v is string => !!v))];
+    const experienceRows = experienceIds.length
+      ? await prisma.experience.findMany({ where: { id: { in: experienceIds } }, select: { id: true, title: true } })
+      : [];
+    const experienceTitles = new Map(experienceRows.map((e) => [e.id, e.title]));
 
     res.json({
       matches: page.flatMap((match) => {
@@ -86,6 +93,9 @@ matchesRouter.get('/matches', requireAuth, async (req: AuthedRequest, res, next)
               thumbnailUrl: photo ? cloudinaryThumbnailUrl(photo.url) : null,
             },
             noteFromOther: noteMap.get(other.id) ?? null,
+            metAt: match.experienceId && experienceTitles.has(match.experienceId)
+              ? { experienceId: match.experienceId, title: experienceTitles.get(match.experienceId)! }
+              : null,
             latestMessage: match.conversation?.messages[0] ?? null,
             unreadCount: match.conversation?._count.messages ?? 0,
           },

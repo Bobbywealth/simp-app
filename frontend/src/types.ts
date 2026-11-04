@@ -161,6 +161,8 @@ export interface MatchSummary {
     thumbnailUrl?: string | null;
   };
   noteFromOther: string | null;
+  /** The plan that brought these two together, when a match came from an experience. */
+  metAt?: { experienceId: string; title: string } | null;
   latestMessage?: Message | null;
   unreadCount?: number;
 }

@@ -37,7 +37,7 @@ export default function Matches() {
       <div className="pointer-events-none absolute inset-0 bg-ink-radial" />
       <header className="relative z-10 mx-auto flex w-full max-w-2xl items-center justify-between px-6 pt-safe pt-6">
         <button onClick={() => navigate('/home')} className="text-xs font-medium uppercase tracking-[0.2em] text-white/55 transition hover:text-white">‹ Back</button>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-gold-300">Your invitations</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-gold-300">Your matches</p>
         <span className="w-12" />
       </header>
 
@@ -53,13 +53,13 @@ export default function Matches() {
               <img src="/editorial/matches.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" />
               <div className="absolute inset-0 bg-gradient-to-r from-ink-950 via-ink-950/70 to-ink-950/15" />
               <div className="relative flex min-h-[245px] max-w-sm flex-col justify-end p-6">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.27em] text-gold-300">A mutual yes</p>
-                <h1 className="display-heading mt-2 text-4xl font-light leading-[.95]">A few people worth meeting.</h1>
-                <p className="mt-3 text-sm leading-relaxed text-white/70">Read the small things that made the connection feel possible, then begin wherever it feels natural.</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.27em] text-gold-300">A mutual yes after a plan</p>
+                <h1 className="display-heading mt-2 text-4xl font-light leading-[.95]">People you met on a plan.</h1>
+                <p className="mt-3 text-sm leading-relaxed text-white/70">You went on a plan together and both wanted to see each other again. Start the conversation whenever you are ready.</p>
               </div>
             </section>
             <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
-              <p className="text-xs text-white/50">{matches.length}{hasMore ? '+' : ''} {matches.length === 1 ? 'invitation' : 'invitations'} waiting</p>
+              <p className="text-xs text-white/50">{matches.length}{hasMore ? '+' : ''} {matches.length === 1 ? 'match' : 'matches'}</p>
               <p className="text-[10px] uppercase tracking-[0.2em] text-white/35">Take your time</p>
             </div>
             <ul className="grid gap-5 sm:grid-cols-2">
@@ -91,7 +91,7 @@ function MatchInvitation({ match, index, onOpen }: { match: MatchSummary; index:
           </div>
         </div>
         <div className="px-1 pt-3">
-          {match.noteFromOther ? <><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300">Their opening note</p><p className="mt-1 line-clamp-2 font-serif text-[15px] leading-relaxed text-white/80">“{match.noteFromOther}”</p></> : <><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300">Shared energy</p><p className="mt-1 text-sm text-white/60">A mutual spark. See what you have in common.</p></>}
+          {match.noteFromOther ? <><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300">Their opening note</p><p className="mt-1 line-clamp-2 font-serif text-[15px] leading-relaxed text-white/80">“{match.noteFromOther}”</p></> : match.metAt ? <><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300">Met at</p><p className="mt-1 line-clamp-2 text-sm leading-relaxed text-white/80">{match.metAt.title}</p></> : <><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300">Shared energy</p><p className="mt-1 text-sm text-white/60">A mutual spark. See what you have in common.</p></>}
         </div>
       </button>
     </motion.li>
@@ -102,5 +102,5 @@ function MatchesSkeleton() { return <div className="space-y-5"><div className="h
 
 function EmptyMatches() {
   const navigate = useNavigate();
-  return <div className="flex flex-col items-center py-24 text-center"><SimpLogo size={64} variant="emblem" /><p className="mt-7 text-[10px] font-semibold uppercase tracking-[0.26em] text-gold-300">The room is still open</p><h2 className="display-heading mt-3 max-w-sm text-3xl font-light">Your next invitation is still finding its way here.</h2><p className="mt-3 max-w-xs text-sm leading-relaxed text-white/55">Keep discovering. When someone chooses you back, this is where the story starts.</p><button onClick={() => navigate('/discover')} className="btn-gold mt-7 px-6 py-3 text-xs font-medium uppercase tracking-[0.18em]">Browse experiences</button></div>;
+  return <div className="flex flex-col items-center py-24 text-center"><SimpLogo size={64} variant="emblem" /><p className="mt-7 text-[10px] font-semibold uppercase tracking-[0.26em] text-gold-300">The room is still open</p><h2 className="display-heading mt-3 max-w-sm text-3xl font-light">Matches start with a plan.</h2><p className="mt-3 max-w-xs text-sm leading-relaxed text-white/55">Join an experience, meet the people on it, then say who you would like to see again. When it is mutual, they appear here.</p><button onClick={() => navigate('/discover')} className="btn-gold mt-7 px-6 py-3 text-xs font-medium uppercase tracking-[0.18em]">Browse experiences</button></div>;
 }

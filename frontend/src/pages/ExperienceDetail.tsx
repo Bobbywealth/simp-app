@@ -9,9 +9,11 @@ import {
   getExperience,
   getExperienceRequests,
   removeGuest,
+  setSeeAgain,
   requestToJoin,
   type ExperienceDetail as ExperienceDetailType,
   type ExperienceRequestItem,
+  type PlanPerson,
 } from '../api/experiences';
 import {
   EXPERIENCE_CATEGORY_LABELS,
@@ -341,6 +343,16 @@ export default function ExperienceDetail() {
                 </p>
               </div>
             </div>
+
+            {detail.plan && (
+              <PlanSection
+                experienceId={detail.id}
+                people={detail.plan.people}
+                seeAgainOpen={detail.plan.seeAgain.open}
+                initialMine={detail.plan.seeAgain.mine}
+                onOpen={(path) => navigate(path)}
+              />
+            )}
 
             {actionError && (
               <p className="mt-4 rounded-xl border border-red-300/30 bg-red-300/10 px-4 py-3 text-xs text-red-200" role="alert">
@@ -744,5 +756,138 @@ function ReportExperienceButton({ experienceId }: { experienceId: string }) {
         </motion.div>
       )}
     </div>
+  );
+}
+
+function PersonAvatar({ person, size = 44 }: { person: PlanPerson; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  const initial = ((person.displayName ?? '').charAt(0) || '?').toUpperCase();
+  const style = { width: size, height: size };
+  return person.photoUrl && !failed ? (
+    <img src={person.photoUrl} alt="" style={style} className="shrink-0 rounded-full object-cover" onError={() => setFailed(true)} />
+  ) : (
+    <span style={style} className="flex shrink-0 items-center justify-center rounded-full bg-ink-700 text-sm text-white/60">{initial}</span>
+  );
+}
+
+/**
+ * Who's on this plan, plus the private "who would you like to see again?" step once the plan
+ * has happened. Nothing is revealed to the other person unless they pick you back.
+ */
+function PlanSection({
+  experienceId,
+  people,
+  seeAgainOpen,
+  initialMine,
+  onOpen,
+}: {
+  experienceId: string;
+  people: PlanPerson[];
+  seeAgainOpen: boolean;
+  initialMine: string[];
+  onOpen: (path: string) => void;
+}) {
+  const [mine, setMine] = useState<Set<string>>(new Set(initialMine));
+  const [matched, setMatched] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function toggle(person: PlanPerson) {
+    const next = !mine.has(person.id);
+    setBusyId(person.id);
+    setError(null);
+    try {
+      const res = await setSeeAgain(experienceId, person.id, next);
+      setMine((prev) => {
+        const copy = new Set(prev);
+        if (res.again) copy.add(person.id);
+        else copy.delete(person.id);
+        return copy;
+      });
+      if (res.matched && res.matchId) setMatched((prev) => ({ ...prev, [person.id]: res.matchId! }));
+    } catch {
+      setError('Could not save that. Try again.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (people.length === 0) {
+    return (
+      <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-200">Who&apos;s going</p>
+        <p className="mt-2 text-sm text-white/55">Guests will show up here as the host approves them.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mt-6 rounded-2xl border border-gold-300/20 bg-white/[0.03] p-4" aria-label="Who is on this plan">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-200">Who&apos;s going</p>
+      <ul className="mt-3 space-y-3">
+        {people.map((person) => {
+          const matchId = matched[person.id] ?? (person.matched ? person.matchId : null);
+          const picked = mine.has(person.id);
+          return (
+            <li key={person.id} className="flex items-center gap-3">
+              <PersonAvatar person={person} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-white">
+                  {person.displayName ?? 'Guest'}
+                  {person.age ? `, ${person.age}` : ''}
+                </p>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/40">
+                  {matchId ? "It's a match" : person.isHost ? 'Host' : 'Guest'}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {person.matchId && (
+                  <button
+                    onClick={() => onOpen(`/matches/${person.matchId}`)}
+                    className="rounded-full border border-white/15 px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-white/70 hover:border-white/30"
+                  >
+                    Profile
+                  </button>
+                )}
+                {person.conversationId && (
+                  <button
+                    onClick={() => onOpen(`/messages/${person.conversationId}`)}
+                    className="rounded-full border border-white/15 px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] text-white/70 hover:border-white/30"
+                  >
+                    Message
+                  </button>
+                )}
+                {seeAgainOpen && !matchId && (
+                  <button
+                    onClick={() => void toggle(person)}
+                    disabled={busyId === person.id}
+                    aria-pressed={picked}
+                    className={`rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition disabled:opacity-50 ${
+                      picked ? 'bg-gold-400 text-ink-950' : 'border border-gold-300/40 text-gold-200 hover:bg-gold-400/10'
+                    }`}
+                  >
+                    {picked ? '♥ See again' : 'See again?'}
+                  </button>
+                )}
+                {matchId && !person.matchId && (
+                  <button
+                    onClick={() => onOpen(`/matches/${matchId}`)}
+                    className="rounded-full bg-gold-400 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-950"
+                  >
+                    Say hi
+                  </button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-4 text-xs leading-relaxed text-white/45">
+        {seeAgainOpen
+          ? 'Pick anyone you would like to see again. It stays private: they only find out if they pick you too, and then you match.'
+          : 'After the plan you can privately pick who you would like to see again. If it is mutual, you match.'}
+      </p>
+      {error && <p role="alert" className="mt-2 text-xs text-red-200">{error}</p>}
+    </section>
   );
 }

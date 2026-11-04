@@ -228,6 +228,60 @@ experiencesRouter.post('/experiences', requireAuth, async (req: AuthedRequest, r
 });
 
 // ---------------------------------------------------------------------------
+// Plan participants + post-plan "see again"
+// ---------------------------------------------------------------------------
+
+/** "See again" opens this long after the plan starts, and stays open for 14 days. */
+export const SEE_AGAIN_OPENS_AFTER_MS = 2 * 60 * 60 * 1000;
+export const SEE_AGAIN_CLOSES_AFTER_MS = 14 * 24 * 60 * 60 * 1000;
+
+export function seeAgainWindow(startsAtValue: Date | null, now = new Date()) {
+  if (!startsAtValue) return { opensAt: null, closesAt: null, open: false };
+  const startsAt = startsAtValue;
+  const opensAt = new Date(startsAt.getTime() + SEE_AGAIN_OPENS_AFTER_MS);
+  const closesAt = new Date(startsAt.getTime() + SEE_AGAIN_CLOSES_AFTER_MS);
+  return { opensAt, closesAt, open: now >= opensAt && now <= closesAt };
+}
+
+/** Host + approved guests of an experience, excluding blocked/inactive accounts, as seen by `me`. */
+async function loadPlanPeople(experience: { id: string; hostId: string }, me: string) {
+  const approved = await prisma.experienceRequest.findMany({
+    where: { experienceId: experience.id, status: 'APPROVED' },
+    select: { requesterId: true },
+  });
+  const ids = [...new Set([experience.hostId, ...approved.map((r) => r.requesterId)])].filter((id) => id !== me);
+  if (ids.length === 0) return [];
+  const [users, blocks, matches] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: ids }, status: 'ACTIVE' },
+      select: hostSelect,
+    }),
+    prisma.block.findMany({
+      where: { OR: [{ blockerId: me, blockedId: { in: ids } }, { blockedId: me, blockerId: { in: ids } }] },
+      select: { blockerId: true, blockedId: true },
+    }),
+    prisma.match.findMany({
+      where: { isActive: true, OR: [{ userAId: me, userBId: { in: ids } }, { userBId: me, userAId: { in: ids } }] },
+      select: { id: true, kind: true, userAId: true, userBId: true, conversation: { select: { id: true } } },
+    }),
+  ]);
+  const blockedIds = new Set(blocks.map((b) => (b.blockerId === me ? b.blockedId : b.blockerId)));
+  const matchByUser = new Map(matches.map((m) => [m.userAId === me ? m.userBId : m.userAId, m]));
+  return users
+    .filter((u) => !blockedIds.has(u.id))
+    .map((u) => {
+      const m = matchByUser.get(u.id);
+      return {
+        ...shapeHost(u),
+        isHost: u.id === experience.hostId,
+        matchId: m?.id ?? null,
+        conversationId: m?.conversation?.id ?? null,
+        matched: m?.kind === 'MUTUAL',
+      };
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Experience detail
 // ---------------------------------------------------------------------------
 
@@ -258,8 +312,26 @@ experiencesRouter.get('/experiences/:id', requireAuth, async (req: AuthedRequest
         select: { id: true, status: true, note: true, createdAt: true },
       }),
     ]);
+    // Who's going + the post-plan "see again" state. Only the host and approved guests get this.
+    const isParticipant = isHost || myRequest?.status === 'APPROVED';
+    let plan: null | {
+      people: Awaited<ReturnType<typeof loadPlanPeople>>;
+      seeAgain: { open: boolean; opensAt: Date | null; closesAt: Date | null; mine: string[] };
+    } = null;
+    if (isParticipant && experience.status !== 'CANCELLED') {
+      const [people, mine] = await Promise.all([
+        loadPlanPeople(experience, me),
+        prisma.experienceSeeAgain.findMany({
+          where: { experienceId: id, fromUserId: me },
+          select: { toUserId: true },
+        }),
+      ]);
+      const win = seeAgainWindow(experience.startsAt);
+      plan = { people, seeAgain: { ...win, mine: mine.map((m) => m.toUserId) } };
+    }
     res.json({
       ...experience,
+      plan,
       venue: isHost || myRequest?.status === 'APPROVED' ? experience.venue : null,
       logistics: isHost || myRequest?.status === 'APPROVED' ? experience.logistics : null,
       host: shapeHost(experience.host),
@@ -665,6 +737,8 @@ experiencesRouter.post(
         create: {
           userAId,
           userBId,
+          kind: 'PLAN',
+          experienceId,
           conversation: { create: {} },
         },
         update: { isActive: true, deactivatedAt: null, deactivatedById: null },
@@ -878,3 +952,97 @@ experiencesRouter.post(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// After the plan: "who would you like to see again?" (private until mutual)
+// ---------------------------------------------------------------------------
+
+const seeAgainSchema = z.object({ userId: z.string().min(1), again: z.boolean() });
+
+experiencesRouter.post('/experiences/:id/see-again', requireAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const experienceId = z.string().min(1).parse(req.params.id);
+    const me = req.userId!;
+    const input = seeAgainSchema.parse(req.body);
+    if (input.userId === me) throw new AppError('invalid_target', 400, 'Pick someone else from the plan.');
+
+    const experience = await prisma.experience.findUnique({ where: { id: experienceId } });
+    if (!experience || !experience.isActive || experience.status === 'CANCELLED') {
+      throw new AppError('experience_not_found', 404, 'Experience not found.');
+    }
+    if (!seeAgainWindow(experience.startsAt).open) {
+      throw new AppError('see_again_closed', 400, 'You can say who you would like to see again after the plan has happened.');
+    }
+
+    // Both people must have actually been part of this plan (host or approved guest), and not be blocked.
+    const people = await loadPlanPeople(experience, me);
+    const iAmParticipant =
+      experience.hostId === me ||
+      !!(await prisma.experienceRequest.findFirst({
+        where: { experienceId, requesterId: me, status: 'APPROVED' },
+        select: { id: true },
+      }));
+    if (!iAmParticipant || !people.some((p) => p.id === input.userId)) {
+      throw new AppError('not_on_this_plan', 403, 'You can only choose people who were on this plan.');
+    }
+
+    if (!input.again) {
+      await prisma.experienceSeeAgain.deleteMany({ where: { experienceId, fromUserId: me, toUserId: input.userId } });
+      return res.json({ again: false, matched: false });
+    }
+
+    await prisma.experienceSeeAgain.upsert({
+      where: { experienceId_fromUserId_toUserId: { experienceId, fromUserId: me, toUserId: input.userId } },
+      create: { experienceId, fromUserId: me, toUserId: input.userId },
+      update: {},
+    });
+    const reciprocal = await prisma.experienceSeeAgain.findUnique({
+      where: { experienceId_fromUserId_toUserId: { experienceId, fromUserId: input.userId, toUserId: me } },
+      select: { id: true },
+    });
+    if (!reciprocal) {
+      // One-sided: never reveal anything to the other person.
+      return res.json({ again: true, matched: false });
+    }
+
+    const [userAId, userBId] = [me, input.userId].sort() as [string, string];
+    const existing = await prisma.match.findUnique({ where: { userAId_userBId: { userAId, userBId } } });
+    if (existing && !existing.isActive) {
+      // One of them unmatched earlier; a see-again must not undo that.
+      return res.json({ again: true, matched: false });
+    }
+    const match = existing
+      ? await prisma.match.update({
+          where: { id: existing.id },
+          data: { kind: 'MUTUAL', experienceId: existing.experienceId ?? experienceId },
+        })
+      : await prisma.match.create({
+          data: { userAId, userBId, kind: 'MUTUAL', experienceId, conversation: { create: {} } },
+        });
+    if (existing && !(await prisma.conversation.findUnique({ where: { matchId: match.id }, select: { id: true } }))) {
+      await prisma.conversation.create({ data: { matchId: match.id } });
+    }
+
+    if (!existing || existing.kind !== 'MUTUAL') {
+      const names = await prisma.profile.findMany({
+        where: { userId: { in: [me, input.userId] } },
+        select: { userId: true, displayName: true },
+      });
+      const nameOf = (id: string) => names.find((n) => n.userId === id)?.displayName ?? 'someone from your plan';
+      for (const [userId, otherId] of [[me, input.userId], [input.userId, me]] as const) {
+        void notify({
+          userId,
+          actorId: otherId,
+          type: 'MATCH' as NotificationType,
+          entityId: match.id,
+          title: "It's a match",
+          body: `You and ${nameOf(otherId)} both want to see each other again after "${experience.title}".`,
+          data: { experienceId, route: `/matches/${match.id}` },
+        }).catch(() => {});
+      }
+    }
+    return res.json({ again: true, matched: true, matchId: match.id });
+  } catch (error) {
+    next(error);
+  }
+});

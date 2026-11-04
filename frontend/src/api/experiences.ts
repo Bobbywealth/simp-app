@@ -46,9 +46,29 @@ export interface MyExperienceRequest {
   note: string | null;
 }
 
+export interface PlanPerson {
+  id: string;
+  displayName: string | null;
+  age: number | null;
+  photoUrl: string | null;
+  isHost: boolean;
+  /** Set once host and guest are connected (profile unlocked, chat open). */
+  matchId: string | null;
+  conversationId: string | null;
+  /** True only for a real mutual match (after both said "see again"). */
+  matched: boolean;
+}
+
+export interface ExperiencePlan {
+  people: PlanPerson[];
+  seeAgain: { open: boolean; opensAt: string | null; closesAt: string | null; mine: string[] };
+}
+
 export interface ExperienceDetail extends Experience {
   isHost: boolean;
   myRequest: MyExperienceRequest | null;
+  /** Only present for the host and approved guests. */
+  plan: ExperiencePlan | null;
 }
 
 export interface ExperienceRequestItem {
@@ -171,5 +191,12 @@ export function removeGuest(experienceId: string, requestId: string) {
   return apiFetch<{ request: ExperienceRequestItem }>(
     `/experiences/${experienceId}/requests/${requestId}`,
     { method: 'DELETE' },
+  );
+}
+
+export function setSeeAgain(experienceId: string, userId: string, again: boolean) {
+  return apiFetch<{ again: boolean; matched: boolean; matchId?: string }>(
+    `/experiences/${experienceId}/see-again`,
+    { method: 'POST', body: JSON.stringify({ userId, again }) },
   );
 }
