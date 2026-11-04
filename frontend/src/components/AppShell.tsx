@@ -33,6 +33,7 @@ export const APP_LINKS = [
 const PUBLIC_PATHS = new Set([
   "/",
   "/welcome",
+  "/landing",
   "/onboarding",
   "/signup",
   "/login",

@@ -164,6 +164,7 @@ export default function App() {
             <AppShell>
             <Routes>
               <Route path="/" element={user ? <Navigate to={user.onboardingCompletedAt ? '/experiences' : '/profile-setup'} replace /> : <Landing />} />
+              <Route path="/landing" element={<Landing />} />
               <Route path="/welcome" element={<PageTransition routeKey="/welcome"><Welcome /></PageTransition>} />
               <Route path="/onboarding" element={<PageTransition routeKey="/onboarding"><Onboarding /></PageTransition>} />
               <Route path="/signup" element={<PageTransition routeKey="/signup"><Signup /></PageTransition>} />
