@@ -161,6 +161,18 @@ export async function login(input: LoginInput, context: SessionContext = {}) {
 }
 
 export async function refresh(refreshToken: string, context: SessionContext = {}) {
+  try {
+    return await refreshOnce(refreshToken, context);
+  } catch (error) {
+    if (error instanceof AuthError && error.code === 'refresh_rotation_race') {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return refreshOnce(refreshToken, context);
+    }
+    throw error;
+  }
+}
+
+async function refreshOnce(refreshToken: string, context: SessionContext = {}) {
   let claims;
   try {
     claims = verifyRefreshToken(refreshToken);
@@ -177,6 +189,41 @@ export async function refresh(refreshToken: string, context: SessionContext = {}
     include: { user: true },
   });
   const familyId = stored?.familyId ?? claims.sid;
+
+  // Grace window: a token rotated moments ago is almost always a legitimate
+  // concurrent refresh (two tabs, reload, app resume), not theft. Issue a new
+  // sibling token in the same family instead of revoking the whole session.
+  const ROTATION_GRACE_MS = 30_000;
+  if (
+    stored &&
+    stored.revokedAt &&
+    stored.replacedById &&
+    !stored.reuseDetectedAt &&
+    Date.now() - stored.revokedAt.getTime() < ROTATION_GRACE_MS &&
+    stored.expiresAt > new Date() &&
+    stored.userId === claims.sub
+  ) {
+    assertAccountCanAuthenticate(stored.user);
+    const graceRefreshToken = signRefreshToken(stored.userId, crypto.randomUUID(), stored.familyId);
+    await prisma.refreshToken.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId: stored.userId,
+        familyId: stored.familyId,
+        tokenHash: hashToken(graceRefreshToken),
+        expiresAt: new Date(Date.now() + refreshTtlMs()),
+        deviceId: stored.deviceId,
+        deviceName: stored.deviceName,
+        platform: stored.platform,
+        ipHash: hashIp(context.ip) ?? stored.ipHash,
+        userAgent: context.userAgent?.slice(0, 500) ?? stored.userAgent,
+      },
+    });
+    return {
+      accessToken: signAccessToken(stored.userId, stored.familyId),
+      refreshToken: graceRefreshToken,
+    };
+  }
 
   if (!stored || stored.revokedAt) {
     if (familyId) {
@@ -211,11 +258,9 @@ export async function refresh(refreshToken: string, context: SessionContext = {}
       data: { revokedAt: now, replacedById: nextId, lastUsedAt: now },
     });
     if (revoked.count !== 1) {
-      await tx.refreshToken.updateMany({
-        where: { familyId: stored.familyId },
-        data: { revokedAt: now, reuseDetectedAt: now },
-      });
-      throw new AuthError('refresh_token_reused', 401, 'This session was revoked.');
+      // Lost a concurrent rotation by milliseconds: not theft. Signal the
+      // caller to re-enter via the grace path instead of killing the family.
+      throw new AuthError('refresh_rotation_race', 409, 'Refresh already in progress.');
     }
 
     await tx.refreshToken.create({
