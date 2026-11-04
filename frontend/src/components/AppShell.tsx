@@ -50,7 +50,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const enabled = Boolean(
     user?.emailVerified &&
       user.onboardingCompletedAt &&
-      !PUBLIC_PATHS.has(pathname) && !pathname.startsWith("/admin"),
+      !PUBLIC_PATHS.has(pathname) &&
+      !pathname.startsWith("/admin"),
   );
 
   useEffect(() => {
@@ -138,10 +139,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </svg>
               <span>{link.label}</span>
               {link.to === "/messages" && unread > 0 && (
-                <span
-                  className="simp-nav-badge"
-                  aria-hidden="true"
-                >
+                <span className="simp-nav-badge" aria-hidden="true">
                   {unread > 99 ? "99+" : unread}
                 </span>
               )}
@@ -178,6 +176,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NavLink to="/profile/edit">Edit profile</NavLink>
           </div>
         </div>
+        {(user?.email ?? "").toLowerCase().endsWith("@simp-seed.demo") && (
+          <aside className="simp-demo-banner" role="note">
+            Demo testing · Sample profiles, not real dating accounts. Try likes,
+            interests, and matches safely.
+          </aside>
+        )}
         {children}
       </div>
       <BottomTabBar messageCount={unread} />

@@ -1,3 +1,4 @@
+import { discoveryAudience } from '../utils/demo-accounts.js';
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -42,6 +43,8 @@ swipesRouter.post(
     try {
       const swiperId = req.userId!;
       const input = swipeSchema.parse(req.body);
+      const actor = await prisma.user.findUnique({ where: { id: swiperId }, select: { email: true } });
+      if (!actor) throw new AppError('profile_not_available', 404, 'Account unavailable.');
       if (input.swipedId === swiperId) {
         throw new AppError('cannot_swipe_self', 400, 'You cannot swipe on yourself.');
       }
@@ -54,6 +57,7 @@ swipesRouter.post(
           tx.user.findFirst({
             where: {
               id: input.swipedId,
+              ...discoveryAudience(actor.email),
               status: 'ACTIVE',
               emailVerified: true,
               profile: { profileCompletedAt: { not: null } },

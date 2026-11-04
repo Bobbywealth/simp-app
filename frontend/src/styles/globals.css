@@ -233,3 +233,4 @@
 .simp-admin-console .admin-user-grid > * { min-width: 0; }
 .simp-admin-console .admin-user-grid > div:last-child { grid-column: 1 / -1; }
 .simp-admin-console p { overflow-wrap: anywhere; }
+.simp-demo-banner { padding: 12px 24px; border-bottom: 1px solid #d5b77d33; background: #d5b77d0c; color: #e0c797; font-size: 12px; line-height: 1.6; }

@@ -1,3 +1,4 @@
+import { discoveryAudience, isDemoAccount } from '../utils/demo-accounts.js';
 import type { Gender, LookingFor, Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { prisma } from '../config/db.js';
@@ -89,6 +90,7 @@ discoveryRouter.get(
       }
 
       const where: Prisma.UserWhereInput = {
+        ...discoveryAudience(me.email),
         id: { notIn: [...excluded] },
         status: 'ACTIVE',
         profile: {
@@ -171,6 +173,7 @@ discoveryRouter.get(
           {
             profileId: candidate.profile.id,
             userId: candidate.id,
+            isDemo: isDemoAccount(candidate.email),
             displayName: candidate.profile.displayName,
             bio: candidate.profile.bio,
             age: ageFromBirthDate(candidate.profile.birthDate),
@@ -248,6 +251,7 @@ discoveryRouter.get(
       }
 
       const where: Prisma.UserWhereInput = {
+        ...discoveryAudience(me.email),
         id: { notIn: [...excluded] },
         status: 'ACTIVE',
         profile: {
@@ -280,6 +284,7 @@ discoveryRouter.get(
         return {
           profileId: candidate.profile.id,
           userId: candidate.id,
+          isDemo: isDemoAccount(candidate.email),
           displayName: candidate.profile.displayName,
           bio: candidate.profile.bio,
           age: ageFromBirthDate(candidate.profile.birthDate),

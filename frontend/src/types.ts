@@ -87,6 +87,7 @@ export interface DiscoveryPrompt {
 export interface DiscoveryProfile {
   profileId: string;
   userId: string;
+  isDemo?: boolean;
   displayName: string;
   bio: string | null;
   age: number;

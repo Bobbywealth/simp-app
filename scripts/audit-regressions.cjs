@@ -1620,3 +1620,12 @@ test("canceling broadcast confirmation sends nothing", async () => {
     0,
   );
 });
+
+const demoPolicy=source('backend/src/utils/demo-accounts.ts');
+test('reserved test accounts are recognized as demo',()=>assert.equal(demoPolicy.isDemoAccount('testing-women-01@simp-seed.demo'),true));
+test('ordinary users cannot masquerade as demo by suffix lookalike',()=>assert.equal(demoPolicy.isDemoAccount('user@simp-seed.demo.evil.example'),false));
+test('demo classification is case insensitive',()=>assert.equal(demoPolicy.isDemoAccount('KENJI@SIMP-SEED.DEMO'),true));
+test('App Store review account uses demo pool',()=>assert.equal(demoPolicy.isDemoAccount('review@sim-p.app'),true));
+test('real users exclude the demo audience',()=>assert.ok(demoPolicy.discoveryAudience('real@example.invalid').NOT.OR));
+test('demo users see only the demo audience',()=>assert.ok(demoPolicy.discoveryAudience('kenji@simp-seed.demo').OR));
+test('testing fixtures contain 30 adult-side profiles per gender with unique identities',()=>{const rows=JSON.parse(fs.readFileSync('backend/prisma/fixtures/testing-profiles.json'));assert.equal(rows.length,60);assert.equal(rows.filter(p=>p.gender==='WOMAN').length,30);assert.equal(rows.filter(p=>p.gender==='MAN').length,30);assert.equal(new Set(rows.map(p=>p.email)).size,60);assert.equal(new Set(rows.map(p=>p.photoSource)).size,60);assert.ok(rows.every(p=>p.displayName.includes('Demo')&&demoPolicy.isDemoAccount(p.email)&&fs.existsSync('frontend/public'+p.photo)));});

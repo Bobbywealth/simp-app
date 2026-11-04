@@ -1,18 +1,35 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { getDiscovery } from '../api/discovery';
-import { createSwipe, undoSwipe } from '../api/swipes';
-import { blockUser, reportUser, REPORT_REASONS, type ReportReason } from '../api/moderation';
-import type { DiscoveryPreferences, DiscoveryProfile, SwipeAction } from '../types';
-import { getDiscoveryPreferences, updateDiscoveryPreferences } from '../api/users';
-import { track, trackMilestone } from '../api/analytics';
-import { SimpLogo } from '../components/SimpLogo';
-import { DiscoverFilters } from '../components/DiscoverFilters';
-import { ShareButton } from '../components/ShareButton';
-import { useAuth } from '../store/auth';
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  motion,
+  AnimatePresence,
+  useMotionValue,
+  useTransform,
+} from "framer-motion";
+import { getDiscovery } from "../api/discovery";
+import { createSwipe, undoSwipe } from "../api/swipes";
+import {
+  blockUser,
+  reportUser,
+  REPORT_REASONS,
+  type ReportReason,
+} from "../api/moderation";
+import type {
+  DiscoveryPreferences,
+  DiscoveryProfile,
+  SwipeAction,
+} from "../types";
+import {
+  getDiscoveryPreferences,
+  updateDiscoveryPreferences,
+} from "../api/users";
+import { track, trackMilestone } from "../api/analytics";
+import { SimpLogo } from "../components/SimpLogo";
+import { DiscoverFilters } from "../components/DiscoverFilters";
+import { ShareButton } from "../components/ShareButton";
+import { useAuth } from "../store/auth";
 
-type DeckState = 'loading' | 'ready' | 'empty' | 'error';
+type DeckState = "loading" | "ready" | "empty" | "error";
 
 interface SwipedRecord {
   swipeId: string;
@@ -22,7 +39,7 @@ interface SwipedRecord {
 export default function Discover() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [deck, setDeck] = useState<DeckState>('loading');
+  const [deck, setDeck] = useState<DeckState>("loading");
   const [profiles, setProfiles] = useState<DiscoveryProfile[]>([]);
   const [topIndex, setTopIndex] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -32,15 +49,21 @@ export default function Discover() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const [filters, setFilters] = useState<DiscoveryPreferences>({
-    minAge: 18, maxAge: 99, maxDistanceKm: null, verifiedOnly: false, interestSlugs: [],
+    minAge: 18,
+    maxAge: 99,
+    maxDistanceKm: null,
+    verifiedOnly: false,
+    interestSlugs: [],
   });
   const [showFilters, setShowFilters] = useState(false);
 
-  const [matchedProfile, setMatchedProfile] = useState<DiscoveryProfile | null>(null);
+  const [matchedProfile, setMatchedProfile] = useState<DiscoveryProfile | null>(
+    null,
+  );
   const [matchedNote, setMatchedNote] = useState<string | null>(null);
 
   const [pendingLike, setPendingLike] = useState<DiscoveryProfile | null>(null);
-  const [convinceText, setConvinceText] = useState('');
+  const [convinceText, setConvinceText] = useState("");
 
   const [peekedProfiles, setPeekedProfiles] = useState<Set<string>>(new Set());
 
@@ -48,7 +71,9 @@ export default function Discover() {
 
   const [photoIndex, setPhotoIndex] = useState<Record<string, number>>({});
 
-  const [reportTarget, setReportTarget] = useState<DiscoveryProfile | null>(null);
+  const [reportTarget, setReportTarget] = useState<DiscoveryProfile | null>(
+    null,
+  );
 
   const loadingRef = useRef(false);
 
@@ -63,16 +88,19 @@ export default function Discover() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadDeck(reset: boolean, activeFilters: DiscoveryPreferences = filters) {
+  async function loadDeck(
+    reset: boolean,
+    activeFilters: DiscoveryPreferences = filters,
+  ) {
     if (loadingRef.current) return;
     loadingRef.current = true;
-    setDeck((prev) => (profiles.length === 0 ? 'loading' : prev));
+    setDeck((prev) => (profiles.length === 0 ? "loading" : prev));
     setError(null);
     try {
       const res = await getDiscovery({
         minAge: activeFilters.minAge,
         maxAge: activeFilters.maxAge,
-        cursor: reset ? undefined : nextCursor ?? undefined,
+        cursor: reset ? undefined : (nextCursor ?? undefined),
         limit: 20,
       });
       if (reset) {
@@ -84,11 +112,11 @@ export default function Discover() {
       }
       setNextCursor(res.nextCursor);
       setHasMore(res.hasMore);
-      setDeck(res.profiles.length === 0 ? 'empty' : 'ready');
+      setDeck(res.profiles.length === 0 ? "empty" : "ready");
     } catch (e) {
       const err = e as Error;
       setError(err.message);
-      setDeck('error');
+      setDeck("error");
     } finally {
       loadingRef.current = false;
     }
@@ -107,11 +135,15 @@ export default function Discover() {
     } else if (hasMore) {
       void loadMore();
     } else {
-      setDeck('empty');
+      setDeck("empty");
     }
   }
 
-  async function doSwipe(profile: DiscoveryProfile, action: SwipeAction, note?: string | null) {
+  async function doSwipe(
+    profile: DiscoveryProfile,
+    action: SwipeAction,
+    note?: string | null,
+  ) {
     // Optimistic UI: advance the deck + record the swipe BEFORE awaiting
     // the server response. If the server rejects (rate limit, validation,
     // network error), we roll back the deck + show a toast.
@@ -134,18 +166,23 @@ export default function Discover() {
       const res = await createSwipe({ swipedId: profile.userId, action, note });
       // 3a. Replace the temp entry with the real one + propagate match modal.
       setSwipeHistory((prev) =>
-        prev.map((entry) => (entry.swipeId === tempSwipeId ? { swipeId: res.swipeId, profile } : entry)),
+        prev.map((entry) =>
+          entry.swipeId === tempSwipeId
+            ? { swipeId: res.swipeId, profile }
+            : entry,
+        ),
       );
       if (res.matched) {
         setMatchedProfile(profile);
         setMatchedNote(note ?? null);
-        void track('match_created');
-        void trackMilestone('first_match');
+        void track("match_created");
+        void trackMilestone("first_match");
       }
     } catch (err) {
-      const isOffline = (err as Error).message.includes('network') ||
-        (err as Error).message.includes('Failed to fetch') ||
-        (err as Error).message.includes('fetch') ||
+      const isOffline =
+        (err as Error).message.includes("network") ||
+        (err as Error).message.includes("Failed to fetch") ||
+        (err as Error).message.includes("fetch") ||
         !navigator.onLine;
 
       // 3b. Rollback: restore deck position + remove the temp swipe from
@@ -155,7 +192,10 @@ export default function Discover() {
         if (prev.length !== priorHistoryLength + 1) return prev;
         return prev.slice(0, priorHistoryLength);
       });
-      const message = isOffline ? 'You’re offline. Your swipe was not sent. Reconnect and try again.' : (err as Error).message || 'Could not save your swipe. Please try again.';
+      const message = isOffline
+        ? "You’re offline. Your swipe was not sent. Reconnect and try again."
+        : (err as Error).message ||
+          "Could not save your swipe. Please try again.";
       setError(message);
       window.setTimeout(() => setError(null), 4000);
     }
@@ -168,26 +208,30 @@ export default function Discover() {
    */
   function trackOptimistic(action: SwipeAction) {
     const actionEvent =
-      action === 'PASS' ? 'discovery_pass' :
-      action === 'LIKE' ? 'discovery_like' :
-      action === 'SUPERLIKE' ? 'discovery_super_like' : 'discovery_pass';
+      action === "PASS"
+        ? "discovery_pass"
+        : action === "LIKE"
+          ? "discovery_like"
+          : action === "SUPERLIKE"
+            ? "discovery_super_like"
+            : "discovery_pass";
     void track(actionEvent);
-    void track('discovery_swipe', { action });
-    void trackMilestone('first_swipe', { action });
+    void track("discovery_swipe", { action });
+    void trackMilestone("first_swipe", { action });
   }
 
   function onSwipeLeft(profile: DiscoveryProfile) {
-    void doSwipe(profile, 'PASS');
+    void doSwipe(profile, "PASS");
   }
 
   function onSwipeRight(profile: DiscoveryProfile) {
     // Right-swipe (LIKE) is the most common path through the funnel.
-    void doSwipe(profile, 'LIKE');
+    void doSwipe(profile, "LIKE");
   }
 
   function onSwipeUp(profile: DiscoveryProfile) {
     setPendingLike(profile);
-    setConvinceText('');
+    setConvinceText("");
   }
 
   function confirmSwipe(superLike: boolean) {
@@ -195,21 +239,21 @@ export default function Discover() {
     const profile = pendingLike;
     const note = convinceText.trim() || null;
     setPendingLike(null);
-    setConvinceText('');
-    void doSwipe(profile, superLike ? 'SUPERLIKE' : 'LIKE', note);
+    setConvinceText("");
+    void doSwipe(profile, superLike ? "SUPERLIKE" : "LIKE", note);
   }
 
   function cancelSwipe() {
     setPendingLike(null);
-    setConvinceText('');
+    setConvinceText("");
   }
 
   function skipSwipeNote() {
     if (!pendingLike) return;
     const profile = pendingLike;
     setPendingLike(null);
-    setConvinceText('');
-    void doSwipe(profile, 'LIKE', null);
+    setConvinceText("");
+    void doSwipe(profile, "LIKE", null);
   }
 
   async function handleUndo() {
@@ -232,7 +276,7 @@ export default function Discover() {
       setReportTarget(null);
       advanceDeck();
     } catch (e) {
-      console.error('block failed', e);
+      console.error("block failed", e);
     }
   }
 
@@ -243,7 +287,7 @@ export default function Discover() {
       setReportTarget(null);
       advanceDeck();
     } catch (e) {
-      console.error('report failed', e);
+      console.error("report failed", e);
     }
   }
 
@@ -264,15 +308,20 @@ export default function Discover() {
     });
   }
 
-  if (deck === 'loading' && profiles.length === 0) {
+  if (deck === "loading" && profiles.length === 0) {
     return <DiscoverSkeleton />;
   }
 
-  if (deck === 'error') {
+  if (deck === "error") {
     return (
-      <Scaffold onBack={() => navigate('/home')} showFilters={() => setShowFilters(true)}>
+      <Scaffold
+        onBack={() => navigate("/home")}
+        showFilters={() => setShowFilters(true)}
+      >
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-          <p className="text-sm text-white/80">{error ?? 'Something went wrong.'}</p>
+          <p className="text-sm text-white/80">
+            {error ?? "Something went wrong."}
+          </p>
           <button
             onClick={() => loadDeck(true)}
             className="btn-gold-outline px-5 py-2 text-xs font-medium uppercase tracking-[0.18em]"
@@ -295,9 +344,12 @@ export default function Discover() {
     );
   }
 
-  if (deck === 'empty' || topIndex >= profiles.length) {
+  if (deck === "empty" || topIndex >= profiles.length) {
     return (
-      <Scaffold onBack={() => navigate('/home')} showFilters={() => setShowFilters(true)}>
+      <Scaffold
+        onBack={() => navigate("/home")}
+        showFilters={() => setShowFilters(true)}
+      >
         <div className="flex flex-1 flex-col justify-center px-6 py-8 text-center">
           <div className="relative mx-auto mb-8 h-48 w-full max-w-xs">
             <div className="absolute left-4 top-8 h-36 w-28 rotate-[-10deg] overflow-hidden rounded-[1.7rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-transparent opacity-55 shadow-soft" />
@@ -313,7 +365,8 @@ export default function Discover() {
             Your next profile is being curated.
           </h2>
           <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-white/60">
-            You cleared the current deck. Expand your filters or refresh later for verified profiles, shared interests, and better date energy.
+            You cleared the current deck. Expand your filters or refresh later
+            for verified profiles, shared interests, and better date energy.
           </p>
           <div className="mx-auto mt-7 grid w-full max-w-xs gap-3">
             <button
@@ -358,7 +411,10 @@ export default function Discover() {
   const top = profiles[topIndex];
   if (!top) {
     return (
-      <Scaffold onBack={() => navigate('/home')} showFilters={() => setShowFilters(true)}>
+      <Scaffold
+        onBack={() => navigate("/home")}
+        showFilters={() => setShowFilters(true)}
+      >
         <div className="flex flex-1 items-center justify-center">
           <div className="text-white/50 text-sm">Loading more…</div>
         </div>
@@ -378,9 +434,15 @@ export default function Discover() {
 
   return (
     <Scaffold
-      onBack={() => navigate('/home')}
+      onBack={() => navigate("/home")}
       showFilters={() => setShowFilters(true)}
-      hasFilters={filters.minAge !== 18 || filters.maxAge !== 99 || filters.maxDistanceKm !== null || filters.verifiedOnly || filters.interestSlugs.length > 0}
+      hasFilters={
+        filters.minAge !== 18 ||
+        filters.maxAge !== 99 ||
+        filters.maxDistanceKm !== null ||
+        filters.verifiedOnly ||
+        filters.interestSlugs.length > 0
+      }
     >
       <div className="flex flex-col flex-1 pb-20">
         <div className="discovery-deck relative mx-auto w-full flex-1 max-w-md px-4">
@@ -398,7 +460,9 @@ export default function Discover() {
                   peeked={peekedProfiles.has(p.userId)}
                   photoIndex={photoIndex[p.userId] ?? 0}
                   onTogglePeek={() => togglePeek(p.userId)}
-                  onCyclePhoto={(dir) => cyclePhoto(p.userId, dir, p.photos.length)}
+                  onCyclePhoto={(dir) =>
+                    cyclePhoto(p.userId, dir, p.photos.length)
+                  }
                   onSwipeRight={() => onSwipeRight(p)}
                   onSwipeLeft={() => onSwipeLeft(p)}
                   onSwipeUp={() => onSwipeUp(p)}
@@ -424,7 +488,13 @@ export default function Discover() {
           >
             ↺
           </ActionButton>
-          <ActionButton onClick={() => onSwipeLeft(top)} variant="circle" tone="red" label="Pass" title="Pass">
+          <ActionButton
+            onClick={() => onSwipeLeft(top)}
+            variant="circle"
+            tone="red"
+            label="Pass"
+            title="Pass"
+          >
             ✕
           </ActionButton>
           <ActionButton
@@ -488,18 +558,28 @@ export default function Discover() {
         onViewMatches={() => {
           setMatchedProfile(null);
           setMatchedNote(null);
-          navigate('/matches');
+          navigate("/matches");
         }}
       />
 
-      {error && deck === 'ready' && (
-        <button type="button" onClick={() => setError(null)} className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-red-400/25 bg-red-950/95 px-4 py-3 text-left text-xs text-red-100 shadow-xl" role="alert">
+      {error && deck === "ready" && (
+        <button
+          type="button"
+          onClick={() => setError(null)}
+          className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-red-400/25 bg-red-950/95 px-4 py-3 text-left text-xs text-red-100 shadow-xl"
+          role="alert"
+        >
           {error}
         </button>
       )}
 
       {undoError && (
-        <button type="button" onClick={() => setUndoError(null)} className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-red-400/25 bg-red-950/95 px-4 py-3 text-left text-xs text-red-100 shadow-xl" role="alert">
+        <button
+          type="button"
+          onClick={() => setUndoError(null)}
+          className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-xl border border-red-400/25 bg-red-950/95 px-4 py-3 text-left text-xs text-red-100 shadow-xl"
+          role="alert"
+        >
           {undoError}
         </button>
       )}
@@ -525,13 +605,22 @@ function DiscoveryFiltersSheet({
   onClose: () => void;
   onApply: (value: DiscoveryPreferences) => void | Promise<void>;
 }) {
-  return <DiscoverFilters open={open} onClose={onClose} value={filters} onApply={onApply} />;
+  return (
+    <DiscoverFilters
+      open={open}
+      onClose={onClose}
+      value={filters}
+      onApply={onApply}
+    />
+  );
 }
 
 function MiniSignal({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] px-3 py-3">
-      <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-gold-300/80">{label}</p>
+      <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-gold-300/80">
+        {label}
+      </p>
       <p className="mt-1 text-[11px] leading-tight text-white/45">{value}</p>
     </div>
   );
@@ -544,7 +633,12 @@ interface ScaffoldProps {
   hasFilters?: boolean;
 }
 
-function Scaffold({ children, onBack, showFilters, hasFilters }: ScaffoldProps) {
+function Scaffold({
+  children,
+  onBack,
+  showFilters,
+  hasFilters,
+}: ScaffoldProps) {
   return (
     <div className="relative flex min-h-screen flex-col bg-ink-950 text-white">
       <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
@@ -555,14 +649,16 @@ function Scaffold({ children, onBack, showFilters, hasFilters }: ScaffoldProps) 
         >
           ‹ Back
         </button>
-        <h1 className="text-xs font-medium uppercase tracking-[0.3em] text-gold-300">Discover</h1>
+        <h1 className="text-xs font-medium uppercase tracking-[0.3em] text-gold-300">
+          Discover
+        </h1>
         <button
           onClick={showFilters}
           className={`text-xs font-medium uppercase tracking-[0.2em] ${
-            hasFilters ? 'text-gold-300' : 'text-white/60 hover:text-white'
+            hasFilters ? "text-gold-300" : "text-white/60 hover:text-white"
           }`}
         >
-          {hasFilters ? 'Active' : 'Filters'}
+          {hasFilters ? "Active" : "Filters"}
         </button>
       </header>
       <main className="relative z-10 flex flex-1 flex-col">{children}</main>
@@ -605,7 +701,10 @@ function SwipeCard({
   const photo = profile.photos[photoIndex];
   const showBlurredTop = isTop && !peeked;
 
-  const handleDragEnd = (_: unknown, info: { offset: { x: number; y: number } }) => {
+  const handleDragEnd = (
+    _: unknown,
+    info: { offset: { x: number; y: number } },
+  ) => {
     const dx = info.offset.x;
     const dy = info.offset.y;
     if (dy < -120 && Math.abs(dx) < 120) {
@@ -634,7 +733,7 @@ function SwipeCard({
         scale: 1 - stackDepth * 0.04,
         opacity: stackDepth > 2 ? 0 : 1,
       }}
-      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
       className="absolute inset-x-0 top-0 mx-auto h-full origin-bottom cursor-grab active:cursor-grabbing"
     >
       <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-gold-400/15 bg-ink-900 shadow-2xl">
@@ -644,7 +743,7 @@ function SwipeCard({
               src={photo.url}
               alt={profile.displayName}
               className={`absolute inset-0 h-full w-full object-cover transition-[filter] duration-300 ${
-                showBlurredTop ? 'blur-md scale-100' : ''
+                showBlurredTop ? "blur-md scale-100" : ""
               }`}
               draggable={false}
             />
@@ -656,7 +755,7 @@ function SwipeCard({
                 <div
                   key={p.id}
                   className={`h-1 flex-1 rounded-full transition ${
-                    i === photoIndex ? 'bg-white' : 'bg-white/30'
+                    i === photoIndex ? "bg-white" : "bg-white/30"
                   }`}
                 />
               ))}
@@ -728,6 +827,11 @@ function SwipeCard({
         <div className="max-h-[40%] overflow-y-auto bg-gradient-to-t from-black via-black/80 to-transparent px-5 pb-4 pt-6">
           <h2 className="flex items-baseline gap-2 text-2xl font-light text-white">
             {profile.displayName}
+            {profile.isDemo && (
+              <span className="ml-2 rounded-full border border-gold-300/40 bg-ink-950/80 px-2 py-1 align-middle font-sans text-[10px] font-semibold tracking-widest text-gold-200">
+                DEMO
+              </span>
+            )}
             <span className="text-xl text-white/70">{profile.age}</span>
             {profile.isVerified && (
               <span className="ml-1 rounded-full border border-gold-400/40 bg-gold-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold-200">
@@ -737,19 +841,25 @@ function SwipeCard({
           </h2>
           <p className="mt-0.5 text-xs text-white/60">
             {profile.occupation}
-            {profile.occupation && profile.city ? ' · ' : ''}
+            {profile.occupation && profile.city ? " · " : ""}
             {profile.city}
-            {profile.distanceKm ? ` · ${profile.distanceKm} km away` : ''}
+            {profile.distanceKm ? ` · ${profile.distanceKm} km away` : ""}
           </p>
 
-          {profile.bio && <p className="mt-3 line-clamp-3 text-sm text-white/80">{profile.bio}</p>}
+          {profile.bio && (
+            <p className="mt-3 line-clamp-3 text-sm text-white/80">
+              {profile.bio}
+            </p>
+          )}
 
           {profile.prompts[0] && (
             <div className="mt-3 rounded-xl border border-gold-400/20 bg-ink-900/60 p-3">
               <p className="text-xs font-medium uppercase tracking-wider text-gold-300">
                 {profile.prompts[0].question}
               </p>
-              <p className="mt-1 text-sm text-white/90">{profile.prompts[0].answer}</p>
+              <p className="mt-1 text-sm text-white/90">
+                {profile.prompts[0].answer}
+              </p>
             </div>
           )}
 
@@ -774,19 +884,27 @@ function SwipeCard({
 interface ActionButtonProps {
   children: React.ReactNode;
   onClick: () => void;
-  variant?: 'outline' | 'circle';
+  variant?: "outline" | "circle";
   disabled?: boolean;
-  tone?: 'red' | 'green' | 'cyan';
+  tone?: "red" | "green" | "cyan";
   label?: string;
   title?: string;
 }
 
-function ActionButton({ children, onClick, variant, disabled, tone, label, title }: ActionButtonProps) {
-  if (variant === 'circle') {
+function ActionButton({
+  children,
+  onClick,
+  variant,
+  disabled,
+  tone,
+  label,
+  title,
+}: ActionButtonProps) {
+  if (variant === "circle") {
     const toneClasses: Record<string, string> = {
-      red: 'border-red-400/40 text-red-400 hover:bg-red-400/10',
-      green: 'border-green-400/40 text-green-400 hover:bg-green-400/10',
-      cyan: 'border-cyan-400/40 text-cyan-400 hover:bg-cyan-400/10',
+      red: "border-red-400/40 text-red-400 hover:bg-red-400/10",
+      green: "border-green-400/40 text-green-400 hover:bg-green-400/10",
+      cyan: "border-cyan-400/40 text-cyan-400 hover:bg-cyan-400/10",
     };
     return (
       <button
@@ -795,7 +913,9 @@ function ActionButton({ children, onClick, variant, disabled, tone, label, title
         title={title}
         aria-label={label}
         className={`flex h-12 w-12 items-center justify-center rounded-full border-2 bg-ink-900 text-lg transition disabled:opacity-30 disabled:cursor-not-allowed ${
-          tone ? toneClasses[tone] : 'border-white/20 text-white/60 hover:bg-white/10'
+          tone
+            ? toneClasses[tone]
+            : "border-white/20 text-white/60 hover:bg-white/10"
         }`}
       >
         {children}
@@ -803,9 +923,9 @@ function ActionButton({ children, onClick, variant, disabled, tone, label, title
     );
   }
   const className =
-    variant === 'outline'
-      ? 'btn-gold-outline w-full max-w-xs px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]'
-      : 'btn-gold w-full max-w-xs px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]';
+    variant === "outline"
+      ? "btn-gold-outline w-full max-w-xs px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]"
+      : "btn-gold w-full max-w-xs px-6 py-3 text-sm font-medium uppercase tracking-[0.18em]";
   return (
     <button onClick={onClick} className={className}>
       {children}
@@ -823,7 +943,15 @@ interface ConvinceMeModalProps {
   onSkip: () => void;
 }
 
-function ConvinceMeModal({ open, profile, text, onTextChange, onConfirm, onCancel, onSkip }: ConvinceMeModalProps) {
+function ConvinceMeModal({
+  open,
+  profile,
+  text,
+  onTextChange,
+  onConfirm,
+  onCancel,
+  onSkip,
+}: ConvinceMeModalProps) {
   if (!profile) return null;
   const photoUrl = profile.photos[0]?.url;
   const overLimit = text.length > 280;
@@ -840,10 +968,10 @@ function ConvinceMeModal({ open, profile, text, onTextChange, onConfirm, onCance
           onClick={onCancel}
         >
           <motion.div
-            initial={{ y: '100%' }}
+            initial={{ y: "100%" }}
             animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
             onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-md rounded-t-3xl border-t border-gold-400/30 bg-ink-950 p-6 pb-safe"
           >
@@ -861,7 +989,9 @@ function ConvinceMeModal({ open, profile, text, onTextChange, onConfirm, onCance
                   Convince Me
                 </p>
                 <p className="text-sm text-white/80">
-                  Why should <span className="text-white">{profile.displayName}</span> match with you?
+                  Why should{" "}
+                  <span className="text-white">{profile.displayName}</span>{" "}
+                  match with you?
                 </p>
               </div>
             </div>
@@ -874,21 +1004,35 @@ function ConvinceMeModal({ open, profile, text, onTextChange, onConfirm, onCance
               rows={4}
               className="input-luxe mt-4 w-full resize-none rounded-xl border border-white/10 bg-ink-900 p-3 text-sm text-white placeholder:text-white/40"
             />
-            <div className={`mt-1 text-right text-[10px] ${overLimit ? 'text-red-400' : 'text-white/40'}`}>
+            <div
+              className={`mt-1 text-right text-[10px] ${overLimit ? "text-red-400" : "text-white/40"}`}
+            >
               {text.length} / 280
             </div>
 
             <div className="mt-4 flex flex-col gap-2">
-              <button onClick={() => onConfirm(true)} className="btn-gold w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]">
+              <button
+                onClick={() => onConfirm(true)}
+                className="btn-gold w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]"
+              >
                 Send Super Like
               </button>
-              <button onClick={() => onConfirm(false)} className="btn-gold-outline w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]">
+              <button
+                onClick={() => onConfirm(false)}
+                className="btn-gold-outline w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]"
+              >
                 Send Like
               </button>
-              <button onClick={onSkip} className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white/70">
+              <button
+                onClick={onSkip}
+                className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white/70"
+              >
                 Skip the note
               </button>
-              <button onClick={onCancel} className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/30 hover:text-white/50">
+              <button
+                onClick={onCancel}
+                className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/30 hover:text-white/50"
+              >
                 Cancel
               </button>
             </div>
@@ -906,7 +1050,12 @@ interface MatchModalProps {
   onViewMatches: () => void;
 }
 
-function MatchModal({ profile, note, onClose, onViewMatches }: MatchModalProps) {
+function MatchModal({
+  profile,
+  note,
+  onClose,
+  onViewMatches,
+}: MatchModalProps) {
   if (!profile) return null;
   return (
     <AnimatePresence>
@@ -922,12 +1071,14 @@ function MatchModal({ profile, note, onClose, onViewMatches }: MatchModalProps) 
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          transition={{ type: 'spring', damping: 20 }}
+          transition={{ type: "spring", damping: 20 }}
           onClick={(e) => e.stopPropagation()}
           className="relative mx-6 max-w-sm rounded-3xl border border-gold-400/40 bg-ink-900 p-6 text-center"
         >
           <div className="absolute inset-x-0 -top-px mx-auto h-1 w-32 rounded-full bg-gradient-to-r from-transparent via-gold-400 to-transparent" />
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gold-300">It&apos;s a Match</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-gold-300">
+            It&apos;s a Match
+          </p>
           <h2 className="display-heading mt-2 text-3xl font-light text-white">
             You and {profile.displayName}
           </h2>
@@ -943,16 +1094,26 @@ function MatchModal({ profile, note, onClose, onViewMatches }: MatchModalProps) 
 
           {note && (
             <div className="mt-5 rounded-xl border border-gold-400/20 bg-ink-950/60 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300">Your note</p>
-              <p className="mt-2 text-sm italic text-white/90">&ldquo;{note}&rdquo;</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-300">
+                Your note
+              </p>
+              <p className="mt-2 text-sm italic text-white/90">
+                &ldquo;{note}&rdquo;
+              </p>
             </div>
           )}
 
           <div className="mt-6 flex flex-col gap-2">
-            <button onClick={onViewMatches} className="btn-gold w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]">
+            <button
+              onClick={onViewMatches}
+              className="btn-gold w-full py-3 text-sm font-semibold uppercase tracking-[0.18em]"
+            >
               Send a message
             </button>
-            <button onClick={onClose} className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white/70">
+            <button
+              onClick={onClose}
+              className="w-full py-2 text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white/70"
+            >
               Keep browsing
             </button>
           </div>
@@ -968,7 +1129,9 @@ function DiscoverSkeleton() {
       <div className="absolute inset-0 bg-ink-radial pointer-events-none" />
       <header className="relative z-10 flex items-center justify-between px-6 pt-safe pt-6">
         <span className="w-12 text-xs text-white/40">‹ Back</span>
-        <h1 className="text-xs font-medium uppercase tracking-[0.3em] text-gold-300">Discover</h1>
+        <h1 className="text-xs font-medium uppercase tracking-[0.3em] text-gold-300">
+          Discover
+        </h1>
         <span className="w-12 text-xs text-white/40">Filters</span>
       </header>
       <main className="relative z-10 flex flex-1 flex-col px-4 pb-20">
@@ -976,7 +1139,10 @@ function DiscoverSkeleton() {
           <div className="aspect-[3/4] w-full animate-pulse rounded-3xl bg-ink-800" />
           <div className="mt-4 flex justify-center gap-4">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-12 w-12 animate-pulse rounded-full bg-ink-800" />
+              <div
+                key={i}
+                className="h-12 w-12 animate-pulse rounded-full bg-ink-800"
+              />
             ))}
           </div>
         </div>
@@ -992,7 +1158,12 @@ interface ReportModalProps {
   onBlock: () => void;
 }
 
-function ReportModal({ profile, onClose, onReport, onBlock }: ReportModalProps) {
+function ReportModal({
+  profile,
+  onClose,
+  onReport,
+  onBlock,
+}: ReportModalProps) {
   if (!profile) return null;
   return (
     <AnimatePresence>
@@ -1005,10 +1176,10 @@ function ReportModal({ profile, onClose, onReport, onBlock }: ReportModalProps) 
         onClick={onClose}
       >
         <motion.div
-          initial={{ y: '100%' }}
+          initial={{ y: "100%" }}
           animate={{ y: 0 }}
-          exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", damping: 30, stiffness: 300 }}
           onClick={(e) => e.stopPropagation()}
           className="relative w-full max-w-md rounded-t-3xl border-t border-gold-400/30 bg-ink-950 p-6 pb-safe"
         >
@@ -1017,11 +1188,14 @@ function ReportModal({ profile, onClose, onReport, onBlock }: ReportModalProps) 
             Report or block {profile.displayName}
           </p>
           <p className="mt-2 text-sm text-white/70">
-            Blocking removes them from your deck. Reports send a private note to our team.
+            Blocking removes them from your deck. Reports send a private note to
+            our team.
           </p>
 
           <div className="mt-4 space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Report reason</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+              Report reason
+            </p>
             {REPORT_REASONS.map((r) => (
               <button
                 key={r}
