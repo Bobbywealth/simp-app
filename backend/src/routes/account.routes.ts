@@ -297,7 +297,9 @@ accountRouter.delete('/account/me', requireAuth, async (req: AuthedRequest, res,
             metadata: { schemaVersion: 2 },
           },
         }),
-        tx.profile.update({
+        // updateMany: a user who signed up but never created a profile has no
+        // profile row, and update() would throw P2025 and block deletion.
+        tx.profile.updateMany({
           where: { userId },
           data: {
             displayName: '[Deleted]',

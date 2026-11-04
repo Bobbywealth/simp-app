@@ -1,5 +1,6 @@
 import { discoveryAudience } from '../utils/demo-accounts.js';
 import { Prisma } from '@prisma/client';
+import { publicPhotoWhere } from '../services/photo-visibility.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/db.js';
@@ -65,7 +66,7 @@ swipesRouter.post(
             select: {
               id: true,
               profile: { select: { displayName: true } },
-              photos: { orderBy: { position: 'asc' }, take: 1 },
+              photos: { where: publicPhotoWhere(), orderBy: { position: 'asc' }, take: 1 },
             },
           }),
           tx.block.findFirst({

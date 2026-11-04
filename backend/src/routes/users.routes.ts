@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { publicPhotoWhere } from '../services/photo-visibility.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/db.js';
@@ -595,7 +596,7 @@ usersRouter.get('/:id', requireAuth, async (req: AuthedRequest, res, next) => {
       select: {
         id: true,
         profile: true,
-        photos: { orderBy: { position: 'asc' } },
+        photos: { where: targetId === req.userId ? undefined : publicPhotoWhere(), orderBy: { position: 'asc' } },
         prompts: { orderBy: { position: 'asc' } },
         interests: { include: { interest: true } },
       },
