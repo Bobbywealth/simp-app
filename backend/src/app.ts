@@ -25,6 +25,7 @@ import { messagesRouter } from './routes/messages.routes.js';
 import { moderationRouter } from './routes/moderation.routes.js';
 import { notificationsRouter } from './routes/notifications.routes.js';
 import { photosRouter } from './routes/photos.routes.js';
+import { planChatRouter } from './routes/plan-chat.routes.js';
 import { publicRouter } from './routes/public.routes.js';
 import { swipesRouter } from './routes/swipes.routes.js';
 import { waitlistRouter } from './routes/waitlist.routes.js';
@@ -116,7 +117,7 @@ export function createApp() {
   app.use('/admin', limiter(60_000, 120));
   app.use('/notifications', limiter(60_000, 120));
   app.use('/users', limiter(60_000, 120));
-  app.use('/experiences', limiter(60_000, 60));
+  app.use('/experiences', limiter(60_000, 120));
 
   app.use('/health', healthRouter);
   app.use(webhooksRouter);
@@ -133,6 +134,7 @@ export function createApp() {
   app.use(liveRouter);
   app.use(notificationsRouter);
   app.use(experiencesRouter);
+  app.use(planChatRouter);
   app.use(analyticsRouter);
   app.use(adminRouter);
   app.use(adminOperationsRouter);

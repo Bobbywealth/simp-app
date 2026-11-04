@@ -815,7 +815,15 @@ function PlanSection({
   if (people.length === 0) {
     return (
       <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-200">Who&apos;s going</p>
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-200">Who&apos;s going</p>
+          <button
+            onClick={() => onOpen(`/experiences/${experienceId}/chat`)}
+            className="rounded-full bg-gold-400 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-950"
+          >
+            Group chat
+          </button>
+        </div>
         <p className="mt-2 text-sm text-white/55">Guests will show up here as the host approves them.</p>
       </section>
     );
@@ -823,7 +831,15 @@ function PlanSection({
 
   return (
     <section className="mt-6 rounded-2xl border border-gold-300/20 bg-white/[0.03] p-4" aria-label="Who is on this plan">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-200">Who&apos;s going</p>
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gold-200">Who&apos;s going</p>
+        <button
+          onClick={() => onOpen(`/experiences/${experienceId}/chat`)}
+          className="rounded-full bg-gold-400 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-950"
+        >
+          Group chat
+        </button>
+      </div>
       <ul className="mt-3 space-y-3">
         {people.map((person) => {
           const matchId = matched[person.id] ?? (person.matched ? person.matchId : null);

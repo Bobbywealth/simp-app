@@ -38,6 +38,8 @@ export interface Experience {
   approvedCount: number;
   venue: string | null;
   logistics: string | null;
+  /** True for sample plans, which only test accounts can see. */
+  isDemo?: boolean;
 }
 
 export interface MyExperienceRequest {
@@ -199,4 +201,28 @@ export function setSeeAgain(experienceId: string, userId: string, again: boolean
     `/experiences/${experienceId}/see-again`,
     { method: 'POST', body: JSON.stringify({ userId, again }) },
   );
+}
+
+export interface PlanChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string | null;
+  senderPhotoUrl: string | null;
+  body: string;
+  createdAt: string;
+  mine: boolean;
+}
+
+export function getPlanChat(experienceId: string, before?: string) {
+  const qs = before ? `?before=${encodeURIComponent(before)}` : '';
+  return apiFetch<{ messages: PlanChatMessage[]; nextCursor: string | null; hasMore: boolean }>(
+    `/experiences/${experienceId}/chat${qs}`,
+  );
+}
+
+export function sendPlanChat(experienceId: string, body: string) {
+  return apiFetch<{ message: PlanChatMessage }>(`/experiences/${experienceId}/chat`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  });
 }

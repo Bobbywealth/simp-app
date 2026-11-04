@@ -196,8 +196,15 @@ function DiscoverCard({ experience, index, onOpen }: { experience: Experience; i
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/30" aria-hidden />
 
         <div className="absolute inset-x-4 top-4 flex items-start justify-between">
-          <span className="rounded-full border border-gold-300/40 bg-black/55 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-200 backdrop-blur">
-            {EXPERIENCE_CATEGORY_LABELS[experience.category]}
+          <span className="flex gap-2">
+            <span className="rounded-full border border-gold-300/40 bg-black/55 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-200 backdrop-blur">
+              {EXPERIENCE_CATEGORY_LABELS[experience.category]}
+            </span>
+            {experience.isDemo && (
+              <span className="rounded-full border border-white/25 bg-black/55 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80 backdrop-blur">
+                Sample
+              </span>
+            )}
           </span>
           {price ? (
             <span className="rounded-full bg-gold-400 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-950">{price}</span>

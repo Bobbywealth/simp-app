@@ -14,3 +14,12 @@ export function discoveryAudience(email: string): Prisma.UserWhereInput {
   };
   return isDemoAccount(email) ? demo : { NOT: demo };
 }
+
+/** Sample plans are hosted by non-loginable seed accounts; only test accounts can see or join them. */
+export function isSimulatedHost(email: string | null | undefined): boolean {
+  return (email ?? "").trim().toLowerCase().endsWith(DEMO_EMAIL_SUFFIX);
+}
+/** Real members and test accounts live in separate worlds: neither sees the other's plans. */
+export function sameDemoAudience(viewerEmail: string | null | undefined, hostEmail: string | null | undefined): boolean {
+  return isDemoAccount(viewerEmail) === isDemoAccount(hostEmail);
+}

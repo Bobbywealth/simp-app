@@ -581,9 +581,10 @@ test("tampered token is rejected", () =>
 test("refresh cookie TTL matches 30 day setting", () =>
   assert.equal(jwtUtils.refreshTtlMs(), 30 * 86400000));
 function experiencesFixture(overrides = {}) {
-  const state = { created: [], listQuery: null, matchesCreated: [], seeAgain: [] };
+  const state = { created: [], listQuery: null, matchesCreated: [], seeAgain: [], planMessages: [] };
   const host = {
     id: "host1",
+    email: overrides.hostEmail,
     profile: { displayName: "Host", birthDate: new Date("1990-01-01") },
     photos: [],
   };
@@ -602,8 +603,10 @@ function experiencesFixture(overrides = {}) {
   };
   const prisma = {
     user: {
-      findUnique: async () =>
-        overrides.user ?? { status: "ACTIVE", emailVerified: true },
+      findUnique: async ({ where }) => ({
+        ...(overrides.user ?? { status: "ACTIVE", emailVerified: true }),
+        email: where?.id === "host1" ? overrides.hostEmail : overrides.viewerEmail,
+      }),
       findMany: async () => overrides.planUsers ?? [],
     },
     profile: {
@@ -618,6 +621,12 @@ function experiencesFixture(overrides = {}) {
       },
       update: async ({ data }) => ({ id: "m1", ...data }),
       upsert: async () => ({ id: "m1" }),
+    },
+    planMessage: {
+      create: async ({ data }) => {
+        state.planMessages.push(data);
+        return { id: "pm1", ...data };
+      },
     },
     conversation: {
       findUnique: async () => ({ id: "c1" }),
@@ -660,6 +669,7 @@ function experiencesFixture(overrides = {}) {
         note: null,
         createdAt: new Date(),
       }),
+      update: async ({ data }) => ({ id: "r1", note: null, createdAt: new Date(), ...data }),
     },
   };
   const auth = {
@@ -677,6 +687,7 @@ function experiencesFixture(overrides = {}) {
       "../utils/errors.js": errors,
       "../services/notification.service.js": { notify: async () => ({}) },
       "../sockets/realtime.js": { getRealtimeServer: () => null },
+      "../utils/demo-accounts.js": source("backend/src/utils/demo-accounts.ts"),
     },
   );
   const app = express();
@@ -744,7 +755,15 @@ test("browse does not expose private venue or logistics", async () => {
   assert.equal(r.status, 200);
   assert.equal(r.body.experiences[0].venue, null);
   assert.equal(r.body.experiences[0].logistics, null);
-  assert.equal(f.state.listQuery.where.host.status, "ACTIVE");
+  assert.deepEqual(f.state.listQuery.where.host.AND[0], { status: "ACTIVE" });
+});
+test("browse separates real members from sample plans", async () => {
+  const real = experiencesFixture({ viewerEmail: "member@example.com" });
+  await request(real.app).get("/experiences");
+  assert.deepEqual(real.state.listQuery.where.host.AND[1].NOT.OR[0], { email: { endsWith: "@simp-seed.demo", mode: "insensitive" } });
+  const tester = experiencesFixture({ viewerEmail: "review@sim-p.app" });
+  await request(tester.app).get("/experiences");
+  assert.ok(tester.state.listQuery.where.host.AND[1].OR);
 });
 test("unapproved viewer cannot read exact venue via detail API", async () => {
   const f = experiencesFixture();
@@ -805,6 +824,96 @@ test("see again cannot revive a match someone already ended", async () => {
   const f = experiencesFixture({ userId: "host1", experience: PAST_PLAN, planUsers: [guestUser], approvedRequests: [{ requesterId: "guest1" }], reciprocal: true, existingMatch: { id: "m1", isActive: false, kind: "PLAN" } });
   const r = await request(f.app).post("/experiences/exp1/see-again").send({ userId: "guest1", again: true });
   assert.equal(r.body.matched, false);
+});
+const SAMPLE_HOST = "testing-women-02@simp-seed.demo";
+test("real members cannot open a sample plan", async () => {
+  const f = experiencesFixture({ hostEmail: SAMPLE_HOST, viewerEmail: "member@example.com" });
+  assert.equal((await request(f.app).get("/experiences/exp1")).status, 404);
+});
+test("real members cannot join a sample plan", async () => {
+  const f = experiencesFixture({ hostEmail: SAMPLE_HOST, viewerEmail: "member@example.com" });
+  assert.equal((await request(f.app).post("/experiences/exp1/requests").send({})).status, 404);
+});
+test("test accounts cannot open a real member's plan", async () => {
+  const f = experiencesFixture({ hostEmail: "real-host@example.com", viewerEmail: "review@sim-p.app" });
+  assert.equal((await request(f.app).get("/experiences/exp1")).status, 404);
+});
+test("a tester joining a sample plan is approved and greeted in the plan chat", async () => {
+  const f = experiencesFixture({ hostEmail: SAMPLE_HOST, viewerEmail: "review@sim-p.app" });
+  const r = await request(f.app).post("/experiences/exp1/requests").send({});
+  assert.equal(r.status, 201);
+  assert.equal(r.body.request.status, "APPROVED");
+  assert.equal(f.state.planMessages.length, 1);
+  assert.equal(f.state.planMessages[0].senderId, "host1");
+});
+test("sample plans let testers try see-again before the plan happens", async () => {
+  const f = experiencesFixture({ hostEmail: SAMPLE_HOST, viewerEmail: "review@sim-p.app", myRequest: { id: "r1", status: "APPROVED" }, planUsers: [{ id: "host1", profile: { displayName: "Host", birthDate: new Date("1990-01-01") }, photos: [] }] });
+  const r = await request(f.app).get("/experiences/exp1");
+  assert.equal(r.body.isDemo, true);
+  assert.equal(r.body.plan.seeAgain.open, true);
+});
+test("the sample host always sees a tester again, so a match forms", async () => {
+  const f = experiencesFixture({ userId: "tester1", hostEmail: SAMPLE_HOST, viewerEmail: "review@sim-p.app", myRequest: { id: "r1", status: "APPROVED" }, existingRequest: { id: "r1", status: "APPROVED" }, planUsers: [{ id: "host1", profile: { displayName: "Host", birthDate: new Date("1990-01-01") }, photos: [] }] });
+  const r = await request(f.app).post("/experiences/exp1/see-again").send({ userId: "host1", again: true });
+  assert.equal(r.body.matched, true);
+  assert.equal(f.state.matchesCreated[0].kind, "MUTUAL");
+});
+function chatFixture(overrides = {}) {
+  const state = { messages: [], emitted: [] };
+  const prisma = {
+    experience: { findUnique: async () => overrides.missing ? null : { id: "exp1", hostId: "host1", title: "Dinner", isActive: true, status: overrides.status ?? "OPEN" } },
+    experienceRequest: {
+      findFirst: async () => (overrides.approved ? { id: "r1" } : null),
+      findMany: async () => [{ requesterId: "guest1" }, { requesterId: "guest2" }],
+    },
+    block: { findMany: async () => overrides.blocks ?? [] },
+    user: { findMany: async () => [{ id: "host1", profile: { displayName: "Host" }, photos: [] }, { id: "guest1", profile: { displayName: "Guest" }, photos: [] }] },
+    planMessage: {
+      findMany: async (query) => { state.query = query; return overrides.rows ?? []; },
+      create: async ({ data }) => { const m = { id: "pm" + (state.messages.length + 1), createdAt: new Date(), ...data }; state.messages.push(m); return m; },
+    },
+  };
+  const auth = { requireAuth: (req, _res, next) => { req.userId = overrides.userId ?? "guest1"; next(); } };
+  const { planChatRouter } = source("backend/src/routes/plan-chat.routes.ts", {
+    "../config/db.js": { prisma },
+    "../middleware/auth.js": auth,
+    "../utils/errors.js": errors,
+    "../sockets/realtime.js": { getRealtimeServer: () => ({ to: (room) => ({ emit: (event) => state.emitted.push([room, event]) }) }) },
+  });
+  const app = express();
+  app.use(express.json());
+  app.use(planChatRouter);
+  app.use((error, _req, res, _next) => res.status(error instanceof errors.AppError ? error.status : 400).json({ error: error.code ?? "validation_error" }));
+  return { app, state };
+}
+test("plan chat is closed to people who are not on the plan", async () => {
+  const f = chatFixture({ approved: false });
+  assert.equal((await request(f.app).get("/experiences/exp1/chat")).status, 403);
+  assert.equal((await request(f.app).post("/experiences/exp1/chat").send({ body: "hi" })).status, 403);
+  assert.equal(f.state.messages.length, 0);
+});
+test("approved guests can post, and everyone else on the plan is notified in real time", async () => {
+  const f = chatFixture({ approved: true });
+  const r = await request(f.app).post("/experiences/exp1/chat").send({ body: "  hello all  " });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.message.body, "hello all");
+  assert.equal(r.body.message.mine, true);
+  const rooms = f.state.emitted.map((e) => e[0]).sort();
+  assert.deepEqual(rooms, ["user:guest2", "user:host1"]);
+});
+test("plan chat rejects empty and oversize messages", async () => {
+  const f = chatFixture({ approved: true });
+  assert.equal((await request(f.app).post("/experiences/exp1/chat").send({ body: "   " })).status, 400);
+  assert.equal((await request(f.app).post("/experiences/exp1/chat").send({ body: "x".repeat(1001) })).status, 400);
+});
+test("plan chat hides messages from people the viewer has a block with", async () => {
+  const f = chatFixture({ approved: true, blocks: [{ blockerId: "guest1", blockedId: "guest2" }] });
+  await request(f.app).get("/experiences/exp1/chat");
+  assert.deepEqual(f.state.query.where.senderId, { notIn: ["guest2"] });
+});
+test("host can read the plan chat and a cancelled plan has none", async () => {
+  assert.equal((await request(chatFixture({ userId: "host1" }).app).get("/experiences/exp1/chat")).status, 200);
+  assert.equal((await request(chatFixture({ userId: "host1", status: "CANCELLED" }).app).get("/experiences/exp1/chat")).status, 404);
 });
 test("blocked viewer cannot bypass browse exclusion with direct detail URL", async () => {
   const f = experiencesFixture({ blocked: true });

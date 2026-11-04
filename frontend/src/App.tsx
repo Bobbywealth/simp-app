@@ -40,6 +40,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 const BlockedUsers = lazy(() => import('./pages/BlockedUsers'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Verification = lazy(() => import('./pages/Verification'));
+const PlanChat = lazy(() => import('./pages/PlanChat'));
 const Experiences = lazy(() => import('./pages/Experiences'));
 const CreateExperience = lazy(() => import('./pages/CreateExperience'));
 const MyExperiences = lazy(() => import('./pages/MyExperiences'));
@@ -192,6 +193,7 @@ export default function App() {
               <Route path="/experiences" element={<PageTransition routeKey="/experiences"><ProtectedRoute requireOnboarding><Experiences /></ProtectedRoute></PageTransition>} />
               <Route path="/experiences/new" element={<PageTransition routeKey="/experiences/new"><ProtectedRoute requireOnboarding><CreateExperience /></ProtectedRoute></PageTransition>} />
               <Route path="/experiences/mine" element={<PageTransition routeKey="/experiences/mine"><ProtectedRoute requireOnboarding><MyExperiences /></ProtectedRoute></PageTransition>} />
+              <Route path="/experiences/:id/chat" element={<PageTransition routeKey="/experiences/:id/chat"><ProtectedRoute requireOnboarding><PlanChat /></ProtectedRoute></PageTransition>} />
               <Route path="/experiences/:id" element={<PageTransition routeKey="/experiences/:id"><ProtectedRoute requireOnboarding><ExperienceDetail /></ProtectedRoute></PageTransition>} />
               <Route path="/licenses" element={<ProtectedRoute requireOnboarding><Licenses /></ProtectedRoute>} />
               <Route path="/admin/*" element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPER_ADMIN']}><Admin /></ProtectedRoute>} />

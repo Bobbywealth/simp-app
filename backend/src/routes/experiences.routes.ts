@@ -6,6 +6,7 @@ import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth
 import { AppError } from '../utils/errors.js';
 import { notify } from '../services/notification.service.js';
 import { getRealtimeServer } from '../sockets/realtime.js';
+import { discoveryAudience, isDemoAccount, isSimulatedHost, sameDemoAudience } from '../utils/demo-accounts.js';
 
 export const experiencesRouter = Router();
 
@@ -89,6 +90,7 @@ experiencesRouter.get('/experiences', requireAuth, async (req: AuthedRequest, re
       })
       .parse(req.query);
     const me = req.userId!;
+    const viewer = await prisma.user.findUnique({ where: { id: me }, select: { email: true } });
     // Exclude hosts with a block relationship in either direction.
     const blockedIds = await prisma.block.findMany({
       where: { OR: [{ blockerId: me }, { blockedId: me }] },
@@ -103,13 +105,14 @@ experiencesRouter.get('/experiences', requireAuth, async (req: AuthedRequest, re
       where: {
         status: 'OPEN',
         isActive: true,
-        host: { status: 'ACTIVE' },
+        // Test accounts see only sample plans; real members never see them.
+        host: { AND: [{ status: 'ACTIVE' }, discoveryAudience(viewer?.email ?? '')] },
         startsAt: { gt: new Date() },
         hostId: { not: me, ...(excludedHostIds.size ? { notIn: [...excludedHostIds] } : {}) },
         ...(input.city ? { city: { equals: input.city, mode: 'insensitive' } } : {}),
         ...(input.category ? { category: input.category } : {}),
       },
-      include: { host: { select: hostSelect } },
+      include: { host: { select: { ...hostSelect, email: true } } },
       orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
       take: input.limit + 1,
       ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
@@ -117,11 +120,12 @@ experiencesRouter.get('/experiences', requireAuth, async (req: AuthedRequest, re
     const hasMore = rows.length > input.limit;
     const page = hasMore ? rows.slice(0, input.limit) : rows;
     const counts = await approvedCountsByExperience(page.map((r) => r.id));
-    const experiences = page.map((r) => ({
+    const experiences = page.map(({ host, ...r }) => ({
       ...r,
       venue: null,
       logistics: null,
-      host: shapeHost(r.host),
+      isDemo: isDemoAccount(host.email),
+      host: shapeHost(host),
       approvedCount: counts.get(r.id) ?? 0,
     }));
     res.json({
@@ -235,10 +239,10 @@ experiencesRouter.post('/experiences', requireAuth, async (req: AuthedRequest, r
 export const SEE_AGAIN_OPENS_AFTER_MS = 2 * 60 * 60 * 1000;
 export const SEE_AGAIN_CLOSES_AFTER_MS = 14 * 24 * 60 * 60 * 1000;
 
-export function seeAgainWindow(startsAtValue: Date | null, now = new Date()) {
+export function seeAgainWindow(startsAtValue: Date | null, now = new Date(), skipWait = false) {
   if (!startsAtValue) return { opensAt: null, closesAt: null, open: false };
   const startsAt = startsAtValue;
-  const opensAt = new Date(startsAt.getTime() + SEE_AGAIN_OPENS_AFTER_MS);
+  const opensAt = skipWait ? now : new Date(startsAt.getTime() + SEE_AGAIN_OPENS_AFTER_MS);
   const closesAt = new Date(startsAt.getTime() + SEE_AGAIN_CLOSES_AFTER_MS);
   return { opensAt, closesAt, open: now >= opensAt && now <= closesAt };
 }
@@ -291,9 +295,13 @@ experiencesRouter.get('/experiences/:id', requireAuth, async (req: AuthedRequest
     const me = req.userId!;
     const experience = await prisma.experience.findUnique({
       where: { id },
-      include: { host: { select: hostSelect } },
+      include: { host: { select: { ...hostSelect, email: true } } },
     });
     if (!experience) {
+      throw new AppError('experience_not_found', 404, 'Experience not found.');
+    }
+    const viewer = await prisma.user.findUnique({ where: { id: me }, select: { email: true } });
+    if (!sameDemoAudience(viewer?.email, experience.host.email)) {
       throw new AppError('experience_not_found', 404, 'Experience not found.');
     }
     const block = await prisma.block.findFirst({
@@ -326,11 +334,13 @@ experiencesRouter.get('/experiences/:id', requireAuth, async (req: AuthedRequest
           select: { toUserId: true },
         }),
       ]);
-      const win = seeAgainWindow(experience.startsAt);
+      // Sample plans have a simulated host, so testers can try "see again" without waiting.
+      const win = seeAgainWindow(experience.startsAt, new Date(), isSimulatedHost(experience.host.email));
       plan = { people, seeAgain: { ...win, mine: mine.map((m) => m.toUserId) } };
     }
     res.json({
       ...experience,
+      isDemo: isDemoAccount(experience.host.email),
       plan,
       venue: isHost || myRequest?.status === 'APPROVED' ? experience.venue : null,
       logistics: isHost || myRequest?.status === 'APPROVED' ? experience.logistics : null,
@@ -473,6 +483,13 @@ experiencesRouter.post('/experiences/:id/requests', requireAuth, async (req: Aut
     if (!experience) {
       throw new AppError('experience_not_found', 404, 'Experience not found.');
     }
+    const [viewer, hostUser] = await Promise.all([
+      prisma.user.findUnique({ where: { id: me }, select: { email: true } }),
+      prisma.user.findUnique({ where: { id: experience.hostId }, select: { email: true } }),
+    ]);
+    if (!sameDemoAudience(viewer?.email, hostUser?.email)) {
+      throw new AppError('experience_not_found', 404, 'Experience not found.');
+    }
     if (experience.hostId === me) {
       throw new AppError('cannot_request_own', 403, 'You cannot request to join your own experience.');
     }
@@ -526,6 +543,34 @@ experiencesRouter.post('/experiences/:id/requests', requireAuth, async (req: Aut
         status: 'PENDING',
       },
     });
+
+    // Sample plans have a simulated host (a non-loginable test account), so a tester's request is
+    // approved straight away, the host connects and says hello in the plan chat.
+    if (isSimulatedHost(hostUser?.email)) {
+      const approvedCount = await prisma.experienceRequest.count({ where: { experienceId: id, status: 'APPROVED' } });
+      if (experience.capacity == null || approvedCount < experience.capacity) {
+        const approved = await prisma.experienceRequest.update({ where: { id: joinRequest.id }, data: { status: 'APPROVED' } });
+        const [userAId, userBId] = [experience.hostId, me].sort() as [string, string];
+        await prisma.match.upsert({
+          where: { userAId_userBId: { userAId, userBId } },
+          create: { userAId, userBId, kind: 'PLAN', experienceId: id, conversation: { create: {} } },
+          update: { isActive: true, deactivatedAt: null, deactivatedById: null },
+        });
+        await prisma.planMessage.create({
+          data: {
+            experienceId: id,
+            senderId: experience.hostId,
+            body: `Welcome! Glad you can make it to "${experience.title}". Say hi to everyone here, and ask me anything about the plan.`,
+          },
+        });
+        if (experience.capacity != null && approvedCount + 1 >= experience.capacity) {
+          await prisma.experience.update({ where: { id }, data: { status: 'FULL' } });
+        }
+        return res.status(201).json({
+          request: { id: approved.id, status: approved.status, note: approved.note, createdAt: approved.createdAt },
+        });
+      }
+    }
 
     void notify({
       userId: experience.hostId,
@@ -970,7 +1015,15 @@ experiencesRouter.post('/experiences/:id/see-again', requireAuth, async (req: Au
     if (!experience || !experience.isActive || experience.status === 'CANCELLED') {
       throw new AppError('experience_not_found', 404, 'Experience not found.');
     }
-    if (!seeAgainWindow(experience.startsAt).open) {
+    const [viewerUser, hostUser] = await Promise.all([
+      prisma.user.findUnique({ where: { id: me }, select: { email: true } }),
+      prisma.user.findUnique({ where: { id: experience.hostId }, select: { email: true } }),
+    ]);
+    if (!sameDemoAudience(viewerUser?.email, hostUser?.email)) {
+      throw new AppError('experience_not_found', 404, 'Experience not found.');
+    }
+    const simulatedHost = isSimulatedHost(hostUser?.email);
+    if (!seeAgainWindow(experience.startsAt, new Date(), simulatedHost).open) {
       throw new AppError('see_again_closed', 400, 'You can say who you would like to see again after the plan has happened.');
     }
 
@@ -996,10 +1049,19 @@ experiencesRouter.post('/experiences/:id/see-again', requireAuth, async (req: Au
       create: { experienceId, fromUserId: me, toUserId: input.userId },
       update: {},
     });
-    const reciprocal = await prisma.experienceSeeAgain.findUnique({
+    let reciprocal = await prisma.experienceSeeAgain.findUnique({
       where: { experienceId_fromUserId_toUserId: { experienceId, fromUserId: input.userId, toUserId: me } },
       select: { id: true },
     });
+    if (!reciprocal && simulatedHost && input.userId === experience.hostId) {
+      // The sample host always wants to see a tester again, so the match flow can be tried end to end.
+      reciprocal = await prisma.experienceSeeAgain.upsert({
+        where: { experienceId_fromUserId_toUserId: { experienceId, fromUserId: input.userId, toUserId: me } },
+        create: { experienceId, fromUserId: input.userId, toUserId: me },
+        update: {},
+        select: { id: true },
+      });
+    }
     if (!reciprocal) {
       // One-sided: never reveal anything to the other person.
       return res.json({ again: true, matched: false });

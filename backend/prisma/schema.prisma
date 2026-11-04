@@ -937,3 +937,16 @@ model ExperienceSeeAgain {
   @@unique([experienceId, fromUserId, toUserId])
   @@index([experienceId, toUserId])
 }
+
+/// Group chat for an experience: the host and every approved guest.
+model PlanMessage {
+  id           String    @id @default(cuid())
+  experienceId String
+  senderId     String
+  body         String    @db.VarChar(1000)
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+
+  @@index([experienceId, createdAt])
+  @@index([senderId])
+}
