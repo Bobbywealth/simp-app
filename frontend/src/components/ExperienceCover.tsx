@@ -33,7 +33,7 @@ export function ExperienceCover({
   const showImage = !!imageUrl && !failed;
 
   return (
-    <div className={`overflow-hidden bg-ink-900 ${className}`}>
+    <div className={`relative overflow-hidden bg-ink-900 ${className}`}>
       <div className={`absolute inset-0 bg-gradient-to-br ${categoryGradient(category)}`} aria-hidden />
       {!showImage && (
         <>
@@ -42,7 +42,7 @@ export function ExperienceCover({
             aria-hidden
           />
           <div
-            className="absolute inset-0 flex items-center justify-center text-[8rem] leading-none opacity-30 saturate-50"
+            className="absolute inset-x-0 top-[8%] flex h-1/2 items-center justify-center text-[7rem] leading-none opacity-30 saturate-50"
             aria-hidden
           >
             {CATEGORY_GLYPH[category]}
