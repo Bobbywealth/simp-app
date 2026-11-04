@@ -16,7 +16,7 @@ import {
   uploadPhoto,
   type UploadedPhoto,
 } from '../api/photos';
-import { getMyProfile, patchMyProfile } from '../api/users';
+import { getMyProfile, listInterests, patchMyProfile } from '../api/users';
 import type { Profile } from '../types';
 import { useAuth } from '../store/auth';
 import { Tag } from '../components/Tag';
@@ -45,14 +45,41 @@ function getEditPromptQuestions(lookingFor: string): readonly string[] {
   return LOOKING_FOR_PROMPTS_EDIT[lookingFor as keyof typeof LOOKING_FOR_PROMPTS_EDIT] ?? FOR_EVERYONE;
 }
 
-const INTEREST_OPTIONS = [
-  'Dinner', 'Travel', 'Live Music', 'Art', 'Wine', 'Wellness',
-  'Fashion', 'Fitness', 'Cooking', 'Photography', 'Books', 'Outdoors',
-  'Dancing', 'Volunteering', 'Tech', 'Sports',
-  'Sushi', 'Coffee', 'Brunch', 'Hiking', 'Gaming', 'Movies', 'Yoga', 'Meditation',
-  'Beach', 'Camping', 'Language Learning', 'Museums', 'Podcasts', 'Board Games',
-  'Art Galleries', 'Wine Tasting', 'Road Trips', 'Gardening', 'DIY', 'Crafts',
+interface InterestOption {
+  slug: string;
+  label: string;
+}
+
+/**
+ * Fallback choices, used only when the interest catalog request fails.
+ * Slugs follow the backend convention (kebab-case) so toggling a tag never
+ * creates a duplicate interest row the catalog does not already contain.
+ */
+const FALLBACK_INTEREST_OPTIONS: InterestOption[] = [
+  { slug: 'art', label: 'Art' },
+  { slug: 'books', label: 'Books' },
+  { slug: 'coding', label: 'Coding' },
+  { slug: 'cooking', label: 'Cooking' },
+  { slug: 'fitness', label: 'Fitness' },
+  { slug: 'food', label: 'Food' },
+  { slug: 'jazz', label: 'Jazz' },
+  { slug: 'music', label: 'Music' },
+  { slug: 'reading', label: 'Reading' },
+  { slug: 'travel', label: 'Travel' },
+  { slug: 'wine', label: 'Wine' },
 ];
+
+/** "live-music" -> "Live Music". Mirrors the backend's slug-to-label rule. */
+function labelFromSlug(slug: string): string {
+  return slug
+    .split('-')
+    .join(' ')
+    .split('_')
+    .join(' ')
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
 
 const MAX_CUSTOM_INTERESTS = 3;
 const MAX_INTERESTS = 8;
@@ -74,6 +101,32 @@ interface PhotoItem extends UploadedPhoto {
   /** local file preview url for items not yet uploaded. */
   localUrl?: string;
   uploading?: boolean;
+}
+
+/** Normalizes a server photo record into the shape the editor renders. */
+function toPhotoItem(photo: {
+  id: string;
+  url: string;
+  thumbnailUrl?: string | null;
+  position: number;
+  width?: number | null;
+  height?: number | null;
+  aspectRatio?: number | null;
+}): PhotoItem {
+  const width = photo.width ?? null;
+  const height = photo.height ?? null;
+  const derivedRatio = width && height ? Number((width / height).toFixed(3)) : null;
+  return {
+    id: photo.id,
+    photoId: photo.id,
+    url: photo.url,
+    thumbnailUrl: photo.thumbnailUrl ?? null,
+    position: photo.position,
+    width,
+    height,
+    aspectRatio: photo.aspectRatio ?? derivedRatio,
+    isPrimary: photo.position === 0,
+  };
 }
 
 interface Draft {
@@ -101,6 +154,7 @@ export default function ProfileEdit() {
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SectionKey>('photos');
   const [previewMode, setPreviewMode] = useState(false);
+  const [interestCatalog, setInterestCatalog] = useState<InterestOption[]>(FALLBACK_INTEREST_OPTIONS);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -124,7 +178,14 @@ export default function ProfileEdit() {
 
   async function load() {
     try {
-      const [p, pr] = await Promise.all([getMyProfile(), listMyPrompts()]);
+      const [p, pr, catalog] = await Promise.all([
+        getMyProfile(),
+        listMyPrompts(),
+        listInterests().catch(() => null),
+      ]);
+      if (catalog && catalog.length) {
+        setInterestCatalog(catalog.map((i) => ({ slug: i.slug, label: i.label })));
+      }
       setProfile(p);
       if (p) {
         setDraft({
@@ -138,17 +199,7 @@ export default function ProfileEdit() {
           birthDate: p.birthDate,
           curatedInterests: p.interests.map((i) => i.interest.slug),
           customInterests: p.customInterests ?? [],
-          photos: (p.user?.photos ?? []).map((photo) => ({
-            id: photo.id,
-            photoId: photo.id,
-            url: photo.url,
-            thumbnailUrl: photo.thumbnailUrl ?? null,
-            position: photo.position,
-            width: photo.width ?? null,
-            height: photo.height ?? null,
-            aspectRatio: photo.aspectRatio ?? null,
-            isPrimary: photo.position === 0,
-          })),
+          photos: (p.user?.photos ?? []).map(toPhotoItem),
           prompts: pr.prompts,
         });
       }
@@ -254,35 +305,78 @@ export default function ProfileEdit() {
 
   // Photo management --------------------------------------------------------
 
+  /**
+   * Re-reads the server's photo list so the editor always mirrors stored
+   * state (primary flag, positions, dimensions) instead of a guess.
+   */
+  async function syncPhotos() {
+    try {
+      const p = await getMyProfile();
+      if (!p) return;
+      updateDraft({ photos: (p.user?.photos ?? []).map(toPhotoItem) });
+    } catch {
+      // A failed read-back must not clobber the optimistic local state.
+    }
+  }
+
   async function handlePhotoUpload(file: File, replacingId?: string) {
     setError(null);
+    const current = draft?.photos ?? [];
+    const previewUrl = URL.createObjectURL(file);
+    const replaceIndex = replacingId ? current.findIndex((p) => p.id === replacingId) : -1;
+    const placeholder: PhotoItem = {
+      id: `local-${Date.now()}`,
+      photoId: '',
+      url: previewUrl,
+      thumbnailUrl: null,
+      position: replaceIndex >= 0 ? replaceIndex : current.length,
+      width: null,
+      height: null,
+      aspectRatio: null,
+      isPrimary: false,
+      uploading: true,
+    };
+    // Show the row immediately and mark it as still uploading.
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            photos: replacingId
+              ? d.photos.map((p) => (p.id === replacingId ? placeholder : p))
+              : [...d.photos, placeholder],
+          }
+        : d,
+    );
     try {
       const uploaded = await uploadPhoto(file);
       if (replacingId) {
+        // Keep the slot the old photo occupied: drop the old row, then
+        // reorder so the replacement lands back in the same position.
+        const remaining = current.filter((p) => p.id !== replacingId);
         await deletePhoto(replacingId);
-        updateDraft({
-          photos: draft!.photos.map((p) =>
-            p.id === replacingId ? { ...uploaded, id: uploaded.photoId } : p,
-          ),
-        });
-      } else {
-        updateDraft({
-          photos: [...draft!.photos, uploaded],
-        });
+        if (remaining.length) {
+          const cut = replaceIndex >= 0 ? replaceIndex : 0;
+          const ordered = [...remaining.slice(0, cut), uploaded, ...remaining.slice(cut)];
+          await reorderPhotos(ordered.map((p) => p.id));
+        }
       }
+      await syncPhotos();
       await refresh();
+      flashSaved('photos');
     } catch (e) {
+      await syncPhotos();
       setError((e as Error).message || 'Upload failed.');
+    } finally {
+      URL.revokeObjectURL(previewUrl);
     }
   }
 
   async function handleDeletePhoto(id: string) {
     try {
       await deletePhoto(id);
-      updateDraft({
-        photos: draft!.photos.filter((p) => p.id !== id),
-      });
+      await syncPhotos();
       await refresh();
+      flashSaved('photos');
     } catch (e) {
       setError((e as Error).message);
     }
@@ -291,12 +385,9 @@ export default function ProfileEdit() {
   async function handleMakePrimary(id: string) {
     try {
       await setPrimaryPhoto(id);
-      const sorted = [...draft!.photos];
-      const target = sorted.find((p) => p.id === id);
-      if (!target) return;
-      sorted.sort((a, b) => (a.id === id ? -1 : b.id === id ? 1 : a.position - b.position));
-      updateDraft({ photos: sorted });
+      await syncPhotos();
       await refresh();
+      flashSaved('photos');
     } catch (e) {
       setError((e as Error).message);
     }
@@ -311,6 +402,7 @@ export default function ProfileEdit() {
         return { ...photo, position: index, isPrimary: index === 0 };
       });
       updateDraft({ photos: next });
+      await syncPhotos();
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -341,6 +433,8 @@ export default function ProfileEdit() {
       updateDraft({
         prompts: draft.prompts.map((p) => (p.id === id ? updated : p)),
       });
+      await refresh();
+      flashSaved('prompts');
     } catch (e) {
       setError((e as Error).message || 'Could not update prompt.');
     }
@@ -352,8 +446,13 @@ export default function ProfileEdit() {
       await deletePrompt(id);
       const remaining = draft.prompts.filter((p) => p.id !== id);
       updateDraft({ prompts: remaining });
-      await reorderPrompts(remaining.map((p) => p.id));
+      // The reorder endpoint rejects an empty list, so only rewrite positions
+      // when at least one prompt survives.
+      if (remaining.length) {
+        await reorderPrompts(remaining.map((p) => p.id));
+      }
       await refresh();
+      flashSaved('prompts');
     } catch (e) {
       setError((e as Error).message || 'Could not delete prompt.');
     }
@@ -375,7 +474,29 @@ export default function ProfileEdit() {
   const dragPhoto = useRef<{ id: string; startY: number; offset: number } | null>(null);
   const dragPrompt = useRef<{ id: string; startY: number; offset: number } | null>(null);
 
+  /**
+   * Buttons inside a draggable row (Make primary, Replace, Remove, Edit)
+   * must keep their own click. Capturing the pointer on pointerdown
+   * retargets the following click to the row, which silently swallowed
+   * every one of those button clicks, so a drag must never start from a
+   * control.
+   */
+  function isControlTarget(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null;
+    if (!el || typeof el.closest !== 'function') return false;
+    return Boolean(el.closest('button, a, input, textarea, select, [role="button"]'));
+  }
+
+  function releaseCapture(target: HTMLElement, pointerId: number) {
+    try {
+      if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+    } catch {
+      // The capture may already be gone (pointer up outside the row).
+    }
+  }
+
   function onPhotoDragStart(id: string, event: React.PointerEvent<HTMLLIElement>) {
+    if (isControlTarget(event.target)) return;
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
     dragPhoto.current = { id, startY: event.clientY, offset: 0 };
@@ -386,7 +507,7 @@ export default function ProfileEdit() {
   }
   function onPhotoDragEnd(event: React.PointerEvent<HTMLLIElement>) {
     const target = event.currentTarget;
-    target.releasePointerCapture(event.pointerId);
+    releaseCapture(target, event.pointerId);
     if (!dragPhoto.current || !draft) return;
     const dy = dragPhoto.current.offset;
     dragPhoto.current = null;
@@ -402,6 +523,7 @@ export default function ProfileEdit() {
   }
 
   function onPromptDragStart(id: string, event: React.PointerEvent<HTMLLIElement>) {
+    if (isControlTarget(event.target)) return;
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
     dragPrompt.current = { id, startY: event.clientY, offset: 0 };
@@ -412,7 +534,7 @@ export default function ProfileEdit() {
   }
   function onPromptDragEnd(event: React.PointerEvent<HTMLLIElement>) {
     const target = event.currentTarget;
-    target.releasePointerCapture(event.pointerId);
+    releaseCapture(target, event.pointerId);
     if (!dragPrompt.current || !draft) return;
     const dy = dragPrompt.current.offset;
     dragPrompt.current = null;
@@ -599,6 +721,7 @@ export default function ProfileEdit() {
                 {activeSection === 'interests' && (
                   <InterestsSection
                     draft={draft}
+                    catalog={interestCatalog}
                     onToggleCurated={toggleCuratedInterest}
                     onAddCustom={addCustomInterest}
                     onRemoveCustom={removeCustomInterest}
@@ -747,8 +870,14 @@ function PhotosSection({
                   </p>
                 </div>
                 <p className="mt-0.5 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                  {photo.aspectRatio ? `${photo.aspectRatio.toFixed(2)}:1 · ` : ''}
-                  {photo.width && photo.height ? `${photo.width}×${photo.height}` : 'Uploading…'}
+                  {photo.uploading ? (
+                    'Uploading…'
+                  ) : (
+                    <>
+                      {photo.aspectRatio ? `${photo.aspectRatio.toFixed(2)}:1 · ` : ''}
+                      {photo.width && photo.height ? `${photo.width}×${photo.height}` : 'Uploaded'}
+                    </>
+                  )}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {!photo.isPrimary && (
@@ -1048,6 +1177,7 @@ function PromptsSection({
                   value={draftAnswer}
                   onChange={(event) => setDraftAnswer(event.target.value.slice(0, PROMPT_ANSWER_MAX))}
                   rows={3}
+                  style={{ touchAction: 'auto' }}
                   className="input-luxe w-full resize-none rounded-xl border border-white/10 bg-ink-900 px-3 py-2 text-sm"
                 />
                 <div className="mt-2 flex justify-end gap-2">
@@ -1133,6 +1263,7 @@ function PromptsSection({
 
 function InterestsSection({
   draft,
+  catalog,
   onToggleCurated,
   onAddCustom,
   onRemoveCustom,
@@ -1141,6 +1272,7 @@ function InterestsSection({
   saved,
 }: {
   draft: Draft;
+  catalog: InterestOption[];
   onToggleCurated: (slug: string) => void;
   onAddCustom: (label: string) => void;
   onRemoveCustom: (label: string) => void;
@@ -1149,6 +1281,15 @@ function InterestsSection({
   saved: boolean;
 }) {
   const [customInput, setCustomInput] = useState('');
+  // The server catalog is the source of truth. Interests already on the
+  // profile are unioned in so a tag can never be hidden from its owner.
+  const options = useMemo<InterestOption[]>(() => {
+    const bySlug = new Map(catalog.map((option) => [option.slug, option]));
+    for (const slug of draft.curatedInterests) {
+      if (!bySlug.has(slug)) bySlug.set(slug, { slug, label: labelFromSlug(slug) });
+    }
+    return [...bySlug.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }, [catalog, draft.curatedInterests]);
   return (
     <div>
       <SectionHeader
@@ -1162,16 +1303,15 @@ function InterestsSection({
       <div className="rounded-2xl border border-white/10 bg-ink-900/45 p-4">
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gold-300">Curated</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {INTEREST_OPTIONS.map((label) => {
-            const slug = label.toLowerCase();
-            const active = draft.curatedInterests.includes(slug);
+          {options.map((option) => {
+            const active = draft.curatedInterests.includes(option.slug);
             return (
               <Tag
-                key={slug}
-                label={label}
+                key={option.slug}
+                label={option.label}
                 active={active}
                 size="sm"
-                onClick={() => onToggleCurated(slug)}
+                onClick={() => onToggleCurated(option.slug)}
               />
             );
           })}
