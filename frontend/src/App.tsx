@@ -12,6 +12,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { usePageViewTracker, useAppLifecycleTracker } from './lib/analytics-pageview';
 
+const Landing = lazy(() => import('./pages/Landing'));
 const Welcome = lazy(() => import('./pages/Welcome'));
 const Onboarding = lazy(() => import('./pages/Onboarding'));
 const Signup = lazy(() => import('./pages/Signup'));
@@ -162,7 +163,7 @@ export default function App() {
           >
             <AppShell>
             <Routes>
-              <Route path="/" element={<Navigate to={user ? (user.onboardingCompletedAt ? '/experiences' : '/profile-setup') : '/login'} replace />} />
+              <Route path="/" element={user ? <Navigate to={user.onboardingCompletedAt ? '/experiences' : '/profile-setup'} replace /> : <Landing />} />
               <Route path="/welcome" element={<PageTransition routeKey="/welcome"><Welcome /></PageTransition>} />
               <Route path="/onboarding" element={<PageTransition routeKey="/onboarding"><Onboarding /></PageTransition>} />
               <Route path="/signup" element={<PageTransition routeKey="/signup"><Signup /></PageTransition>} />
