@@ -36,7 +36,7 @@ Database service ID: `dpg-daai2epf2nfc73adhdpg-a` (simp-db-new; old `simp-db` dp
 ## Environment configuration now in place on `simp-backend`
 
 - `NODE_ENV=production`
-- `DATABASE_URL` (from `simp-db`)
+- `DATABASE_URL` (from `simp-db-new`)
 - `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `IP_HASH_SECRET` (regenerated)
 - `ALLOWED_ORIGINS=https://mysimp.com` (HTTPS-only)
 - `PUBLIC_BASE_URL=https://api.mysimp.com`
